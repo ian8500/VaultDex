@@ -44,19 +44,19 @@ struct SearchView: View {
     private var searchField: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
 
             TextField("Search cards, sets, or types", text: $viewModel.query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             if !viewModel.query.isEmpty {
                 Button {
                     viewModel.query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.vdTextSecondary)
+                        .foregroundStyle(Color.vdTextSecondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -100,11 +100,4 @@ struct SearchView: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-#Preview {
-    NavigationStack {
-        SearchView()
-    }
-    .preferredColorScheme(.dark)
 }

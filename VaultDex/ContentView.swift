@@ -14,7 +14,7 @@ struct ContentView: View {
                 DashboardView()
             }
             .tabItem {
-                Label("Dashboard", systemImage: "gauge.with.dots.needle.67percent")
+                Label("Home", systemImage: "house.fill")
             }
 
             NavigationStack {
@@ -42,18 +42,14 @@ struct ContentView: View {
                 SocialProfileView()
             }
             .tabItem {
-                Label("Social", systemImage: "person.crop.circle")
+                Label("Profile", systemImage: "person.crop.circle")
             }
         }
-        .tint(.vdGold)
+        .tint(Color.vdGold)
         .preferredColorScheme(.dark)
         .background(AppBackground())
         .toolbarBackground(Color.vdBackground.opacity(0.95), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
     }
-}
-
-#Preview {
-    ContentView()
 }

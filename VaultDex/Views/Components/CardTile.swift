@@ -19,13 +19,13 @@ struct CardTile: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.name)
                             .font(style == .compact ? .subheadline.weight(.bold) : .headline)
-                            .foregroundStyle(.vdTextPrimary)
+                            .foregroundStyle(Color.vdTextPrimary)
                             .lineLimit(2)
                             .minimumScaleFactor(0.86)
 
                         Text(card.set.code + " · " + card.typeLine)
                             .font(.caption)
-                            .foregroundStyle(.vdTextSecondary)
+                            .foregroundStyle(Color.vdTextSecondary)
                             .lineLimit(1)
                     }
 
@@ -34,7 +34,7 @@ struct CardTile: View {
                     if let quantity {
                         Text("x\(quantity)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.vdGold)
+                            .foregroundStyle(Color.vdGold)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .background(Color.vdGold.opacity(0.14), in: Capsule())
@@ -48,7 +48,7 @@ struct CardTile: View {
 
                     Text(card.marketValue.vaultCurrency)
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(.vdTextPrimary)
+                        .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
@@ -131,10 +131,4 @@ private extension CardAccent {
         case .void: "moon.stars.fill"
         }
     }
-}
-
-#Preview {
-    CardTile(card: DemoVaultRepository.shared.cards[0], quantity: 1)
-        .padding()
-        .background(AppBackground())
 }

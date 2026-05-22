@@ -14,7 +14,7 @@ struct RarityBadge: View {
                 .textCase(.uppercase)
                 .tracking(0.4)
         }
-        .foregroundStyle(.vdTextPrimary)
+        .foregroundStyle(Color.vdTextPrimary)
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(tint.opacity(0.16), in: Capsule())
@@ -34,14 +34,4 @@ struct RarityBadge: View {
         case .mythic: .vdCoral
         }
     }
-}
-
-#Preview {
-    HStack {
-        ForEach(CardRarity.allCases) { rarity in
-            RarityBadge(rarity: rarity)
-        }
-    }
-    .padding()
-    .background(AppBackground())
 }

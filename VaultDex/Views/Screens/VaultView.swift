@@ -33,11 +33,11 @@ struct VaultView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Collection Value")
                         .font(.subheadline)
-                        .foregroundStyle(.vdTextSecondary)
+                        .foregroundStyle(Color.vdTextSecondary)
 
                     Text(viewModel.totalValue.vaultCurrency)
                         .font(.system(.largeTitle, design: .rounded, weight: .black))
-                        .foregroundStyle(.vdTextPrimary)
+                        .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
@@ -46,7 +46,7 @@ struct VaultView: View {
 
                 Image(systemName: "lock.shield.fill")
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(.vdGold)
+                    .foregroundStyle(Color.vdGold)
                     .frame(width: 52, height: 52)
                     .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
             }
@@ -69,11 +69,11 @@ struct VaultView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -124,18 +124,11 @@ struct VaultView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             Text(subtitle)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
         }
     }
-}
-
-#Preview {
-    NavigationStack {
-        VaultView()
-    }
-    .preferredColorScheme(.dark)
 }

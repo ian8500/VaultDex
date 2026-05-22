@@ -22,17 +22,17 @@ struct DashboardStatCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
                     .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundStyle(.vdTextPrimary)
+                    .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 Text(title)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.vdTextPrimary.opacity(0.78))
+                    .foregroundStyle(Color.vdTextPrimary.opacity(0.78))
 
                 Text(caption)
                     .font(.caption)
-                    .foregroundStyle(.vdTextSecondary)
+                    .foregroundStyle(Color.vdTextSecondary)
                     .lineLimit(1)
             }
         }
@@ -44,16 +44,4 @@ struct DashboardStatCard: View {
                 .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    DashboardStatCard(
-        title: "Vault Value",
-        value: "$1.4K",
-        caption: "Demo portfolio",
-        systemImage: "chart.line.uptrend.xyaxis",
-        tint: .vdGold
-    )
-    .padding()
-    .background(AppBackground())
 }

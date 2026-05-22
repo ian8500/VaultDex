@@ -28,7 +28,7 @@ struct SocialProfileView: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: viewModel.profile.avatarSymbol)
                     .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(.vdGold)
+                    .foregroundStyle(Color.vdGold)
                     .frame(width: 72, height: 72)
                     .background(
                         LinearGradient(
@@ -46,16 +46,16 @@ struct SocialProfileView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(viewModel.profile.displayName)
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.vdTextPrimary)
+                        .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
 
                     Text(viewModel.profile.handle)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.vdGold)
+                        .foregroundStyle(Color.vdGold)
 
                     Text(viewModel.profile.bio)
                         .font(.subheadline)
-                        .foregroundStyle(.vdTextSecondary)
+                        .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -87,24 +87,24 @@ struct SocialProfileView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(progress.set.name)
+                                Text(progress.cardSet.name)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.vdTextPrimary)
+                                    .foregroundStyle(Color.vdTextPrimary)
 
-                                Text(progress.set.code + " · " + "\(progress.set.releaseYear)")
+                                Text(progress.cardSet.code + " · " + "\(progress.cardSet.releaseYear)")
                                     .font(.caption)
-                                    .foregroundStyle(.vdTextSecondary)
+                                    .foregroundStyle(Color.vdTextSecondary)
                             }
 
                             Spacer()
 
                             Text("\(progress.owned)/\(progress.total)")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(.vdGold)
+                                .foregroundStyle(Color.vdGold)
                         }
 
                         ProgressView(value: progress.fraction)
-                            .tint(.vdGold)
+                            .tint(Color.vdGold)
                             .background(Color.vdStroke.opacity(0.6), in: Capsule())
                     }
                     .padding(14)
@@ -147,11 +147,11 @@ struct SocialProfileView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             Text(subtitle)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
         }
     }
 }
@@ -172,13 +172,13 @@ private struct ProfileStatTile: View {
 
             Text(value)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -189,11 +189,4 @@ private struct ProfileStatTile: View {
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    NavigationStack {
-        SocialProfileView()
-    }
-    .preferredColorScheme(.dark)
 }

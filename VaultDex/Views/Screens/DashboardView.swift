@@ -30,7 +30,7 @@ struct DashboardView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Text("Demo")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.vdGold)
+                    .foregroundStyle(Color.vdGold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.vdGold.opacity(0.14), in: Capsule())
@@ -42,7 +42,7 @@ struct DashboardView: View {
         HStack(spacing: 14) {
             Image(systemName: viewModel.profile.avatarSymbol)
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.vdGold)
+                .foregroundStyle(Color.vdGold)
                 .frame(width: 56, height: 56)
                 .background(Color.vdPanelRaised, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(
@@ -53,11 +53,11 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Welcome back")
                     .font(.subheadline)
-                    .foregroundStyle(.vdTextSecondary)
+                    .foregroundStyle(Color.vdTextSecondary)
 
                 Text(viewModel.profile.displayName)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(.vdTextPrimary)
+                    .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(1)
             }
 
@@ -132,18 +132,18 @@ struct DashboardView: View {
                 ForEach(viewModel.recentActivity) { activity in
                     HStack(spacing: 12) {
                         Image(systemName: activity.systemImage)
-                            .foregroundStyle(.vdGold)
+                            .foregroundStyle(Color.vdGold)
                             .frame(width: 34, height: 34)
                             .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text(activity.title)
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.vdTextPrimary)
+                                .foregroundStyle(Color.vdTextPrimary)
 
                             Text(activity.subtitle)
                                 .font(.caption)
-                                .foregroundStyle(.vdTextSecondary)
+                                .foregroundStyle(Color.vdTextSecondary)
                         }
 
                         Spacer()
@@ -163,18 +163,11 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             Text(subtitle)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
         }
     }
-}
-
-#Preview {
-    NavigationStack {
-        DashboardView()
-    }
-    .preferredColorScheme(.dark)
 }

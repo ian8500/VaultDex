@@ -1,8 +1,8 @@
 import Foundation
 
 struct SetProgress: Identifiable, Hashable {
-    var id: UUID { set.id }
-    let set: CardSet
+    var id: UUID { cardSet.id }
+    let cardSet: CardSet
     let owned: Int
     let total: Int
 
@@ -35,7 +35,7 @@ final class ProfileViewModel: ObservableObject {
     var setProgress: [SetProgress] {
         sets.map { set in
             let owned = collectionItems.filter { $0.card.set == set }.count
-            return SetProgress(set: set, owned: owned, total: set.totalCards)
+            return SetProgress(cardSet: set, owned: owned, total: set.totalCards)
         }
     }
 }

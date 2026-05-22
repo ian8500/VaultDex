@@ -28,7 +28,3 @@ struct AppBackground: View {
         .ignoresSafeArea()
     }
 }
-
-#Preview {
-    AppBackground()
-}

@@ -27,12 +27,30 @@
 		841967BF2FC090F20033B46B /* VaultDex.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VaultDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967CC2FC090F30033B46B /* VaultDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		8419681F2FC095030033B46B /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8A1F00012FC0A00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				".DS_Store",
+				VaultDex/Assets.xcassets,
+				VaultDex/ContentView.swift,
+				VaultDex/VaultDexApp.swift,
+				VaultDexTests/VaultDexTests.swift,
+				VaultDexUITests/VaultDexUITests.swift,
+				VaultDexUITests/VaultDexUITestsLaunchTests.swift,
+			);
+			target = 841967BE2FC090F20033B46B /* VaultDex */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		841967C12FC090F20033B46B /* VaultDex */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8A1F00012FC0A00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */,
+			);
 			path = VaultDex;
 			sourceTree = "<group>";
 		};
@@ -89,13 +107,6 @@
 				841967BF2FC090F20033B46B /* VaultDex.app */,
 				841967CC2FC090F30033B46B /* VaultDexTests.xctest */,
 				841967D62FC090F30033B46B /* VaultDexUITests.xctest */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		841968202FC095030033B46B /* Products */ = {
-			isa = PBXGroup;
-			children = (
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -206,12 +217,6 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 841967C02FC090F20033B46B /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 841968202FC095030033B46B /* Products */;
-					ProjectRef = 8419681F2FC095030033B46B /* VaultDex.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				841967BE2FC090F20033B46B /* VaultDex */,

@@ -11,19 +11,19 @@ struct EmptyStateView: View {
         VStack(spacing: 16) {
             Image(systemName: systemImage)
                 .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(.vdGold)
+                .foregroundStyle(Color.vdGold)
                 .frame(width: 72, height: 72)
                 .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
 
             VStack(spacing: 6) {
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(.vdTextPrimary)
+                    .foregroundStyle(Color.vdTextPrimary)
 
                 Text(message)
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.vdTextSecondary)
+                    .foregroundStyle(Color.vdTextSecondary)
             }
 
             if let actionTitle, let action {
@@ -40,14 +40,4 @@ struct EmptyStateView: View {
                 .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    EmptyStateView(
-        systemImage: "tray",
-        title: "Nothing here yet",
-        message: "Your demo vault is ready for the next batch."
-    )
-    .padding()
-    .background(AppBackground())
 }

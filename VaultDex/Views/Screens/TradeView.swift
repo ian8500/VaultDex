@@ -28,18 +28,18 @@ struct TradeView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Trade Desk")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(.vdTextPrimary)
+                        .foregroundStyle(Color.vdTextPrimary)
 
                     Text("Offline offers with demo counterparties")
                         .font(.subheadline)
-                        .foregroundStyle(.vdTextSecondary)
+                        .foregroundStyle(Color.vdTextSecondary)
                 }
 
                 Spacer()
 
                 Image(systemName: "arrow.left.arrow.right.circle.fill")
                     .font(.system(size: 34))
-                    .foregroundStyle(.vdGold)
+                    .foregroundStyle(Color.vdGold)
             }
 
             PrimaryButton(title: "Create Demo Offer", systemImage: "plus") {}
@@ -88,11 +88,11 @@ struct TradeView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(.vdTextPrimary)
+                .foregroundStyle(Color.vdTextPrimary)
 
             Text(subtitle)
                 .font(.caption)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
         }
     }
 }
@@ -106,11 +106,11 @@ private struct TradeOfferRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(offer.partnerName)
                         .font(.headline)
-                        .foregroundStyle(.vdTextPrimary)
+                        .foregroundStyle(Color.vdTextPrimary)
 
                     Text(offer.partnerHandle)
                         .font(.caption)
-                        .foregroundStyle(.vdTextSecondary)
+                        .foregroundStyle(Color.vdTextSecondary)
                 }
 
                 Spacer()
@@ -120,14 +120,14 @@ private struct TradeOfferRow: View {
 
             Text(offer.note)
                 .font(.subheadline)
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(alignment: .top, spacing: 12) {
                 cardStack(title: "Offering", cards: offer.offeredCards)
                 Image(systemName: "arrow.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.vdGold)
+                    .foregroundStyle(Color.vdGold)
                     .padding(.top, 28)
                 cardStack(title: "Requesting", cards: offer.requestedCards)
             }
@@ -135,13 +135,13 @@ private struct TradeOfferRow: View {
             HStack {
                 Label("\(offer.expiresInDays) days", systemImage: "clock")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.vdTextSecondary)
+                    .foregroundStyle(Color.vdTextSecondary)
 
                 Spacer()
 
                 Text(offer.createdAt, style: .date)
                     .font(.caption)
-                    .foregroundStyle(.vdTextSecondary)
+                    .foregroundStyle(Color.vdTextSecondary)
             }
         }
         .padding(16)
@@ -175,20 +175,20 @@ private struct TradeOfferRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.vdTextSecondary)
+                .foregroundStyle(Color.vdTextSecondary)
 
             VStack(spacing: 6) {
                 ForEach(cards.prefix(3)) { card in
                     HStack(spacing: 8) {
                         Image(systemName: card.accent.symbolName)
                             .font(.caption)
-                            .foregroundStyle(.vdGold)
+                            .foregroundStyle(Color.vdGold)
                             .frame(width: 24, height: 24)
                             .background(Color.vdGold.opacity(0.11), in: RoundedRectangle(cornerRadius: 6))
 
                         Text(card.name)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.vdTextPrimary)
+                            .foregroundStyle(Color.vdTextPrimary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -213,11 +213,4 @@ private extension CardAccent {
         case .void: "moon.stars.fill"
         }
     }
-}
-
-#Preview {
-    NavigationStack {
-        TradeView()
-    }
-    .preferredColorScheme(.dark)
 }

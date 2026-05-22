@@ -29,10 +29,29 @@
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8A2F00012FC0B00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				".DS_Store",
+				VaultDex/Assets.xcassets,
+				VaultDex/ContentView.swift,
+				VaultDex/VaultDexApp.swift,
+				VaultDexTests/VaultDexTests.swift,
+				VaultDexUITests/VaultDexUITests.swift,
+				VaultDexUITests/VaultDexUITestsLaunchTests.swift,
+			);
+			target = 841967BE2FC090F20033B46B /* VaultDex */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		841967C12FC090F20033B46B /* VaultDex */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = VaultDex;
+			exceptions = (
+				8A2F00012FC0B00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */,
+			);
+			path = ".";
 			sourceTree = "<group>";
 		};
 		841967CF2FC090F30033B46B /* VaultDexTests */ = {

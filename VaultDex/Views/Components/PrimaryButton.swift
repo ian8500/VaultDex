@@ -25,7 +25,7 @@ struct PrimaryButton: View {
             .frame(height: 52)
             .background(
                 LinearGradient(
-                    colors: isEnabled ? [.vdGold, Color(hex: 0xF4DF9A)] : [.vdTextSecondary.opacity(0.5)],
+                    colors: isEnabled ? [Color.vdGold, Color(hex: 0xF4DF9A)] : [Color.vdTextSecondary.opacity(0.5)],
                     startPoint: .leading,
                     endPoint: .trailing
                 ),
@@ -39,10 +39,4 @@ struct PrimaryButton: View {
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
     }
-}
-
-#Preview {
-    PrimaryButton(title: "Create Trade", systemImage: "plus") {}
-        .padding()
-        .background(AppBackground())
 }
