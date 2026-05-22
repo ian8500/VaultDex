@@ -402,18 +402,59 @@ final class FriendsViewModel: ObservableObject {
 
 @MainActor
 final class BinderDesignerViewModel: ObservableObject {
-    @Published private(set) var pages: [BinderPage]
+    @Published private(set) var hasUnsavedChanges = false
+    @Published private(set) var lastSavedAt: Date = .now
+    private var history: [BinderPage] = []
 
-    init(repository: DemoVaultRepository = .shared) {
-        pages = repository.binderPages
+    func filledSlots(in store: LocalVaultStore) -> Int {
+        store.binderPages.flatMap(\.slots).filter { $0.card != nil }.count
     }
 
-    var filledSlots: Int {
-        pages.flatMap(\.slots).filter { $0.card != nil }.count
+    func totalSlots(in store: LocalVaultStore) -> Int {
+        store.binderPages.flatMap(\.slots).count
     }
 
-    var totalSlots: Int {
-        pages.flatMap(\.slots).count
+    func completion(for page: BinderPage) -> Double {
+        guard !page.slots.isEmpty else { return 0 }
+        let filled = page.slots.filter { $0.card != nil }.count
+        return Double(filled) / Double(page.slots.count)
+    }
+
+    func completionText(for page: BinderPage) -> String {
+        "\(Int((completion(for: page) * 100).rounded()))%"
+    }
+
+    func markSaved() {
+        hasUnsavedChanges = false
+        lastSavedAt = .now
+    }
+
+    func markChanged() {
+        hasUnsavedChanges = true
+    }
+
+    func recordChange(before page: BinderPage?) {
+        guard let page else { return }
+        history.append(page)
+        if history.count > 20 {
+            history.removeFirst()
+        }
+        hasUnsavedChanges = true
+    }
+
+    func undoLastChange(in store: LocalVaultStore, selectedPageID: inout BinderPage.ID?) {
+        guard let previous = history.popLast() else { return }
+        if store.binderPages.contains(where: { $0.id == previous.id }) {
+            store.updateBinderPage(previous)
+        } else {
+            store.binderPages.insert(previous, at: 0)
+        }
+        selectedPageID = previous.id
+        hasUnsavedChanges = true
+    }
+
+    var canUndo: Bool {
+        !history.isEmpty
     }
 }
 

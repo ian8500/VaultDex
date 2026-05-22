@@ -7,7 +7,6 @@ final class LocalVaultStore: ObservableObject {
     let profile: UserProfile
     let friends: [Friend]
     let friendWants: [FriendWant]
-    let binderPages: [BinderPage]
     let tradeListings: [TradeListing]
     let tradeOffers: [TradeOffer]
     let events: [VaultEvent]
@@ -16,6 +15,7 @@ final class LocalVaultStore: ObservableObject {
 
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
+    @Published var binderPages: [BinderPage]
 
     init(repository: DemoVaultRepository = .shared) {
         sets = repository.sets
@@ -23,7 +23,6 @@ final class LocalVaultStore: ObservableObject {
         profile = repository.profile
         friends = repository.friends
         friendWants = repository.friendWants
-        binderPages = repository.binderPages
         tradeListings = repository.tradeListings
         tradeOffers = repository.tradeOffers
         events = repository.events
@@ -31,6 +30,7 @@ final class LocalVaultStore: ObservableObject {
         inviteContacts = repository.inviteContacts
         collectionItems = repository.collectionItems
         wishlistItems = repository.wishlistItems
+        binderPages = repository.binderPages
     }
 
     var totalCopiesOwned: Int {
@@ -164,5 +164,77 @@ final class LocalVaultStore: ObservableObject {
 
     func removeFromWishlist(_ card: Card) {
         wishlistItems.removeAll { $0.card.id == card.id }
+    }
+
+    func createBinderPage(title: String? = nil) -> BinderPage {
+        let pageNumber = binderPages.count + 1
+        let page = BinderPage(
+            title: title ?? "Binder Page \(pageNumber)",
+            theme: "Custom vault layout",
+            slots: Self.emptyBinderSlots(),
+            visibility: .private,
+            updatedAt: .now
+        )
+        binderPages.insert(page, at: 0)
+        return page
+    }
+
+    func renameBinderPage(_ pageID: BinderPage.ID, title: String) {
+        guard let page = binderPages.first(where: { $0.id == pageID }) else { return }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        updateBinderPage(
+            BinderPage(
+                id: page.id,
+                title: trimmed.isEmpty ? page.title : trimmed,
+                theme: page.theme,
+                slots: page.slots,
+                visibility: page.visibility,
+                updatedAt: .now
+            )
+        )
+    }
+
+    func updateBinderVisibility(_ pageID: BinderPage.ID, visibility: BinderVisibility) {
+        guard let page = binderPages.first(where: { $0.id == pageID }) else { return }
+        updateBinderPage(
+            BinderPage(
+                id: page.id,
+                title: page.title,
+                theme: page.theme,
+                slots: page.slots,
+                visibility: visibility,
+                updatedAt: .now
+            )
+        )
+    }
+
+    func updateBinderSlot(pageID: BinderPage.ID, slotID: BinderSlot.ID, card: Card?) {
+        guard let page = binderPages.first(where: { $0.id == pageID }) else { return }
+        let slots = page.slots.map { slot in
+            slot.id == slotID ? BinderSlot(id: slot.id, index: slot.index, card: card, note: slot.note) : slot
+        }
+        updateBinderPage(
+            BinderPage(
+                id: page.id,
+                title: page.title,
+                theme: page.theme,
+                slots: slots,
+                visibility: page.visibility,
+                updatedAt: .now
+            )
+        )
+    }
+
+    func deleteBinderPage(_ pageID: BinderPage.ID) {
+        binderPages.removeAll { $0.id == pageID }
+    }
+
+    func updateBinderPage(_ page: BinderPage) {
+        guard let index = binderPages.firstIndex(where: { $0.id == page.id }) else { return }
+        binderPages[index] = page
+    }
+
+    static func emptyBinderSlots() -> [BinderSlot] {
+        (1...9).map { BinderSlot(index: $0, card: nil) }
     }
 }

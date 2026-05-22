@@ -414,13 +414,19 @@ struct FriendsView: View {
 }
 
 struct BinderDesignerView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = BinderDesignerViewModel()
     @State private var selectedPageID: BinderPage.ID?
+    @State private var selectedSlot: BinderSlot?
+    @State private var pageToDelete: BinderPage?
+    @State private var pageToRename: BinderPage?
+    @State private var renameText = ""
+    @State private var isPreviewPresented = false
 
     private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
     ]
 
     var body: some View {
@@ -432,13 +438,15 @@ struct BinderDesignerView: View {
                     header
 
                     if let page = selectedPage {
-                        pagePicker
+                        pageList
+                        pageControls(page)
                         pageGrid(page)
+                        selectedSlotTools(page)
                     } else {
                         EmptyStateView(
                             systemImage: "rectangle.grid.3x2",
                             title: "No binder pages",
-                            message: "Demo binder pages will appear here once created."
+                            message: "Create a page to start arranging a 3 by 3 card album."
                         )
                     }
                 }
@@ -449,12 +457,58 @@ struct BinderDesignerView: View {
         }
         .navigationTitle("Binder")
         .navigationBarTitleDisplayMode(.large)
+        .sheet(item: $selectedSlot) { slot in
+            if let page = selectedPage {
+                BinderCardPickerView(slot: slot, page: page) { card in
+                    applySlotChange(page: page, slot: slot, card: card)
+                }
+                .environmentObject(store)
+            }
+        }
+        .fullScreenCover(isPresented: $isPreviewPresented) {
+            if let page = selectedPage {
+                BinderPreviewView(page: page)
+            }
+        }
+        .alert("Rename Page", isPresented: Binding(
+            get: { pageToRename != nil },
+            set: { if !$0 { pageToRename = nil } }
+        )) {
+            TextField("Page name", text: $renameText)
+            Button("Cancel", role: .cancel) { pageToRename = nil }
+            Button("Save") {
+                guard let pageToRename else { return }
+                viewModel.recordChange(before: pageToRename)
+                store.renameBinderPage(pageToRename.id, title: renameText)
+                selectedPageID = pageToRename.id
+                self.pageToRename = nil
+                notify(.light)
+            }
+        } message: {
+            Text("Choose a name that helps you recognize this binder page.")
+        }
+        .confirmationDialog("Delete this binder page?", isPresented: Binding(
+            get: { pageToDelete != nil },
+            set: { if !$0 { pageToDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete Page", role: .destructive) {
+                guard let pageToDelete else { return }
+                viewModel.recordChange(before: pageToDelete)
+                store.deleteBinderPage(pageToDelete.id)
+                selectedPageID = store.binderPages.first?.id
+                self.pageToDelete = nil
+                notify(.medium)
+            }
+            Button("Cancel", role: .cancel) { pageToDelete = nil }
+        } message: {
+            Text("Cards are not removed from your collection. Only this page layout is deleted.")
+        }
     }
 
     private var selectedPage: BinderPage? {
-        guard let firstPage = viewModel.pages.first else { return nil }
+        guard let firstPage = store.binderPages.first else { return nil }
         guard let selectedPageID else { return firstPage }
-        return viewModel.pages.first { $0.id == selectedPageID } ?? firstPage
+        return store.binderPages.first { $0.id == selectedPageID } ?? firstPage
     }
 
     private var header: some View {
@@ -465,7 +519,7 @@ struct BinderDesignerView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Plan native binder pages before sync, sharing, or printing exists.")
+                    Text("Arrange your collection into polished 3 by 3 album pages.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -479,40 +533,263 @@ struct BinderDesignerView: View {
             }
 
             HStack(spacing: 12) {
-                MetricPill(title: "Pages", value: "\(viewModel.pages.count)")
-                MetricPill(title: "Filled", value: "\(viewModel.filledSlots)/\(viewModel.totalSlots)")
+                MetricPill(title: "Pages", value: "\(store.binderPages.count)")
+                MetricPill(title: "Filled", value: "\(viewModel.filledSlots(in: store))/\(viewModel.totalSlots(in: store))")
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: viewModel.hasUnsavedChanges ? "icloud.and.arrow.up" : "checkmark.seal.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(viewModel.hasUnsavedChanges ? Color.vdGold : Color.vdEmerald)
+
+                Text(viewModel.hasUnsavedChanges ? "Unsaved page changes" : "All changes saved")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+
+                Spacer()
+
+                Button {
+                    createPage()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdBackground)
+                        .frame(width: 30, height: 30)
+                        .background(Color.vdGold, in: Circle())
+                }
+                .accessibilityLabel("Create binder page")
             }
         }
         .padding(18)
-        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .background {
+            ZStack {
+                Color.vdPanel.opacity(0.9)
+                LinearGradient(
+                    colors: [Color.vdGold.opacity(0.12), Color.clear, Color.vdViolet.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
     }
 
-    private var pagePicker: some View {
-        Picker("Binder Page", selection: Binding(
-            get: { selectedPageID ?? viewModel.pages.first?.id },
-            set: { selectedPageID = $0 }
-        )) {
-            ForEach(viewModel.pages) { page in
-                Text(page.title).tag(Optional(page.id))
+    private var pageList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(store.binderPages) { page in
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            selectedPageID = page.id
+                            selectedSlot = nil
+                        }
+                        notify(.light)
+                    } label: {
+                        BinderPageListCard(
+                            page: page,
+                            completionText: viewModel.completionText(for: page),
+                            isSelected: selectedPage?.id == page.id
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.vertical, 2)
         }
-        .pickerStyle(.segmented)
     }
 
-    private func pageGrid(_ page: BinderPage) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: page.title, subtitle: page.theme)
+    private func pageControls(_ page: BinderPage) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(page.title)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(page.slots) { slot in
-                    BinderSlotCell(slot: slot)
+                    Text("\(viewModel.completionText(for: page)) complete · \(page.theme)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    isPreviewPresented = true
+                    notify(.light)
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.vdPanelRaised, in: Circle())
+                }
+                .accessibilityLabel("Preview fullscreen")
+            }
+
+            ProgressView(value: viewModel.completion(for: page))
+                .tint(Color.vdGold)
+                .background(Color.vdStroke.opacity(0.55), in: Capsule())
+
+            Picker("Visibility", selection: Binding(
+                get: { page.visibility },
+                set: { visibility in
+                    viewModel.recordChange(before: page)
+                    store.updateBinderVisibility(page.id, visibility: visibility)
+                    notify(.light)
+                }
+            )) {
+                ForEach(BinderVisibility.allCases) { visibility in
+                    Label(visibility.displayName, systemImage: visibility.systemImage).tag(visibility)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            HStack(spacing: 10) {
+                PrimaryButton(title: "Save Page", systemImage: "checkmark.circle.fill") {
+                    viewModel.markSaved()
+                    notify(.medium)
+                }
+
+                Button {
+                    viewModel.undoLastChange(in: store, selectedPageID: &selectedPageID)
+                    notify(.medium)
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(viewModel.canUndo ? Color.vdTextPrimary : Color.vdTextSecondary.opacity(0.45))
+                        .frame(width: 44, height: 44)
+                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                        )
+                }
+                .disabled(!viewModel.canUndo)
+                .accessibilityLabel("Undo last binder change")
+
+                Menu {
+                    Button("Rename Page") {
+                        pageToRename = page
+                        renameText = page.title
+                    }
+                    Button("Delete Page", role: .destructive) {
+                        pageToDelete = page
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .frame(width: 44, height: 44)
+                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                        )
                 }
             }
         }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+
+    private func pageGrid(_ page: BinderPage) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VaultSectionHeader(title: "Page Layout", subtitle: "Tap a slot to add, replace, or remove a card")
+
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(page.slots) { slot in
+                    Button {
+                        selectedSlot = slot
+                        notify(.light)
+                    } label: {
+                        BinderSlotCell(slot: slot, isSelected: selectedSlot?.id == slot.id)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(12)
+        .background {
+            ZStack {
+                Color(hex: 0x14100D).opacity(0.84)
+                LinearGradient(
+                    colors: [Color.vdGold.opacity(0.08), Color.clear, Color.black.opacity(0.24)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func selectedSlotTools(_ page: BinderPage) -> some View {
+        if let selectedSlot = selectedSlot, page.slots.contains(where: { $0.id == selectedSlot.id }) {
+            VStack(alignment: .leading, spacing: 12) {
+                VaultSectionHeader(title: "Selected Slot #\(selectedSlot.index)", subtitle: selectedSlot.card?.name ?? "Ready for a card")
+
+                HStack(spacing: 10) {
+                    PrimaryButton(title: selectedSlot.card == nil ? "Add Card" : "Replace Card", systemImage: "rectangle.stack.badge.plus") {
+                        self.selectedSlot = selectedSlot
+                        notify(.light)
+                    }
+
+                    Button {
+                        applySlotChange(page: page, slot: selectedSlot, card: nil)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(selectedSlot.card == nil ? Color.vdTextSecondary.opacity(0.45) : Color.vdCoral)
+                            .frame(width: 44, height: 44)
+                            .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                            )
+                    }
+                    .disabled(selectedSlot.card == nil)
+                    .accessibilityLabel("Remove card from slot")
+                }
+            }
+        }
+    }
+
+    private func createPage() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            let page = store.createBinderPage()
+            selectedPageID = page.id
+            selectedSlot = nil
+        }
+        viewModel.markChanged()
+        notify(.medium)
+    }
+
+    private func applySlotChange(page: BinderPage, slot: BinderSlot, card: Card?) {
+        viewModel.recordChange(before: page)
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            store.updateBinderSlot(pageID: page.id, slotID: slot.id, card: card)
+            selectedSlot = store.binderPages
+                .first { $0.id == page.id }?
+                .slots
+                .first { $0.id == slot.id }
+        }
+        notify(.medium)
+    }
+
+    private func notify(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
     }
 }
 
@@ -1081,14 +1358,298 @@ private struct FriendRow: View {
     }
 }
 
+private struct BinderPageListCard: View {
+    let page: BinderPage
+    let completionText: String
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: page.visibility.systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+
+                Spacer()
+
+                Text(completionText)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(Color.vdBackground)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.vdGold, in: Capsule())
+            }
+
+            Text(page.title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            Text(page.visibility.displayName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+        }
+        .frame(width: 150, alignment: .leading)
+        .padding(14)
+        .background {
+            ZStack {
+                Color.vdPanelRaised.opacity(0.92)
+                LinearGradient(
+                    colors: [Color.vdGold.opacity(isSelected ? 0.16 : 0.06), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.vdGold.opacity(0.88) : Color.vdStroke.opacity(0.68), lineWidth: isSelected ? 1.4 : 1)
+        )
+    }
+}
+
+private struct BinderCardPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: LocalVaultStore
+    let slot: BinderSlot
+    let page: BinderPage
+    let onSelect: (Card?) -> Void
+    @State private var query = ""
+
+    private var filteredCards: [Card] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return store.cards }
+        return store.cards.filter { card in
+            card.name.lowercased().contains(trimmed) ||
+            card.set.name.lowercased().contains(trimmed) ||
+            card.set.code.lowercased().contains(trimmed) ||
+            card.rarity.displayName.lowercased().contains(trimmed)
+        }
+    }
+
+    private var ownedCards: [Card] {
+        store.collectionItems.map(\.card)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        slotHeader
+
+                        if !ownedCards.isEmpty && query.isEmpty {
+                            cardSection(title: "My Collection", cards: ownedCards)
+                        }
+
+                        cardSection(title: query.isEmpty ? "All Cards" : "Search Results", cards: filteredCards)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 28)
+                }
+            }
+            .navigationTitle("Slot #\(slot.index)")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: "Search cards, sets, rarity")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Close") { dismiss() }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    if slot.card != nil {
+                        Button("Remove", role: .destructive) {
+                            onSelect(nil)
+                            dismiss()
+                        }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var slotHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(page.title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
+
+            Text(slot.card == nil ? "Choose a card for this empty album slot." : "Replace or remove \(slot.card?.name ?? "this card").")
+                .font(.subheadline)
+                .foregroundStyle(Color.vdTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.vdPanel.opacity(0.88), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+
+    private func cardSection(title: String, cards: [Card]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: title, subtitle: "\(cards.count) available")
+
+            if cards.isEmpty {
+                EmptyStateView(systemImage: "magnifyingglass", title: "No cards found", message: "Try another name, set, or rarity.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(cards) { card in
+                        Button {
+                            onSelect(card)
+                            dismiss()
+                        } label: {
+                            BinderPickerCardRow(card: card, isOwned: store.collectionItem(for: card) != nil)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BinderPickerCardRow: View {
+    let card: Card
+    let isOwned: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(cardGradient)
+                .frame(width: 48, height: 62)
+                .overlay(
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.82))
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(card.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+
+                Text("\(card.set.code) #\(card.number) · \(card.cardType.displayName)")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            Spacer()
+
+            if isOwned {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdEmerald)
+            }
+
+            RarityBadge(rarity: card.rarity)
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.62), lineWidth: 1)
+        )
+    }
+
+    private var cardGradient: LinearGradient {
+        switch card.accent {
+        case .aurora:
+            LinearGradient(colors: [Color.vdViolet, Color.vdEmerald], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .ember:
+            LinearGradient(colors: [Color.vdCoral, Color.vdGold], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .frost:
+            LinearGradient(colors: [Color.cyan, Color.vdViolet], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .solar:
+            LinearGradient(colors: [Color.vdGold, Color.orange], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .venom:
+            LinearGradient(colors: [Color.green, Color.vdViolet], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .void:
+            LinearGradient(colors: [Color.vdPanelRaised, Color.vdViolet], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+}
+
+private struct BinderPreviewView: View {
+    @Environment(\.dismiss) private var dismiss
+    let page: BinderPage
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(page.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color.vdTextPrimary)
+
+                        Text(page.visibility.displayName)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.vdGold)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.vdPanelRaised.opacity(0.9), in: Circle())
+                    }
+                    .accessibilityLabel("Close preview")
+                }
+
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(page.slots) { slot in
+                        BinderSlotCell(slot: slot, isSelected: false)
+                            .scaleEffect(1.03)
+                    }
+                }
+                .padding(14)
+                .background(Color(hex: 0x120E0B).opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdGold.opacity(0.24), lineWidth: 1)
+                )
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+        }
+    }
+}
+
 private struct BinderSlotCell: View {
     let slot: BinderSlot
+    let isSelected: Bool
 
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.vdPanelRaised.opacity(0.9))
+                    .fill(slotBackground)
+                    .overlay(texture)
 
                 if let card = slot.card {
                     VStack(spacing: 8) {
@@ -1108,9 +1669,9 @@ private struct BinderSlotCell: View {
                     .padding(8)
                 } else {
                     VStack(spacing: 8) {
-                        Image(systemName: "plus")
+                        Image(systemName: "rectangle.dashed")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(Color.vdTextSecondary)
+                            .foregroundStyle(Color.vdGold.opacity(0.72))
 
                         Text(slot.note.isEmpty ? "Empty" : slot.note)
                             .font(.caption.weight(.semibold))
@@ -1123,14 +1684,75 @@ private struct BinderSlotCell: View {
                 }
             }
             .frame(height: 138)
+            .shadow(color: glowColor, radius: glowRadius, x: 0, y: 0)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(slot.card == nil ? Color.vdStroke.opacity(0.8) : Color.vdGold.opacity(0.32), lineWidth: 1)
+                    .stroke(isSelected ? Color.vdGold : borderColor, lineWidth: isSelected ? 1.6 : 1)
             )
 
             Text("#\(slot.index)")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(Color.vdTextSecondary)
+        }
+    }
+
+    private var slotBackground: LinearGradient {
+        if let card = slot.card {
+            switch card.accent {
+            case .aurora:
+                return LinearGradient(colors: [Color.vdViolet.opacity(0.88), Color.vdEmerald.opacity(0.58)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .ember:
+                return LinearGradient(colors: [Color.vdCoral.opacity(0.9), Color.vdGold.opacity(0.54)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .frost:
+                return LinearGradient(colors: [Color.cyan.opacity(0.62), Color.vdViolet.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .solar:
+                return LinearGradient(colors: [Color.vdGold.opacity(0.85), Color.orange.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .venom:
+                return LinearGradient(colors: [Color.green.opacity(0.66), Color.vdViolet.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            case .void:
+                return LinearGradient(colors: [Color.vdPanelRaised.opacity(0.95), Color.vdViolet.opacity(0.58)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+        }
+
+        return LinearGradient(colors: [Color(hex: 0x211A14), Color(hex: 0x120F0C)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    private var texture: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.white.opacity(0.06), Color.clear, Color.black.opacity(0.18)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.white.opacity(slot.card == nil ? 0.05 : 0.12), lineWidth: 0.5)
+                .padding(5)
+        }
+    }
+
+    private var borderColor: Color {
+        slot.card == nil ? Color.vdGold.opacity(0.18) : Color.vdGold.opacity(0.34)
+    }
+
+    private var glowColor: Color {
+        guard let rarity = slot.card?.rarity else { return Color.clear }
+        switch rarity {
+        case .legendary, .mythic:
+            return Color.vdGold.opacity(0.34)
+        case .epic:
+            return Color.vdViolet.opacity(0.24)
+        default:
+            return Color.clear
+        }
+    }
+
+    private var glowRadius: CGFloat {
+        guard let rarity = slot.card?.rarity else { return 0 }
+        return switch rarity {
+        case .legendary, .mythic: 12
+        case .epic: 8
+        default: 0
         }
     }
 }

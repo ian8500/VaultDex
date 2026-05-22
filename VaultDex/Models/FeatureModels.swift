@@ -113,11 +113,36 @@ struct BinderSlot: Identifiable, Hashable {
     }
 }
 
+enum BinderVisibility: String, CaseIterable, Identifiable, Hashable {
+    case `private`
+    case friends
+    case `public`
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .private: "Private"
+        case .friends: "Friends"
+        case .public: "Public"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .private: "lock.fill"
+        case .friends: "person.2.fill"
+        case .public: "globe"
+        }
+    }
+}
+
 struct BinderPage: Identifiable, Hashable {
     let id: UUID
     let title: String
     let theme: String
     let slots: [BinderSlot]
+    let visibility: BinderVisibility
     let updatedAt: Date
 
     init(
@@ -125,12 +150,14 @@ struct BinderPage: Identifiable, Hashable {
         title: String,
         theme: String,
         slots: [BinderSlot],
+        visibility: BinderVisibility = .private,
         updatedAt: Date = .now
     ) {
         self.id = id
         self.title = title
         self.theme = theme
         self.slots = slots
+        self.visibility = visibility
         self.updatedAt = updatedAt
     }
 }

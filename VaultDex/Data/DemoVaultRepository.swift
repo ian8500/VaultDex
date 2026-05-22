@@ -316,6 +316,7 @@ final class DemoVaultRepository {
                     BinderSlot(index: 8, card: cards[3]),
                     BinderSlot(index: 9, card: nil, note: "Incoming trade")
                 ],
+                visibility: .friends,
                 updatedAt: .now.addingTimeInterval(-3600 * 5)
             ),
             BinderPage(
@@ -332,6 +333,7 @@ final class DemoVaultRepository {
                     BinderSlot(index: 8, card: nil, note: "Need #119"),
                     BinderSlot(index: 9, card: nil, note: "Need #144")
                 ],
+                visibility: .private,
                 updatedAt: .now.addingTimeInterval(-86400 * 2)
             )
         ]
