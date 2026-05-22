@@ -3,329 +3,509 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = DashboardViewModel()
+    @State private var isLoading = true
+    @State private var hasAnimated = false
 
     private let statColumns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
 
-    private let featureColumns = [
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private var pendingTrades: Int {
+        store.tradeOffers.filter { $0.status == .pending }.count
+    }
+
+    private var friendOpportunities: [FriendTradeOpportunity] {
+        store.tradeOpportunities()
+    }
+
+    private var friendsWithWantedCards: Int {
+        friendOpportunities.filter { !$0.theyOwn.isEmpty }.count
+    }
+
+    private var fairTradeSuggestions: Int {
+        friendOpportunities.filter { !$0.theyOwn.isEmpty && !$0.youOwn.isEmpty }.count
+    }
+
+    private var rarestItem: CollectionItem? {
+        store.collectionItems.sorted {
+            if $0.card.rarity.dashboardRank == $1.card.rarity.dashboardRank {
+                return $0.card.marketValue > $1.card.marketValue
+            }
+            return $0.card.rarity.dashboardRank > $1.card.rarity.dashboardRank
+        }
+        .first
+    }
+
+    private var highestValueItem: CollectionItem? {
+        store.collectionItems.max { $0.card.marketValue < $1.card.marketValue }
+    }
+
+    private var recentlyAddedItem: CollectionItem? {
+        store.recentlyAdded.first
+    }
 
     var body: some View {
         ZStack {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    statsGrid
-                    featureGrid
-                    recentlyAdded
-                    friendsWantSection
-                    featuredCards
-                    activityFeed
+                VStack(alignment: .leading, spacing: 22) {
+                    if isLoading {
+                        loadingState
+                    } else {
+                        heroCard
+                        quickActions
+                        collectionStats
+                        featuredCards
+                        friendOpportunitiesSection
+                        safetyPanel
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
+                .opacity(hasAnimated ? 1 : 0)
+                .offset(y: hasAnimated ? 0 : 12)
             }
         }
         .navigationTitle("Today")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Text("Demo")
-                    .font(.caption.weight(.bold))
+                Text("Local Demo")
+                    .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdNavy)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.vdGold.opacity(0.92), in: Capsule())
+                    .background(Color.vdGold.opacity(0.94), in: Capsule())
+            }
+        }
+        .task {
+            guard isLoading else { return }
+            try? await Task.sleep(nanoseconds: 320_000_000)
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) {
+                isLoading = false
+                hasAnimated = true
             }
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 14) {
-            Image(systemName: store.profile.avatarSymbol)
-                .font(.system(size: 26, weight: .black))
-                .foregroundStyle(Color.vdNavy)
-                .frame(width: 62, height: 62)
-                .background(
-                    LinearGradient(
-                        colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 18)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.45), lineWidth: 1)
-                )
-                .shadow(color: Color.vdGold.opacity(0.28), radius: 14, x: 0, y: 6)
+    private var loadingState: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .tint(Color.vdGold)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Welcome back")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.vdTextSecondary)
+            Text("Preparing your vault")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
 
-                Text(store.profile.displayName)
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .lineLimit(1)
+            Text("Checking cards, wants, trade offers, and safe-trade reminders.")
+                .font(.subheadline)
+                .foregroundStyle(Color.vdTextSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+        .background(Color.vdPanel.opacity(0.88), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+        .padding(.top, 80)
+    }
+
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: store.profile.avatarSymbol)
+                    .font(.system(size: 30, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 70, height: 70)
+                    .background(
+                        LinearGradient(colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 22)
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.5), lineWidth: 1))
+                    .shadow(color: Color.vdGold.opacity(0.36), radius: 20, x: 0, y: 8)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Welcome back")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+
+                    Text(store.profile.displayName)
+                        .font(.system(.title2, design: .rounded, weight: .black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Label("Collector Level \(collectorLevel)", systemImage: "bolt.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.vdGold, in: Capsule())
+                }
+
+                Spacer()
             }
 
-            Spacer()
+            HStack(spacing: 12) {
+                HeroMetric(title: "Total Cards", value: "\(store.totalCopiesOwned)", icon: "rectangle.stack.fill")
+                HeroMetric(title: "Estimated Value", value: store.estimatedCollectionValue.compactVaultCurrency, icon: "chart.line.uptrend.xyaxis")
+            }
+
+            Text("Track your collection value")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdGold)
         }
-        .padding(18)
-        .background(
-            LinearGradient(
-                colors: [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.76)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 18)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
-        )
-        .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
+        .padding(20)
+        .background {
+            ZStack {
+                LinearGradient(
+                    colors: [Color.vdPanelRaised.opacity(0.96), Color.vdPanel.opacity(0.82), Color.vdNavy.opacity(0.92)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                Circle()
+                    .fill(Color.vdGold.opacity(0.28))
+                    .blur(radius: 46)
+                    .frame(width: 170, height: 170)
+                    .offset(x: 118, y: -72)
+
+                LinearGradient(
+                    colors: [Color.white.opacity(0.18), Color.clear, Color.vdGold.opacity(0.12), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 26))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 26).stroke(Color.vdGold.opacity(0.38), lineWidth: 1.2))
+        .shadow(color: Color.vdGold.opacity(0.20), radius: 24, x: 0, y: 12)
+        .scaleEffect(hasAnimated ? 1 : 0.98)
     }
 
-    private var statsGrid: some View {
-        LazyVGrid(columns: statColumns, spacing: 12) {
-            DashboardStatCard(
-                title: "Cards Owned",
-                value: "\(store.totalCopiesOwned)",
-                caption: "\(store.uniqueCardsOwned) unique",
-                systemImage: "rectangle.stack.fill",
-                tint: .vdEmerald
-            )
-
-            DashboardStatCard(
-                title: "Estimated Value",
-                value: store.estimatedCollectionValue.compactVaultCurrency,
-                caption: "Local market estimate",
-                systemImage: "chart.line.uptrend.xyaxis",
-                tint: .vdGold
-            )
-
-            DashboardStatCard(
-                title: "Wants",
-                value: "\(store.wishlistItems.count)",
-                caption: "Cards being watched",
-                systemImage: "star.fill",
-                tint: .vdViolet
-            )
-
-            DashboardStatCard(
-                title: "Unique Sets",
-                value: "\(store.uniqueSetsOwned)",
-                caption: "Represented in vault",
-                systemImage: "rectangle.stack.badge.person.crop",
-                tint: .vdCoral
-            )
-
-            DashboardStatCard(
-                title: "Demo Dex",
-                value: viewModel.completionPercent(in: store).formatted(.percent.precision(.fractionLength(0))),
-                caption: "\(store.cards.count) catalog cards",
-                systemImage: "checklist.checked",
-                tint: .vdEmerald
-            )
-
-            DashboardStatCard(
-                title: "Friends Online",
-                value: "\(store.friends.filter(\.isOnline).count)",
-                caption: "\(store.friendWants.count) friend wants",
-                systemImage: "person.2.fill",
-                tint: .vdViolet
-            )
-        }
+    private var collectorLevel: Int {
+        max(1, store.profile.collectorScore / 1000)
     }
 
-    private var featureGrid: some View {
+    private var quickActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collector Hub", subtitle: "Track your collection value")
+            VaultSectionHeader(title: "Quick Actions", subtitle: "Jump straight into the collection flow")
 
-            LazyVGrid(columns: featureColumns, spacing: 10) {
-                FeatureLinkCard(
-                    title: "Import Collection",
-                    subtitle: "Review camera, CSV, and manual demo imports",
-                    systemImage: "square.and.arrow.down.on.square.fill",
-                    tint: .vdEmerald
-                ) {
+            LazyVGrid(columns: statColumns, spacing: 12) {
+                DashboardQuickAction(title: "Add Card", subtitle: "Grow My Vault", icon: "plus.circle.fill", tint: .vdGold) {
+                    SearchView()
+                }
+                DashboardQuickAction(title: "Search", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
+                    SearchView()
+                }
+                DashboardQuickAction(title: "Import", subtitle: "Paste CSV", icon: "square.and.arrow.down.on.square.fill", tint: .vdLeaf) {
                     ImportCollectionView()
                 }
-
-                FeatureLinkCard(
-                    title: "Wants",
-                    subtitle: "Find your next grail",
-                    systemImage: "star.fill",
-                    tint: .vdGold
-                ) {
-                    WishlistView()
+                DashboardQuickAction(title: "Trade", subtitle: "Trade Hub", icon: "arrow.left.arrow.right", tint: .vdCoral) {
+                    TradeView()
                 }
+            }
+        }
+    }
 
-                FeatureLinkCard(
-                    title: "My Binder",
-                    subtitle: "Build your dream binder",
-                    systemImage: "rectangle.grid.3x2.fill",
-                    tint: .vdViolet
-                ) {
-                    BinderDesignerView()
-                }
+    private var collectionStats: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Collection Stats", subtitle: "Live from local app state")
 
-                FeatureLinkCard(
-                    title: "Completion Tracker",
-                    subtitle: "Follow set progress at a glance",
-                    systemImage: "checklist.checked",
-                    tint: .vdCoral
-                ) {
-                    CompletionTrackerView()
-                }
+            LazyVGrid(columns: statColumns, spacing: 12) {
+                DashboardStatCard(title: "Cards Owned", value: "\(store.totalCopiesOwned)", caption: "\(store.uniqueCardsOwned) unique cards", systemImage: "rectangle.stack.fill", tint: .vdGold)
+                DashboardStatCard(title: "Unique Sets", value: "\(store.uniqueSetsOwned)", caption: "Sets represented", systemImage: "rectangle.3.group.fill", tint: .vdSky)
+                DashboardStatCard(title: "Wishlist Matches", value: "\(friendOpportunities.reduce(0) { $0 + $1.theyOwn.count })", caption: "Friends own cards you want", systemImage: "star.bubble.fill", tint: .vdLeaf)
+                DashboardStatCard(title: "Pending Trades", value: "\(pendingTrades)", caption: "Offers awaiting action", systemImage: "clock.badge.fill", tint: .vdCoral)
             }
         }
     }
 
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Featured My Vault", subtitle: "Highest value demo cards")
+            VaultSectionHeader(title: "Featured Cards", subtitle: "Rarest, highest value, and newest pulls")
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(viewModel.highlightCards(in: store)) { card in
-                        NavigationLink {
-                            CardDetailView(card: card)
-                        } label: {
-                            let item = store.collectionItem(for: card)
-                            CardTile(
-                                card: card,
-                                quantity: item?.quantity,
-                                condition: item?.condition,
-                                variant: item?.variant,
-                                isAvailableForTrade: item?.isAvailableForTrade ?? false,
-                                style: .compact
-                            )
-                            .frame(width: 220)
-                        }
-                        .buttonStyle(.plain)
+            if store.collectionItems.isEmpty {
+                EmptyStateView(systemImage: "rectangle.stack.badge.plus", title: "No featured cards yet", message: "Add cards from Search or Import to light up this showcase.")
+            } else {
+                VStack(spacing: 12) {
+                    if let rarestItem {
+                        FeaturedDashboardCard(label: "Rarest Card", item: rarestItem, accent: .vdGold)
+                    }
+                    if let highestValueItem {
+                        FeaturedDashboardCard(label: "Highest Value Card", item: highestValueItem, accent: .vdLeaf)
+                    }
+                    if let recentlyAddedItem {
+                        FeaturedDashboardCard(label: "Recently Added", item: recentlyAddedItem, accent: .vdSky)
                     }
                 }
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.viewAligned)
         }
     }
 
-    private var activityFeed: some View {
+    private var friendOpportunitiesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Recent Activity", subtitle: "Local collection and social updates")
+            VaultSectionHeader(title: "Friend Opportunities", subtitle: "Match with collectors")
 
-            VStack(spacing: 10) {
-                ForEach(viewModel.recentActivity(in: store)) { activity in
-                    HStack(spacing: 12) {
-                        Image(systemName: activity.systemImage)
-                            .foregroundStyle(Color.vdGold)
-                            .frame(width: 36, height: 36)
-                            .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+            if store.friends.isEmpty {
+                EmptyStateView(systemImage: "person.2.slash", title: "No collectors connected", message: "Add friends to compare wants, collections, and fair trade ideas.")
+            } else {
+                HStack(spacing: 12) {
+                    OpportunityCard(
+                        title: "\(friendsWithWantedCards) friends have cards you want",
+                        subtitle: firstWantedMatchText,
+                        icon: "person.2.fill",
+                        tint: .vdGold
+                    )
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(activity.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.vdTextPrimary)
-
-                            Text(activity.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(Color.vdTextSecondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(12)
-                    .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+                    OpportunityCard(
+                        title: "\(fairTradeSuggestions) fair trades suggested",
+                        subtitle: "Balanced swaps from both wants lists",
+                        icon: "scale.3d",
+                        tint: .vdLeaf
                     )
                 }
             }
         }
     }
 
-    private var recentlyAdded: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Recently Added", subtitle: "Newest cards in your local collection")
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(store.recentlyAdded.prefix(5)) { item in
-                        NavigationLink {
-                            CardDetailView(card: item.card)
-                        } label: {
-                            CardTile(
-                                card: item.card,
-                                quantity: item.quantity,
-                                condition: item.condition,
-                                variant: item.variant,
-                                isAvailableForTrade: item.isAvailableForTrade,
-                                style: .compact
-                            )
-                            .frame(width: 220)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.viewAligned)
+    private var firstWantedMatchText: String {
+        guard let opportunity = friendOpportunities.first(where: { !$0.theyOwn.isEmpty }),
+              let card = opportunity.theyOwn.first?.card else {
+            return "Add wants to unlock matches"
         }
+        return "\(opportunity.friend.displayName) has \(card.name)"
     }
 
-    private var friendsWantSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collector Matches", subtitle: "Match with collectors")
+    private var safetyPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "shield.checkered")
+                    .font(.system(size: 24, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 54, height: 54)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 18))
 
-            VStack(spacing: 10) {
-                ForEach(store.friendWants) { want in
-                    NavigationLink {
-                        CardDetailView(card: want.card)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: want.friend.avatarSymbol)
-                                .foregroundStyle(Color.vdGold)
-                                .frame(width: 36, height: 36)
-                                .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Trade safely")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
 
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(want.friend.displayName + " wants " + want.card.name)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color.vdTextPrimary)
-                                    .lineLimit(1)
-
-                                Text(want.note)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.vdTextSecondary)
-                                    .lineLimit(2)
-                            }
-
-                            Spacer()
-
-                            StatusPill(title: want.priority.displayName, tint: want.priority == .grail ? .vdCoral : .vdGold)
-                        }
-                        .padding(12)
-                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    Text("Friendly reminders before real accounts and moderation arrive.")
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
                 }
             }
+
+            VStack(spacing: 10) {
+                SafetyReminderRow(icon: "person.crop.circle.badge.checkmark", title: "Parent approval placeholder", message: "Require a trusted grown-up review before young collectors trade.")
+                SafetyReminderRow(icon: "hand.raised.fill", title: "Report/block reminders", message: "Keep report and block controls visible on listings and profiles.")
+                SafetyReminderRow(icon: "checkmark.seal.fill", title: "Value and condition check", message: "Review condition, variant, credits, and fairness before accepting.")
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(colors: [Color.vdGold.opacity(0.16), Color.vdPanel.opacity(0.9), Color.vdPanelRaised.opacity(0.86)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 22)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 16, x: 0, y: 8)
+    }
+}
+
+private struct HeroMetric: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .black))
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(Color.vdNavy.opacity(0.28), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
+    }
+}
+
+private struct DashboardQuickAction<Destination: View>: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let tint: Color
+    let destination: Destination
+
+    init(title: String, subtitle: String, icon: String, tint: Color, @ViewBuilder destination: () -> Destination) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.tint = tint
+        self.destination = destination()
+    }
+
+    var body: some View {
+        NavigationLink {
+            destination
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 42, height: 42)
+                    .background(tint.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Text(subtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(13)
+            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(tint.opacity(0.28), lineWidth: 1))
+            .shadow(color: tint.opacity(0.10), radius: 10, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FeaturedDashboardCard: View {
+    let label: String
+    let item: CollectionItem
+    let accent: Color
+
+    var body: some View {
+        NavigationLink {
+            CardDetailView(card: item.card)
+        } label: {
+            HStack(spacing: 12) {
+                CardTile(card: item.card, quantity: item.quantity, condition: item.condition, variant: item.variant, isAvailableForTrade: item.isAvailableForTrade, style: .compact)
+                    .frame(width: 112)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    StatusPill(title: label, tint: accent)
+
+                    Text(item.card.name)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(2)
+
+                    Text("\(item.card.set.code) #\(item.card.number) · \(item.card.rarity.displayName)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(1)
+
+                    Label(item.card.marketValue.vaultCurrency, systemImage: "seal.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.vdGold, in: Capsule())
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(
+                LinearGradient(colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 20)
+            )
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.28), lineWidth: 1))
+            .shadow(color: accent.opacity(0.10), radius: 12, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct OpportunityCard: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .black))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
+
+            Text(title)
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(Color.vdTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(tint.opacity(0.26), lineWidth: 1))
+    }
+}
+
+private struct SafetyReminderRow: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(Color.vdGold)
+                .frame(width: 30, height: 30)
+                .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.vdPanelRaised.opacity(0.58), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private extension CardRarity {
+    var dashboardRank: Int {
+        switch self {
+        case .common: 0
+        case .uncommon: 1
+        case .rare: 2
+        case .epic: 3
+        case .legendary: 4
+        case .mythic: 5
         }
     }
 }
