@@ -1,19 +1,19 @@
 import Foundation
 
 enum WishlistPriority: String, CaseIterable, Identifiable, Hashable {
-    case chase
-    case high
+    case low
     case medium
-    case watch
+    case high
+    case grail
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .chase: "Chase"
-        case .high: "High"
+        case .low: "Low"
         case .medium: "Medium"
-        case .watch: "Watch"
+        case .high: "High"
+        case .grail: "Grail"
         }
     }
 }
@@ -21,25 +21,47 @@ enum WishlistPriority: String, CaseIterable, Identifiable, Hashable {
 struct WishlistItem: Identifiable, Hashable {
     let id: UUID
     let card: Card
-    let priority: WishlistPriority
-    let targetPrice: Double
-    let note: String
-    let addedAt: Date
+    var priority: WishlistPriority
+    var budget: Double
+    var notes: String
+    var addedAt: Date
 
     init(
         id: UUID = UUID(),
         card: Card,
         priority: WishlistPriority,
-        targetPrice: Double,
-        note: String,
+        budget: Double,
+        notes: String,
         addedAt: Date = .now
     ) {
         self.id = id
         self.card = card
         self.priority = priority
-        self.targetPrice = targetPrice
-        self.note = note
+        self.budget = budget
+        self.notes = notes
         self.addedAt = addedAt
+    }
+}
+
+struct FriendWant: Identifiable, Hashable {
+    let id: UUID
+    let friend: Friend
+    let card: Card
+    let priority: WishlistPriority
+    let note: String
+
+    init(
+        id: UUID = UUID(),
+        friend: Friend,
+        card: Card,
+        priority: WishlistPriority,
+        note: String
+    ) {
+        self.id = id
+        self.friend = friend
+        self.card = card
+        self.priority = priority
+        self.note = note
     }
 }
 

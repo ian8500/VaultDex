@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DashboardView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = DashboardViewModel()
 
     private let statColumns = [
@@ -21,7 +22,8 @@ struct DashboardView: View {
                     header
                     statsGrid
                     featureGrid
-                    nextEvent
+                    recentlyAdded
+                    friendsWantSection
                     featuredCards
                     activityFeed
                 }
@@ -46,7 +48,7 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            Image(systemName: viewModel.profile.avatarSymbol)
+            Image(systemName: store.profile.avatarSymbol)
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Color.vdGold)
                 .frame(width: 56, height: 56)
@@ -61,7 +63,7 @@ struct DashboardView: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.vdTextSecondary)
 
-                Text(viewModel.profile.displayName)
+                Text(store.profile.displayName)
                     .font(.title2.weight(.bold))
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(1)
@@ -80,49 +82,49 @@ struct DashboardView: View {
     private var statsGrid: some View {
         LazyVGrid(columns: statColumns, spacing: 12) {
             DashboardStatCard(
-                title: "Total Cards",
-                value: "\(viewModel.totalCopies)",
-                caption: "\(viewModel.uniqueCards) unique",
+                title: "Cards Owned",
+                value: "\(store.totalCopiesOwned)",
+                caption: "\(store.uniqueCardsOwned) unique",
                 systemImage: "rectangle.stack.fill",
                 tint: .vdEmerald
             )
 
             DashboardStatCard(
-                title: "Vault Value",
-                value: viewModel.vaultValue.compactVaultCurrency,
-                caption: "Offline estimate",
+                title: "Estimated Value",
+                value: store.estimatedCollectionValue.compactVaultCurrency,
+                caption: "Local market estimate",
                 systemImage: "chart.line.uptrend.xyaxis",
                 tint: .vdGold
             )
 
             DashboardStatCard(
-                title: "Collector Score",
-                value: "\(viewModel.profile.collectorScore)",
-                caption: viewModel.profile.favoriteSet.code + " favorite",
-                systemImage: "crown.fill",
+                title: "Wishlist",
+                value: "\(store.wishlistItems.count)",
+                caption: "Cards being watched",
+                systemImage: "star.fill",
                 tint: .vdViolet
             )
 
             DashboardStatCard(
-                title: "Open Trades",
-                value: "\(viewModel.pendingTrades)",
-                caption: "Awaiting action",
-                systemImage: "arrow.left.arrow.right",
+                title: "Unique Sets",
+                value: "\(store.uniqueSetsOwned)",
+                caption: "Represented in vault",
+                systemImage: "rectangle.stack.badge.person.crop",
                 tint: .vdCoral
             )
 
             DashboardStatCard(
                 title: "Demo Dex",
-                value: viewModel.completionPercent.formatted(.percent.precision(.fractionLength(0))),
-                caption: "\(viewModel.wishlistCount) wishlist targets",
+                value: viewModel.completionPercent(in: store).formatted(.percent.precision(.fractionLength(0))),
+                caption: "\(store.cards.count) catalog cards",
                 systemImage: "checklist.checked",
                 tint: .vdEmerald
             )
 
             DashboardStatCard(
                 title: "Friends Online",
-                value: "\(viewModel.onlineFriends)",
-                caption: "\(viewModel.friends.count) collectors linked",
+                value: "\(store.friends.filter(\.isOnline).count)",
+                caption: "\(store.friendWants.count) friend wants",
                 systemImage: "person.2.fill",
                 tint: .vdViolet
             )
@@ -173,61 +175,28 @@ struct DashboardView: View {
         }
     }
 
-    @ViewBuilder
-    private var nextEvent: some View {
-        if let event = viewModel.nextEvent {
-            VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Next Event", subtitle: "Local event calendar")
-
-                NavigationLink {
-                    EventsView()
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "calendar.badge.clock")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(Color.vdGold)
-                            .frame(width: 50, height: 50)
-                            .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.title)
-                                .font(.headline)
-                                .foregroundStyle(Color.vdTextPrimary)
-                                .lineLimit(2)
-
-                            Text(event.venue + " · " + event.date.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(Color.vdTextSecondary)
-                                .lineLimit(2)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.vdTextSecondary)
-                    }
-                    .padding(16)
-                    .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Featured Vault", subtitle: "Highest value demo cards")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
-                    ForEach(viewModel.highlightCards) { card in
-                        CardTile(card: card, style: .compact)
+                    ForEach(viewModel.highlightCards(in: store)) { card in
+                        NavigationLink {
+                            CardDetailView(card: card)
+                        } label: {
+                            let item = store.collectionItem(for: card)
+                            CardTile(
+                                card: card,
+                                quantity: item?.quantity,
+                                condition: item?.condition,
+                                variant: item?.variant,
+                                isAvailableForTrade: item?.isAvailableForTrade ?? false,
+                                style: .compact
+                            )
                             .frame(width: 220)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .scrollTargetLayout()
@@ -238,10 +207,10 @@ struct DashboardView: View {
 
     private var activityFeed: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Recent Activity", subtitle: "Local demo events")
+            VaultSectionHeader(title: "Recent Activity", subtitle: "Local collection and social updates")
 
             VStack(spacing: 10) {
-                ForEach(viewModel.recentActivity) { activity in
+                ForEach(viewModel.recentActivity(in: store)) { activity in
                     HStack(spacing: 12) {
                         Image(systemName: activity.systemImage)
                             .foregroundStyle(Color.vdGold)
@@ -266,6 +235,79 @@ struct DashboardView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
                     )
+                }
+            }
+        }
+    }
+
+    private var recentlyAdded: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Recently Added", subtitle: "Newest cards in your local collection")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(store.recentlyAdded.prefix(5)) { item in
+                        NavigationLink {
+                            CardDetailView(card: item.card)
+                        } label: {
+                            CardTile(
+                                card: item.card,
+                                quantity: item.quantity,
+                                condition: item.condition,
+                                variant: item.variant,
+                                isAvailableForTrade: item.isAvailableForTrade,
+                                style: .compact
+                            )
+                            .frame(width: 220)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+        }
+    }
+
+    private var friendsWantSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Friends Want", subtitle: "Trade ideas from your local social graph")
+
+            VStack(spacing: 10) {
+                ForEach(store.friendWants) { want in
+                    NavigationLink {
+                        CardDetailView(card: want.card)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: want.friend.avatarSymbol)
+                                .foregroundStyle(Color.vdGold)
+                                .frame(width: 34, height: 34)
+                                .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(want.friend.displayName + " wants " + want.card.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.vdTextPrimary)
+                                    .lineLimit(1)
+
+                                Text(want.note)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.vdTextSecondary)
+                                    .lineLimit(2)
+                            }
+
+                            Spacer()
+
+                            StatusPill(title: want.priority.displayName, tint: want.priority == .grail ? .vdCoral : .vdGold)
+                        }
+                        .padding(12)
+                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

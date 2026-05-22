@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VaultView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = VaultViewModel()
 
     private let columns = [
@@ -36,7 +37,7 @@ struct VaultView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
 
-                    Text(viewModel.totalValue.vaultCurrency)
+                    Text(store.estimatedCollectionValue.vaultCurrency)
                         .font(.system(.largeTitle, design: .rounded, weight: .black))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
@@ -53,9 +54,9 @@ struct VaultView: View {
             }
 
             HStack(spacing: 12) {
-                MetricPill(title: "Cards", value: "\(viewModel.totalCopies)")
-                MetricPill(title: "Unique", value: "\(viewModel.collectionItems.count)")
-                MetricPill(title: "Complete", value: viewModel.completionPercent.formatted(.percent.precision(.fractionLength(0))))
+                MetricPill(title: "Cards", value: "\(store.totalCopiesOwned)")
+                MetricPill(title: "Unique", value: "\(store.uniqueCardsOwned)")
+                MetricPill(title: "Complete", value: viewModel.completionPercent(in: store).formatted(.percent.precision(.fractionLength(0))))
             }
         }
         .padding(18)
@@ -72,7 +73,7 @@ struct VaultView: View {
 
             FeatureLinkCard(
                 title: "Import Collection",
-                subtitle: "\(viewModel.binderFilledSlots)/\(viewModel.binderTotalSlots) binder slots filled; scan demo cards next",
+                subtitle: "\(viewModel.binderFilledSlots(in: store))/\(viewModel.binderTotalSlots(in: store)) binder slots filled; scan demo cards next",
                 systemImage: "square.and.arrow.down.on.square.fill",
                 tint: .vdEmerald
             ) {
@@ -81,7 +82,7 @@ struct VaultView: View {
 
             FeatureLinkCard(
                 title: "Wishlist",
-                subtitle: "\(viewModel.wishlistItems.count) chase targets with price notes",
+                subtitle: "\(store.wishlistItems.count) targets with budgets and notes",
                 systemImage: "star.fill",
                 tint: .vdGold
             ) {
@@ -110,15 +111,29 @@ struct VaultView: View {
 
     @ViewBuilder
     private var favorites: some View {
-        if !viewModel.favoriteItems.isEmpty {
+        let favoriteItems = viewModel.favoriteItems(in: store)
+
+        if !favoriteItems.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 VaultSectionHeader(title: "Favorites", subtitle: "Pinned cards in your demo vault")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        ForEach(viewModel.favoriteItems) { item in
-                            CardTile(card: item.card, quantity: item.quantity, style: .compact)
+                        ForEach(favoriteItems) { item in
+                            NavigationLink {
+                                CardDetailView(card: item.card)
+                            } label: {
+                                CardTile(
+                                    card: item.card,
+                                    quantity: item.quantity,
+                                    condition: item.condition,
+                                    variant: item.variant,
+                                    isAvailableForTrade: item.isAvailableForTrade,
+                                    style: .compact
+                                )
                                 .frame(width: 220)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .scrollTargetLayout()
@@ -132,7 +147,7 @@ struct VaultView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Collection", subtitle: "Offline inventory")
 
-            if viewModel.collectionItems.isEmpty {
+            if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "rectangle.stack.badge.plus",
                     title: "Vault is empty",
@@ -140,8 +155,20 @@ struct VaultView: View {
                 )
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(viewModel.sortedItems) { item in
-                        CardTile(card: item.card, quantity: item.quantity, style: .compact)
+                    ForEach(viewModel.sortedItems(in: store)) { item in
+                        NavigationLink {
+                            CardDetailView(card: item.card)
+                        } label: {
+                            CardTile(
+                                card: item.card,
+                                quantity: item.quantity,
+                                condition: item.condition,
+                                variant: item.variant,
+                                isAvailableForTrade: item.isAvailableForTrade,
+                                style: .compact
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SocialProfileView: View {
-    @StateObject private var viewModel = ProfileViewModel()
+    @EnvironmentObject private var store: LocalVaultStore
 
     var body: some View {
         ZStack {
@@ -27,7 +27,7 @@ struct SocialProfileView: View {
     private var profileHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: viewModel.profile.avatarSymbol)
+                Image(systemName: store.profile.avatarSymbol)
                     .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color.vdGold)
                     .frame(width: 72, height: 72)
@@ -45,16 +45,16 @@ struct SocialProfileView: View {
                     )
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(viewModel.profile.displayName)
+                    Text(store.profile.displayName)
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
 
-                    Text(viewModel.profile.handle)
+                    Text(store.profile.handle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.vdGold)
 
-                    Text(viewModel.profile.bio)
+                    Text(store.profile.bio)
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -73,9 +73,9 @@ struct SocialProfileView: View {
 
     private var socialStats: some View {
         HStack(spacing: 12) {
-            ProfileStatTile(title: "Score", value: "\(viewModel.profile.collectorScore)", systemImage: "crown.fill", tint: .vdGold)
-            ProfileStatTile(title: "Online", value: "\(viewModel.onlineFriends)", systemImage: "person.2.fill", tint: .vdEmerald)
-            ProfileStatTile(title: "Mythics", value: "\(viewModel.mythicCount)", systemImage: "sparkles", tint: .vdCoral)
+            ProfileStatTile(title: "Score", value: "\(store.profile.collectorScore)", systemImage: "crown.fill", tint: .vdGold)
+            ProfileStatTile(title: "Online", value: "\(onlineFriends)", systemImage: "person.2.fill", tint: .vdEmerald)
+            ProfileStatTile(title: "Mythics", value: "\(mythicCount)", systemImage: "sparkles", tint: .vdCoral)
         }
     }
 
@@ -85,7 +85,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Friends",
-                subtitle: "\(viewModel.friends.count) demo collectors connected",
+                subtitle: "\(store.friends.count) demo collectors connected",
                 systemImage: "person.2.fill",
                 tint: .vdEmerald
             ) {
@@ -94,7 +94,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Events",
-                subtitle: viewModel.nextEvent?.title ?? "Upcoming local events",
+                subtitle: nextEvent?.title ?? "Upcoming local events",
                 systemImage: "calendar",
                 tint: .vdGold
             ) {
@@ -126,7 +126,7 @@ struct SocialProfileView: View {
             VaultSectionHeader(title: "Set Progress", subtitle: "Local collection coverage")
 
             VStack(spacing: 10) {
-                ForEach(viewModel.setProgress) { progress in
+                ForEach(setProgressRows) { progress in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -165,7 +165,7 @@ struct SocialProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Showcase", subtitle: "Favorite vault pieces")
 
-            if viewModel.collectionItems.isEmpty {
+            if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star",
                     title: "No showcase yet",
@@ -174,9 +174,21 @@ struct SocialProfileView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        ForEach(viewModel.collectionItems.filter(\.isFavorite)) { item in
-                            CardTile(card: item.card, quantity: item.quantity, style: .compact)
+                        ForEach(store.collectionItems.filter(\.isFavorite)) { item in
+                            NavigationLink {
+                                CardDetailView(card: item.card)
+                            } label: {
+                                CardTile(
+                                    card: item.card,
+                                    quantity: item.quantity,
+                                    condition: item.condition,
+                                    variant: item.variant,
+                                    isAvailableForTrade: item.isAvailableForTrade,
+                                    style: .compact
+                                )
                                 .frame(width: 220)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .scrollTargetLayout()
@@ -184,6 +196,28 @@ struct SocialProfileView: View {
                 .scrollTargetBehavior(.viewAligned)
             }
         }
+    }
+
+    private var onlineFriends: Int {
+        store.friends.filter(\.isOnline).count
+    }
+
+    private var mythicCount: Int {
+        store.collectionItems
+            .filter { $0.card.rarity == .mythic }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
+    private var setProgressRows: [SetProgress] {
+        store.sets.map { set in
+            let owned = Set(store.collectionItems.filter { $0.card.set == set }.map(\.card.id)).count
+            let total = store.cards.filter { $0.set == set }.count
+            return SetProgress(cardSet: set, owned: owned, total: max(total, 1))
+        }
+    }
+
+    private var nextEvent: VaultEvent? {
+        store.events.sorted { $0.date < $1.date }.first
     }
 }
 

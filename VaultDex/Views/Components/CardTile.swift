@@ -8,6 +8,9 @@ enum CardTileStyle {
 struct CardTile: View {
     let card: Card
     var quantity: Int?
+    var condition: CardCondition?
+    var variant: CardVariant?
+    var isAvailableForTrade = false
     var style: CardTileStyle = .standard
 
     var body: some View {
@@ -23,7 +26,7 @@ struct CardTile: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.86)
 
-                        Text(card.set.code + " · " + card.typeLine)
+                        Text(card.set.code + " · " + card.cardType.displayName + " · " + card.typeLine)
                             .font(.caption)
                             .foregroundStyle(Color.vdTextSecondary)
                             .lineLimit(1)
@@ -52,6 +55,18 @@ struct CardTile: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
+
+                if variant != nil || isAvailableForTrade {
+                    HStack(spacing: 6) {
+                        if let variant {
+                            StatusPill(title: variant.displayName, tint: .vdViolet)
+                        }
+
+                        if isAvailableForTrade {
+                            StatusPill(title: "For Trade", tint: .vdEmerald)
+                        }
+                    }
+                }
             }
         }
         .padding(12)
@@ -77,7 +92,7 @@ struct CardTile: View {
                     .font(.system(size: style == .compact ? 30 : 42, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.86))
 
-                Text(card.condition.displayName)
+                Text((condition ?? card.condition).displayName)
                     .font(.caption2.weight(.bold))
                     .textCase(.uppercase)
                     .foregroundStyle(.white.opacity(0.78))
@@ -92,6 +107,16 @@ struct CardTile: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .background(.white.opacity(0.82), in: Capsule())
+                .padding(10)
+
+            Text(card.cardType.displayName)
+                .font(.caption2.weight(.black))
+                .textCase(.uppercase)
+                .foregroundStyle(.white.opacity(0.86))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.black.opacity(0.24), in: Capsule())
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(10)
         }
         .frame(height: style == .compact ? 112 : 152)

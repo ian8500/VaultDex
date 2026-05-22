@@ -72,6 +72,7 @@ struct ImportCollectionView: View {
 }
 
 struct WishlistView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = WishlistViewModel()
 
     var body: some View {
@@ -108,12 +109,12 @@ struct WishlistView: View {
 
                 Spacer()
 
-                StatusPill(title: "\(viewModel.items.count) Cards", tint: .vdGold)
+                StatusPill(title: "\(store.wishlistItems.count) Cards", tint: .vdGold)
             }
 
             HStack(spacing: 12) {
-                MetricPill(title: "Target Total", value: viewModel.targetValue.compactVaultCurrency)
-                MetricPill(title: "High Priority", value: "\(viewModel.chaseItems.count)")
+                MetricPill(title: "Target Total", value: viewModel.targetValue(in: store).compactVaultCurrency)
+                MetricPill(title: "High Priority", value: "\(viewModel.highPriorityItems(in: store).count)")
             }
         }
         .padding(18)
@@ -124,20 +125,28 @@ struct WishlistView: View {
         )
     }
 
+    @ViewBuilder
     private var chaseStrip: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Chase Board", subtitle: "The cards to watch first")
+        if !viewModel.highPriorityItems(in: store).isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                VaultSectionHeader(title: "Chase Board", subtitle: "The cards to watch first")
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(viewModel.chaseItems) { item in
-                        CardTile(card: item.card, style: .compact)
-                            .frame(width: 220)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(viewModel.highPriorityItems(in: store)) { item in
+                            NavigationLink {
+                                CardDetailView(card: item.card)
+                            } label: {
+                                CardTile(card: item.card, style: .compact)
+                                    .frame(width: 220)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
+                    .scrollTargetLayout()
                 }
-                .scrollTargetLayout()
+                .scrollTargetBehavior(.viewAligned)
             }
-            .scrollTargetBehavior(.viewAligned)
         }
     }
 
@@ -145,9 +154,22 @@ struct WishlistView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "All Wishlist Items", subtitle: "Priority, target price, and notes")
 
-            VStack(spacing: 12) {
-                ForEach(viewModel.items) { item in
-                    WishlistRow(item: item)
+            if store.wishlistItems.isEmpty {
+                EmptyStateView(
+                    systemImage: "star",
+                    title: "Wishlist is empty",
+                    message: "Add cards from search or card detail to start tracking targets."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(store.wishlistItems) { item in
+                        NavigationLink {
+                            CardDetailView(card: item.card)
+                        } label: {
+                            WishlistRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -332,6 +354,7 @@ struct BinderDesignerView: View {
 }
 
 struct CompletionTrackerView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = CompletionTrackerViewModel()
 
     var body: some View {
@@ -369,12 +392,12 @@ struct CompletionTrackerView: View {
 
                 Spacer()
 
-                Text(viewModel.overallFraction.formatted(.percent.precision(.fractionLength(0))))
+                Text(viewModel.overallFraction(in: store).formatted(.percent.precision(.fractionLength(0))))
                     .font(.system(.title2, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdGold)
             }
 
-            ProgressView(value: viewModel.overallFraction)
+            ProgressView(value: viewModel.overallFraction(in: store))
                 .tint(Color.vdGold)
                 .background(Color.vdStroke.opacity(0.55), in: Capsule())
         }
@@ -391,7 +414,7 @@ struct CompletionTrackerView: View {
             VaultSectionHeader(title: "Set Progress", subtitle: "Owned unique cards in the demo catalog")
 
             VStack(spacing: 12) {
-                ForEach(viewModel.setProgress) { progress in
+                ForEach(viewModel.setProgress(in: store)) { progress in
                     CompletionProgressRow(progress: progress)
                 }
             }
@@ -402,7 +425,7 @@ struct CompletionTrackerView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Missing Cards", subtitle: "Targets for wishlist, import, and trade")
 
-            if viewModel.missingCards.isEmpty {
+            if viewModel.missingCards(in: store).isEmpty {
                 EmptyStateView(
                     systemImage: "checkmark.seal.fill",
                     title: "Demo catalog complete",
@@ -411,9 +434,14 @@ struct CompletionTrackerView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        ForEach(viewModel.missingCards) { card in
-                            CardTile(card: card, style: .compact)
-                                .frame(width: 220)
+                        ForEach(viewModel.missingCards(in: store)) { card in
+                            NavigationLink {
+                                CardDetailView(card: card)
+                            } label: {
+                                CardTile(card: card, style: .compact)
+                                    .frame(width: 220)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .scrollTargetLayout()
@@ -701,7 +729,7 @@ private struct WishlistRow: View {
                 HStack {
                     StatusPill(title: item.priority.displayName, tint: priorityTint)
                     Spacer()
-                    Text(item.targetPrice.vaultCurrency)
+                    Text(item.budget.vaultCurrency)
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.vdGold)
                 }
@@ -711,7 +739,7 @@ private struct WishlistRow: View {
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(2)
 
-                Text(item.note)
+                Text(item.notes)
                     .font(.subheadline)
                     .foregroundStyle(Color.vdTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -727,10 +755,10 @@ private struct WishlistRow: View {
 
     private var priorityTint: Color {
         switch item.priority {
-        case .chase: .vdCoral
+        case .grail: .vdCoral
         case .high: .vdGold
         case .medium: .vdViolet
-        case .watch: .vdTextSecondary
+        case .low: .vdTextSecondary
         }
     }
 }

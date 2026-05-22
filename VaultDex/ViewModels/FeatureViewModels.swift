@@ -24,18 +24,12 @@ final class ImportCollectionViewModel: ObservableObject {
 
 @MainActor
 final class WishlistViewModel: ObservableObject {
-    @Published private(set) var items: [WishlistItem]
-
-    init(repository: DemoVaultRepository = .shared) {
-        items = repository.wishlistItems
+    func highPriorityItems(in store: LocalVaultStore) -> [WishlistItem] {
+        store.wishlistItems.filter { $0.priority == .grail || $0.priority == .high }
     }
 
-    var chaseItems: [WishlistItem] {
-        items.filter { $0.priority == .chase || $0.priority == .high }
-    }
-
-    var targetValue: Double {
-        items.reduce(0) { $0 + $1.targetPrice }
+    func targetValue(in store: LocalVaultStore) -> Double {
+        store.wishlistItems.reduce(0) { $0 + $1.budget }
     }
 }
 
@@ -75,33 +69,23 @@ final class BinderDesignerViewModel: ObservableObject {
 
 @MainActor
 final class CompletionTrackerViewModel: ObservableObject {
-    @Published private(set) var collectionItems: [CollectionItem]
-    private let sets: [CardSet]
-    private let cards: [Card]
-
-    init(repository: DemoVaultRepository = .shared) {
-        collectionItems = repository.collectionItems
-        sets = repository.sets
-        cards = repository.cards
-    }
-
-    var setProgress: [SetProgress] {
-        sets.map { set in
-            let owned = Set(collectionItems.filter { $0.card.set == set }.map(\.card.id)).count
-            let total = cards.filter { $0.set == set }.count
+    func setProgress(in store: LocalVaultStore) -> [SetProgress] {
+        store.sets.map { set in
+            let owned = Set(store.collectionItems.filter { $0.card.set == set }.map(\.card.id)).count
+            let total = store.cards.filter { $0.set == set }.count
             return SetProgress(cardSet: set, owned: owned, total: max(total, 1))
         }
     }
 
-    var overallFraction: Double {
-        guard !cards.isEmpty else { return 0 }
-        let owned = Set(collectionItems.map(\.card.id)).count
-        return Double(owned) / Double(cards.count)
+    func overallFraction(in store: LocalVaultStore) -> Double {
+        guard !store.cards.isEmpty else { return 0 }
+        let owned = Set(store.collectionItems.map(\.card.id)).count
+        return Double(owned) / Double(store.cards.count)
     }
 
-    var missingCards: [Card] {
-        let ownedIDs = Set(collectionItems.map(\.card.id))
-        return cards.filter { !ownedIDs.contains($0.id) }
+    func missingCards(in store: LocalVaultStore) -> [Card] {
+        let ownedIDs = Set(store.collectionItems.map(\.card.id))
+        return store.cards.filter { !ownedIDs.contains($0.id) }
     }
 }
 

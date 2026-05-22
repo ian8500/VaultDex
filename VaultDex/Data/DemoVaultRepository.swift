@@ -15,6 +15,7 @@ final class DemoVaultRepository {
     let events: [VaultEvent]
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
+    let friendWants: [FriendWant]
 
     private init() {
         let nebula = CardSet(name: "Nebula Crown", code: "NBC", releaseYear: 2026, totalCards: 182)
@@ -28,6 +29,7 @@ final class DemoVaultRepository {
                 name: "Astra Prime",
                 set: nebula,
                 rarity: .mythic,
+                cardType: .psychic,
                 typeLine: "Celestial Vanguard",
                 power: 98,
                 condition: .mint,
@@ -38,6 +40,7 @@ final class DemoVaultRepository {
                 name: "Gilded Revenant",
                 set: obsidian,
                 rarity: .legendary,
+                cardType: .dark,
                 typeLine: "Relic Warden",
                 power: 91,
                 condition: .nearMint,
@@ -48,6 +51,7 @@ final class DemoVaultRepository {
                 name: "Solaris Wyrm",
                 set: radiant,
                 rarity: .epic,
+                cardType: .dragon,
                 typeLine: "Dragon Aspect",
                 power: 86,
                 condition: .excellent,
@@ -58,6 +62,7 @@ final class DemoVaultRepository {
                 name: "Vesper Blade",
                 set: nebula,
                 rarity: .rare,
+                cardType: .dark,
                 typeLine: "Shadow Artifact",
                 power: 74,
                 condition: .nearMint,
@@ -68,6 +73,7 @@ final class DemoVaultRepository {
                 name: "Emerald Oracle",
                 set: radiant,
                 rarity: .legendary,
+                cardType: .grass,
                 typeLine: "Verdant Seer",
                 power: 89,
                 condition: .mint,
@@ -78,6 +84,7 @@ final class DemoVaultRepository {
                 name: "Cinder Paladin",
                 set: obsidian,
                 rarity: .epic,
+                cardType: .fire,
                 typeLine: "Flame Knight",
                 power: 82,
                 condition: .excellent,
@@ -88,6 +95,7 @@ final class DemoVaultRepository {
                 name: "Glasswing Scout",
                 set: nebula,
                 rarity: .uncommon,
+                cardType: .colorless,
                 typeLine: "Aerial Scout",
                 power: 43,
                 condition: .nearMint,
@@ -98,6 +106,7 @@ final class DemoVaultRepository {
                 name: "Moonlit Vault",
                 set: obsidian,
                 rarity: .rare,
+                cardType: .psychic,
                 typeLine: "Hidden Location",
                 power: 68,
                 condition: .mint,
@@ -108,6 +117,7 @@ final class DemoVaultRepository {
                 name: "Ironroot Sentinel",
                 set: radiant,
                 rarity: .uncommon,
+                cardType: .metal,
                 typeLine: "Ancient Guardian",
                 power: 55,
                 condition: .played,
@@ -118,6 +128,7 @@ final class DemoVaultRepository {
                 name: "Prism Courier",
                 set: nebula,
                 rarity: .common,
+                cardType: .electric,
                 typeLine: "Arcane Runner",
                 power: 28,
                 condition: .nearMint,
@@ -128,6 +139,7 @@ final class DemoVaultRepository {
                 name: "Ashen Contract",
                 set: obsidian,
                 rarity: .rare,
+                cardType: .fire,
                 typeLine: "Forbidden Pact",
                 power: 71,
                 condition: .excellent,
@@ -138,6 +150,7 @@ final class DemoVaultRepository {
                 name: "Frostbound Crown",
                 set: radiant,
                 rarity: .mythic,
+                cardType: .water,
                 typeLine: "Royal Relic",
                 power: 96,
                 condition: .mint,
@@ -147,41 +160,41 @@ final class DemoVaultRepository {
         ]
 
         collectionItems = [
-            CollectionItem(card: cards[0], quantity: 1, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 5), notes: "Launch pull"),
-            CollectionItem(card: cards[1], quantity: 1, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 12)),
-            CollectionItem(card: cards[2], quantity: 2, acquiredAt: .now.addingTimeInterval(-86400 * 21)),
-            CollectionItem(card: cards[3], quantity: 1, acquiredAt: .now.addingTimeInterval(-86400 * 3)),
-            CollectionItem(card: cards[4], quantity: 1, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 8)),
-            CollectionItem(card: cards[5], quantity: 3, acquiredAt: .now.addingTimeInterval(-86400 * 30)),
-            CollectionItem(card: cards[7], quantity: 1, acquiredAt: .now.addingTimeInterval(-86400 * 2)),
-            CollectionItem(card: cards[8], quantity: 4, acquiredAt: .now.addingTimeInterval(-86400 * 42)),
-            CollectionItem(card: cards[10], quantity: 2, acquiredAt: .now.addingTimeInterval(-86400 * 16))
+            CollectionItem(card: cards[0], quantity: 1, variant: .fullArt, isAvailableForTrade: false, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 5), notes: "Launch pull"),
+            CollectionItem(card: cards[1], quantity: 1, variant: .holo, isAvailableForTrade: false, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 12)),
+            CollectionItem(card: cards[2], quantity: 2, condition: .excellent, variant: .reverseHolo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 21)),
+            CollectionItem(card: cards[3], quantity: 1, variant: .normal, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 3)),
+            CollectionItem(card: cards[4], quantity: 1, variant: .secretRare, isFavorite: true, acquiredAt: .now.addingTimeInterval(-86400 * 8)),
+            CollectionItem(card: cards[5], quantity: 3, condition: .excellent, variant: .holo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 30)),
+            CollectionItem(card: cards[7], quantity: 1, variant: .promo, acquiredAt: .now.addingTimeInterval(-86400 * 2)),
+            CollectionItem(card: cards[8], quantity: 4, condition: .played, variant: .normal, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 42)),
+            CollectionItem(card: cards[10], quantity: 2, condition: .excellent, variant: .reverseHolo, acquiredAt: .now.addingTimeInterval(-86400 * 16))
         ]
 
         wishlistItems = [
             WishlistItem(
                 card: cards[11],
-                priority: .chase,
-                targetPrice: 340,
-                note: "Wait for a clean mint listing below the current market."
+                priority: .grail,
+                budget: 340,
+                notes: "Wait for a clean mint listing below the current market."
             ),
             WishlistItem(
                 card: cards[6],
                 priority: .high,
-                targetPrice: 10,
-                note: "Need two more for a complete Nebula Crown binder page."
+                budget: 10,
+                notes: "Need two more for a complete Nebula Crown binder page."
             ),
             WishlistItem(
                 card: cards[9],
                 priority: .medium,
-                targetPrice: 2,
-                note: "Low-cost filler for demo catalog completion."
+                budget: 2,
+                notes: "Low-cost filler for demo catalog completion."
             ),
             WishlistItem(
                 card: cards[3],
-                priority: .watch,
-                targetPrice: 48,
-                note: "Good trade sweetener when Obsidian Keys dips."
+                priority: .low,
+                budget: 48,
+                notes: "Good trade sweetener when Obsidian Keys dips."
             )
         ]
 
@@ -238,6 +251,12 @@ final class DemoVaultRepository {
                 mutualTrades: 1,
                 isOnline: false
             )
+        ]
+
+        friendWants = [
+            FriendWant(friend: friends[0], card: cards[2], priority: .high, note: "Mara needs a clean Solaris Wyrm for Radiant Archive."),
+            FriendWant(friend: friends[1], card: cards[10], priority: .medium, note: "Theo is bundling for Ashen Contract copies."),
+            FriendWant(friend: friends[2], card: cards[7], priority: .grail, note: "Lena wants the Moonlit Vault promo variant.")
         ]
 
         tradeOffers = [

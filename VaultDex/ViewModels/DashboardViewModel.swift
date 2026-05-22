@@ -9,71 +9,42 @@ struct DashboardActivity: Identifiable, Hashable {
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
-    @Published private(set) var collectionItems: [CollectionItem]
-    @Published private(set) var tradeOffers: [TradeOffer]
-    @Published private(set) var profile: UserProfile
-    @Published private(set) var wishlistItems: [WishlistItem]
-    @Published private(set) var friends: [Friend]
-    @Published private(set) var events: [VaultEvent]
-
-    private let cards: [Card]
-
-    let recentActivity: [DashboardActivity]
-
-    init(repository: DemoVaultRepository = .shared) {
-        collectionItems = repository.collectionItems
-        tradeOffers = repository.tradeOffers
-        profile = repository.profile
-        wishlistItems = repository.wishlistItems
-        friends = repository.friends
-        events = repository.events
-        cards = repository.cards
-        recentActivity = [
-            DashboardActivity(title: "Astra Prime secured", subtitle: "Mint pull from Nebula Crown", systemImage: "sparkles"),
-            DashboardActivity(title: "Trade counter received", subtitle: "Theo Vale adjusted a bundle", systemImage: "arrow.left.arrow.right"),
-            DashboardActivity(title: "Binder updated", subtitle: "Mythic Front Page has 7 slots filled", systemImage: "rectangle.grid.3x2.fill"),
-            DashboardActivity(title: "Event RSVP ready", subtitle: "Nebula Crown Launch League starts soon", systemImage: "calendar")
-        ]
+    func completionPercent(in store: LocalVaultStore) -> Double {
+        guard !store.cards.isEmpty else { return 0 }
+        let ownedIDs = Set(store.collectionItems.map(\.card.id))
+        return Double(ownedIDs.count) / Double(store.cards.count)
     }
 
-    var totalCopies: Int {
-        collectionItems.reduce(0) { $0 + $1.quantity }
+    func nextEvent(in store: LocalVaultStore) -> VaultEvent? {
+        store.events.sorted { $0.date < $1.date }.first
     }
 
-    var uniqueCards: Int {
-        collectionItems.count
-    }
-
-    var vaultValue: Double {
-        collectionItems.reduce(0) { $0 + ($1.card.marketValue * Double($1.quantity)) }
-    }
-
-    var pendingTrades: Int {
-        tradeOffers.filter { $0.status == .pending || $0.status == .countered }.count
-    }
-
-    var wishlistCount: Int {
-        wishlistItems.count
-    }
-
-    var onlineFriends: Int {
-        friends.filter(\.isOnline).count
-    }
-
-    var completionPercent: Double {
-        guard !cards.isEmpty else { return 0 }
-        let ownedIDs = Set(collectionItems.map(\.card.id))
-        return Double(ownedIDs.count) / Double(cards.count)
-    }
-
-    var nextEvent: VaultEvent? {
-        events.sorted { $0.date < $1.date }.first
-    }
-
-    var highlightCards: [Card] {
-        collectionItems
+    func highlightCards(in store: LocalVaultStore) -> [Card] {
+        store.collectionItems
             .sorted { $0.card.marketValue > $1.card.marketValue }
             .prefix(4)
             .map(\.card)
+    }
+
+    func recentActivity(in store: LocalVaultStore) -> [DashboardActivity] {
+        var activities = store.recentlyAdded.prefix(3).map { item in
+            DashboardActivity(
+                title: item.card.name + " added",
+                subtitle: "\(item.quantity) owned · \(item.variant.displayName)",
+                systemImage: "plus.circle.fill"
+            )
+        }
+
+        if let firstWant = store.friendWants.first {
+            activities.append(
+                DashboardActivity(
+                    title: firstWant.friend.displayName + " wants " + firstWant.card.name,
+                    subtitle: firstWant.priority.displayName + " priority",
+                    systemImage: "person.2.fill"
+                )
+            )
+        }
+
+        return activities
     }
 }

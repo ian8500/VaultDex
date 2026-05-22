@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TradeView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = TradeViewModel()
 
     var body: some View {
@@ -10,6 +11,7 @@ struct TradeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    tradeBinderSection
                     listingsSection
                     activeSection
                     completedSection
@@ -43,7 +45,7 @@ struct TradeView: View {
                     .foregroundStyle(Color.vdGold)
             }
 
-            PrimaryButton(title: "Create Demo Offer", systemImage: "plus") {}
+            PrimaryButton(title: "\(store.tradeableCollectionItems.count) Cards Marked For Trade", systemImage: "checkmark.seal.fill") {}
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
@@ -51,6 +53,43 @@ struct TradeView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    private var tradeBinderSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Your Trade Binder", subtitle: "Cards you marked available from detail")
+
+            if store.tradeableCollectionItems.isEmpty {
+                EmptyStateView(
+                    systemImage: "arrow.left.arrow.right",
+                    title: "No trade cards yet",
+                    message: "Open a card detail and mark it available for trade."
+                )
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(store.tradeableCollectionItems) { item in
+                            NavigationLink {
+                                CardDetailView(card: item.card)
+                            } label: {
+                                CardTile(
+                                    card: item.card,
+                                    quantity: item.quantity,
+                                    condition: item.condition,
+                                    variant: item.variant,
+                                    isAvailableForTrade: item.isAvailableForTrade,
+                                    style: .compact
+                                )
+                                .frame(width: 220)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.viewAligned)
+            }
+        }
     }
 
     private var listingsSection: some View {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SearchView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = SearchViewModel()
 
     private let columns = [
@@ -16,10 +17,11 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     VaultSectionHeader(title: "Find Cards", subtitle: "Search the offline demo catalog")
                     searchField
+                    typeFilters
                     rarityFilters
                     setFilters
 
-                    if viewModel.filteredCards.isEmpty {
+                    if viewModel.filteredCards(in: store).isEmpty {
                         EmptyStateView(
                             systemImage: "magnifyingglass",
                             title: "No cards found",
@@ -28,16 +30,29 @@ struct SearchView: View {
                         .padding(.top, 32)
                     } else {
                         LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(viewModel.filteredCards) { card in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    CardTile(card: card, quantity: viewModel.quantityOwned(for: card), style: .compact)
+                            ForEach(viewModel.filteredCards(in: store)) { card in
+                                NavigationLink {
+                                    CardDetailView(card: card)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        let item = store.collectionItem(for: card)
+                                        CardTile(
+                                            card: card,
+                                            quantity: item?.quantity,
+                                            condition: item?.condition,
+                                            variant: item?.variant,
+                                            isAvailableForTrade: item?.isAvailableForTrade ?? false,
+                                            style: .compact
+                                        )
 
-                                    if viewModel.isWishlisted(card) {
-                                        StatusPill(title: "Wishlisted", tint: .vdGold)
-                                    } else if viewModel.quantityOwned(for: card) != nil {
-                                        StatusPill(title: "In Vault", tint: .vdEmerald)
+                                        if store.isWishlisted(card) {
+                                            StatusPill(title: "Wishlisted", tint: .vdGold)
+                                        } else if item != nil {
+                                            StatusPill(title: "In Vault", tint: .vdEmerald)
+                                        }
                                     }
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -95,6 +110,22 @@ struct SearchView: View {
         }
     }
 
+    private var typeFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip(title: "All Types", isSelected: viewModel.selectedType == nil) {
+                    viewModel.selectedType = nil
+                }
+
+                ForEach(CardType.allCases) { type in
+                    filterChip(title: type.displayName, isSelected: viewModel.selectedType == type) {
+                        viewModel.selectedType = type
+                    }
+                }
+            }
+        }
+    }
+
     private var setFilters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -102,7 +133,7 @@ struct SearchView: View {
                     viewModel.selectedSet = nil
                 }
 
-                ForEach(viewModel.allSets) { set in
+                ForEach(store.sets) { set in
                     filterChip(title: set.code, isSelected: viewModel.selectedSet == set) {
                         viewModel.selectedSet = set
                     }

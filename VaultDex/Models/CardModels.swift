@@ -40,6 +40,56 @@ enum CardCondition: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum CardType: String, CaseIterable, Identifiable, Hashable {
+    case fire
+    case water
+    case grass
+    case electric
+    case psychic
+    case dragon
+    case dark
+    case metal
+    case colorless
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fire: "Fire"
+        case .water: "Water"
+        case .grass: "Grass"
+        case .electric: "Electric"
+        case .psychic: "Psychic"
+        case .dragon: "Dragon"
+        case .dark: "Dark"
+        case .metal: "Metal"
+        case .colorless: "Colorless"
+        }
+    }
+}
+
+enum CardVariant: String, CaseIterable, Identifiable, Hashable {
+    case normal
+    case holo
+    case reverseHolo
+    case fullArt
+    case secretRare
+    case promo
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .normal: "Normal"
+        case .holo: "Holo"
+        case .reverseHolo: "Reverse Holo"
+        case .fullArt: "Full Art"
+        case .secretRare: "Secret Rare"
+        case .promo: "Promo"
+        }
+    }
+}
+
 enum CardAccent: String, CaseIterable, Identifiable, Hashable {
     case aurora
     case ember
@@ -78,6 +128,7 @@ struct Card: Identifiable, Hashable {
     let name: String
     let set: CardSet
     let rarity: CardRarity
+    let cardType: CardType
     let typeLine: String
     let power: Int
     let condition: CardCondition
@@ -89,6 +140,7 @@ struct Card: Identifiable, Hashable {
         name: String,
         set: CardSet,
         rarity: CardRarity,
+        cardType: CardType,
         typeLine: String,
         power: Int,
         condition: CardCondition,
@@ -99,6 +151,7 @@ struct Card: Identifiable, Hashable {
         self.name = name
         self.set = set
         self.rarity = rarity
+        self.cardType = cardType
         self.typeLine = typeLine
         self.power = power
         self.condition = condition
@@ -111,6 +164,9 @@ struct CollectionItem: Identifiable, Hashable {
     let id: UUID
     let card: Card
     var quantity: Int
+    var condition: CardCondition
+    var variant: CardVariant
+    var isAvailableForTrade: Bool
     var isFavorite: Bool
     var acquiredAt: Date
     var notes: String?
@@ -119,6 +175,9 @@ struct CollectionItem: Identifiable, Hashable {
         id: UUID = UUID(),
         card: Card,
         quantity: Int,
+        condition: CardCondition? = nil,
+        variant: CardVariant = .normal,
+        isAvailableForTrade: Bool = false,
         isFavorite: Bool = false,
         acquiredAt: Date = .now,
         notes: String? = nil
@@ -126,6 +185,9 @@ struct CollectionItem: Identifiable, Hashable {
         self.id = id
         self.card = card
         self.quantity = quantity
+        self.condition = condition ?? card.condition
+        self.variant = variant
+        self.isAvailableForTrade = isAvailableForTrade
         self.isFavorite = isFavorite
         self.acquiredAt = acquiredAt
         self.notes = notes

@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct VaultDexApp: App {
+    @StateObject private var store = LocalVaultStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(store)
         }
     }
 }
