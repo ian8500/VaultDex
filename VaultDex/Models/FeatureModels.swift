@@ -247,29 +247,51 @@ struct TradeListing: Identifiable, Hashable {
     let ownerName: String
     let ownerHandle: String
     let card: Card
+    let condition: CardCondition
+    let variant: CardVariant
     let askingFor: String
     let listedAt: Date
     let locationLabel: String
+    let sellerReputation: Int
     let isFeatured: Bool
+    var isSaved: Bool
+    let isMine: Bool
+    let usesSafeTrade: Bool
 
     init(
         id: UUID = UUID(),
         ownerName: String,
         ownerHandle: String,
         card: Card,
+        condition: CardCondition? = nil,
+        variant: CardVariant = .normal,
         askingFor: String,
         listedAt: Date = .now,
         locationLabel: String,
-        isFeatured: Bool = false
+        sellerReputation: Int = 90,
+        isFeatured: Bool = false,
+        isSaved: Bool = false,
+        isMine: Bool = false,
+        usesSafeTrade: Bool = false
     ) {
         self.id = id
         self.ownerName = ownerName
         self.ownerHandle = ownerHandle
         self.card = card
+        self.condition = condition ?? card.condition
+        self.variant = variant
         self.askingFor = askingFor
         self.listedAt = listedAt
         self.locationLabel = locationLabel
+        self.sellerReputation = sellerReputation
         self.isFeatured = isFeatured
+        self.isSaved = isSaved
+        self.isMine = isMine
+        self.usesSafeTrade = usesSafeTrade
+    }
+
+    var estimatedValue: Double {
+        card.marketValue
     }
 }
 

@@ -3,8 +3,10 @@ import Foundation
 enum TradeStatus: String, CaseIterable, Identifiable, Hashable {
     case pending
     case accepted
-    case countered
-    case declined
+    case rejected
+    case canceled
+    case completed
+    case disputed
 
     var id: String { rawValue }
 
@@ -12,8 +14,24 @@ enum TradeStatus: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .pending: "Pending"
         case .accepted: "Accepted"
-        case .countered: "Countered"
-        case .declined: "Declined"
+        case .rejected: "Rejected"
+        case .canceled: "Canceled"
+        case .completed: "Completed"
+        case .disputed: "Disputed"
+        }
+    }
+}
+
+enum TradeOfferDirection: String, CaseIterable, Identifiable, Hashable {
+    case sent
+    case received
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .sent: "Sent"
+        case .received: "Received"
         }
     }
 }
@@ -24,10 +42,13 @@ struct TradeOffer: Identifiable, Hashable {
     let partnerHandle: String
     let offeredCards: [Card]
     let requestedCards: [Card]
-    let status: TradeStatus
+    var status: TradeStatus
+    let direction: TradeOfferDirection
+    let internalCredits: Int
     let createdAt: Date
     let expiresInDays: Int
     let note: String
+    let usesSafeTrade: Bool
 
     init(
         id: UUID = UUID(),
@@ -36,9 +57,12 @@ struct TradeOffer: Identifiable, Hashable {
         offeredCards: [Card],
         requestedCards: [Card],
         status: TradeStatus,
+        direction: TradeOfferDirection = .received,
+        internalCredits: Int = 0,
         createdAt: Date = .now,
         expiresInDays: Int,
-        note: String
+        note: String,
+        usesSafeTrade: Bool = false
     ) {
         self.id = id
         self.partnerName = partnerName
@@ -46,8 +70,37 @@ struct TradeOffer: Identifiable, Hashable {
         self.offeredCards = offeredCards
         self.requestedCards = requestedCards
         self.status = status
+        self.direction = direction
+        self.internalCredits = internalCredits
         self.createdAt = createdAt
         self.expiresInDays = expiresInDays
         self.note = note
+        self.usesSafeTrade = usesSafeTrade
+    }
+
+    var offeredValue: Double {
+        offeredCards.reduce(0) { $0 + $1.marketValue } + Double(internalCredits)
+    }
+
+    var requestedValue: Double {
+        requestedCards.reduce(0) { $0 + $1.marketValue }
+    }
+
+    var valueDelta: Double {
+        offeredValue - requestedValue
+    }
+
+    var fairnessScore: Double {
+        let larger = max(offeredValue, requestedValue)
+        guard larger > 0 else { return 1 }
+        return max(0, 1 - abs(valueDelta) / larger)
+    }
+
+    var fairnessLabel: String {
+        switch fairnessScore {
+        case 0.86...: "Balanced"
+        case 0.65..<0.86: "Close"
+        default: "Uneven"
+        }
     }
 }

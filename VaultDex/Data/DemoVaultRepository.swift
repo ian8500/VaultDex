@@ -334,24 +334,30 @@ final class DemoVaultRepository {
                 offeredCards: [cards[11], cards[6]],
                 requestedCards: [cards[2]],
                 status: .pending,
+                direction: .received,
+                internalCredits: 40,
                 expiresInDays: 2,
-                note: "Looking to complete Radiant Archive mythics."
+                note: "Looking to complete Radiant Archive mythics.",
+                usesSafeTrade: true
             ),
             TradeOffer(
                 partnerName: "Theo Vale",
                 partnerHandle: "@theovale",
                 offeredCards: [cards[6], cards[9], cards[8]],
                 requestedCards: [cards[10]],
-                status: .countered,
+                status: .pending,
+                direction: .sent,
+                internalCredits: 15,
                 expiresInDays: 5,
-                note: "Countered with a lower value bundle."
+                note: "Bundle offer for Theo's Ashen Contract copies."
             ),
             TradeOffer(
                 partnerName: "Lena Cross",
                 partnerHandle: "@lenacross",
                 offeredCards: [cards[3]],
                 requestedCards: [cards[7]],
-                status: .accepted,
+                status: .completed,
+                direction: .sent,
                 expiresInDays: 0,
                 note: "Ready for final confirmation."
             )
@@ -402,7 +408,10 @@ final class DemoVaultRepository {
                 askingFor: "Astra Prime or premium Nebula Crown bundle",
                 listedAt: .now.addingTimeInterval(-3600 * 3),
                 locationLabel: "Online",
-                isFeatured: true
+                sellerReputation: 98,
+                isFeatured: true,
+                isSaved: true,
+                usesSafeTrade: true
             ),
             TradeListing(
                 ownerName: "Theo Vale",
@@ -411,6 +420,7 @@ final class DemoVaultRepository {
                 askingFor: "Low-rarity Radiant Archive needs",
                 listedAt: .now.addingTimeInterval(-3600 * 10),
                 locationLabel: "2 mi",
+                sellerReputation: 86,
                 isFeatured: false
             ),
             TradeListing(
@@ -420,7 +430,9 @@ final class DemoVaultRepository {
                 askingFor: "Vesper Blade or mint rares",
                 listedAt: .now.addingTimeInterval(-86400),
                 locationLabel: "Club night",
-                isFeatured: false
+                sellerReputation: 93,
+                isFeatured: false,
+                usesSafeTrade: true
             )
         ]
 

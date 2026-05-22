@@ -5,8 +5,6 @@ final class LocalVaultStore: ObservableObject {
     let sets: [CardSet]
     let cards: [Card]
     let profile: UserProfile
-    let tradeListings: [TradeListing]
-    let tradeOffers: [TradeOffer]
     let events: [VaultEvent]
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
@@ -17,13 +15,13 @@ final class LocalVaultStore: ObservableObject {
     @Published var friends: [Friend]
     @Published var friendRequests: [FriendRequest]
     @Published var friendWants: [FriendWant]
+    @Published var tradeListings: [TradeListing]
+    @Published var tradeOffers: [TradeOffer]
 
     init(repository: DemoVaultRepository = .shared) {
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
-        tradeListings = repository.tradeListings
-        tradeOffers = repository.tradeOffers
         events = repository.events
         importPreviewItems = repository.importPreviewItems
         inviteContacts = repository.inviteContacts
@@ -33,6 +31,8 @@ final class LocalVaultStore: ObservableObject {
         friends = repository.friends
         friendRequests = repository.friendRequests
         friendWants = repository.friendWants
+        tradeListings = repository.tradeListings
+        tradeOffers = repository.tradeOffers
     }
 
     var totalCopiesOwned: Int {
@@ -249,6 +249,68 @@ final class LocalVaultStore: ObservableObject {
             return FriendTradeOpportunity(friend: friend, theyOwn: theyOwn, youOwn: youOwn)
         }
         .sorted { $0.score > $1.score }
+    }
+
+    func listCardForTrade(_ item: CollectionItem, askingFor: String, usesSafeTrade: Bool) {
+        guard !tradeListings.contains(where: { $0.isMine && $0.card.id == item.card.id }) else { return }
+        tradeListings.insert(
+            TradeListing(
+                ownerName: profile.displayName,
+                ownerHandle: profile.handle,
+                card: item.card,
+                condition: item.condition,
+                variant: item.variant,
+                askingFor: askingFor.isEmpty ? "Open to fair offers" : askingFor,
+                locationLabel: "My vault",
+                sellerReputation: 100,
+                isFeatured: true,
+                isMine: true,
+                usesSafeTrade: usesSafeTrade
+            ),
+            at: 0
+        )
+        updateTradeAvailability(for: item.card, isAvailable: true)
+    }
+
+    func removeTradeListing(_ listing: TradeListing) {
+        tradeListings.removeAll { $0.id == listing.id }
+    }
+
+    func toggleSavedListing(_ listing: TradeListing) {
+        guard let index = tradeListings.firstIndex(where: { $0.id == listing.id }) else { return }
+        tradeListings[index].isSaved.toggle()
+    }
+
+    func sendTradeOffer(
+        to listing: TradeListing,
+        offeredCards: [Card],
+        requestedCards: [Card],
+        internalCredits: Int,
+        message: String,
+        usesSafeTrade: Bool
+    ) {
+        guard !offeredCards.isEmpty || internalCredits > 0 else { return }
+        guard !requestedCards.isEmpty else { return }
+        tradeOffers.insert(
+            TradeOffer(
+                partnerName: listing.ownerName,
+                partnerHandle: listing.ownerHandle,
+                offeredCards: offeredCards,
+                requestedCards: requestedCards,
+                status: .pending,
+                direction: .sent,
+                internalCredits: max(internalCredits, 0),
+                expiresInDays: 7,
+                note: message.isEmpty ? "Trade offer sent from marketplace." : message,
+                usesSafeTrade: usesSafeTrade
+            ),
+            at: 0
+        )
+    }
+
+    func updateTradeOfferStatus(_ offer: TradeOffer, status: TradeStatus) {
+        guard let index = tradeOffers.firstIndex(where: { $0.id == offer.id }) else { return }
+        tradeOffers[index].status = status
     }
 
     func createBinderPage(title: String? = nil) -> BinderPage {
