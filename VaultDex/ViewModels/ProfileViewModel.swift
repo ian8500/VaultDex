@@ -1,5 +1,17 @@
 import Foundation
 
+struct SetProgress: Identifiable, Hashable {
+    var id: UUID { set.id }
+    let set: CardSet
+    let owned: Int
+    let total: Int
+
+    var fraction: Double {
+        guard total > 0 else { return 0 }
+        return Double(owned) / Double(total)
+    }
+}
+
 @MainActor
 final class ProfileViewModel: ObservableObject {
     @Published private(set) var profile: UserProfile
@@ -20,10 +32,10 @@ final class ProfileViewModel: ObservableObject {
         collectionItems.filter { $0.card.rarity == .mythic }.reduce(0) { $0 + $1.quantity }
     }
 
-    var setProgress: [(set: CardSet, owned: Int, total: Int)] {
+    var setProgress: [SetProgress] {
         sets.map { set in
             let owned = collectionItems.filter { $0.card.set == set }.count
-            return (set, owned, set.totalCards)
+            return SetProgress(set: set, owned: owned, total: set.totalCards)
         }
     }
 }
