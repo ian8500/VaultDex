@@ -2,6 +2,9 @@ import Foundation
 
 @MainActor
 final class LocalVaultStore: ObservableObject {
+    let repositories: VaultRepositoryContainer
+    let localRepositories: LocalRepositoryContainer
+    let runtimeMode: VaultRuntimeMode
     let sets: [CardSet]
     let cards: [Card]
     let importPreviewItems: [ImportPreviewItem]
@@ -18,7 +21,14 @@ final class LocalVaultStore: ObservableObject {
     @Published var tradeListings: [TradeListing]
     @Published var tradeOffers: [TradeOffer]
 
-    init(repository: DemoVaultRepository = .shared) {
+    init(
+        repository: DemoVaultRepository = .shared,
+        repositories: VaultRepositoryContainer = .live(config: .current),
+        localRepositories: LocalRepositoryContainer = .demo()
+    ) {
+        self.repositories = repositories
+        self.localRepositories = localRepositories
+        runtimeMode = repositories.config.shouldUseRemote ? .supabase : .demo
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
@@ -34,6 +44,10 @@ final class LocalVaultStore: ObservableObject {
         friendWants = repository.friendWants
         tradeListings = repository.tradeListings
         tradeOffers = repository.tradeOffers
+    }
+
+    var isDemoMode: Bool {
+        runtimeMode == .demo
     }
 
     var totalCopiesOwned: Int {

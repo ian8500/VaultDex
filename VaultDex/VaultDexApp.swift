@@ -9,7 +9,10 @@ import SwiftUI
 
 @main
 struct VaultDexApp: App {
-    @StateObject private var store = LocalVaultStore()
+    @StateObject private var store = LocalVaultStore(
+        repositories: .live(config: .current),
+        localRepositories: .demo()
+    )
 
     var body: some Scene {
         WindowGroup {

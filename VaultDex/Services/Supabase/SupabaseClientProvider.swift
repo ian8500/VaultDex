@@ -1,0 +1,172 @@
+import Foundation
+
+enum SupabaseHTTPMethod: String {
+    case get = "GET"
+    case post = "POST"
+    case patch = "PATCH"
+    case delete = "DELETE"
+}
+
+enum SupabaseClientError: LocalizedError {
+    case missingConfiguration
+    case invalidResponse
+    case requestFailed(Int, String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingConfiguration:
+            "Supabase is not configured. Set DEMO_MODE=false, SUPABASE_URL, and SUPABASE_ANON_KEY."
+        case .invalidResponse:
+            "Supabase returned an invalid response."
+        case let .requestFailed(statusCode, body):
+            "Supabase request failed with status \(statusCode): \(body)"
+        }
+    }
+}
+
+struct SupabaseSession: Equatable {
+    let accessToken: String
+    let refreshToken: String?
+    let userID: UUID
+    let email: String?
+    let expiresAt: Date?
+}
+
+final class SupabaseClientProvider {
+    let config: SupabaseConfig
+    private let urlSession: URLSession
+    private var session: SupabaseSession?
+
+    init(config: SupabaseConfig = .current, urlSession: URLSession = .shared) {
+        self.config = config
+        self.urlSession = urlSession
+    }
+
+    var isRemoteEnabled: Bool {
+        config.shouldUseRemote
+    }
+
+    func updateSession(_ session: SupabaseSession?) {
+        self.session = session
+    }
+
+    func restRequest(
+        table: String,
+        method: SupabaseHTTPMethod = .get,
+        queryItems: [URLQueryItem] = [],
+        body: Data? = nil,
+        prefer: String? = nil
+    ) throws -> URLRequest {
+        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        var components = URLComponents(url: baseURL.appending(path: "rest/v1/\(table)"), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+
+        guard let url = components?.url else { throw SupabaseClientError.invalidResponse }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.httpBody = body
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let prefer {
+            request.setValue(prefer, forHTTPHeaderField: "Prefer")
+        }
+        return request
+    }
+
+    func authRequest(path: String, body: Data? = nil, queryItems: [URLQueryItem] = []) throws -> URLRequest {
+        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        var components = URLComponents(url: baseURL.appending(path: "auth/v1/\(path)"), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components?.url else { throw SupabaseClientError.invalidResponse }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    func storageRequest(bucket: String, path: String, method: SupabaseHTTPMethod, contentType: String? = nil, body: Data? = nil) throws -> URLRequest {
+        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        let cleanPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let url = baseURL.appending(path: "storage/v1/object/\(bucket)/\(cleanPath)")
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.httpBody = body
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(contentType ?? "application/octet-stream", forHTTPHeaderField: "Content-Type")
+        return request
+    }
+
+    func send<T: Decodable>(_ request: URLRequest, decode type: T.Type = T.self) async throws -> T {
+        let (data, response) = try await urlSession.data(for: request)
+        try Self.validate(response: response, data: data)
+        return try JSONDecoder.supabase.decode(T.self, from: data)
+    }
+
+    func send(_ request: URLRequest) async throws {
+        let (data, response) = try await urlSession.data(for: request)
+        try Self.validate(response: response, data: data)
+    }
+
+    private static func validate(response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseClientError.invalidResponse
+        }
+
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw SupabaseClientError.requestFailed(httpResponse.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+    }
+}
+
+extension JSONDecoder {
+    static var supabase: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            if let date = ISO8601DateFormatter.supabase.date(from: string) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid Supabase date: \(string)")
+        }
+        return decoder
+    }
+}
+
+extension JSONEncoder {
+    static var supabase: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(ISO8601DateFormatter.supabase.string(from: date))
+        }
+        return encoder
+    }
+}
+
+extension ISO8601DateFormatter {
+    static let supabase: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+

@@ -77,7 +77,7 @@ struct DashboardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Text("Local Demo")
+                Text(store.runtimeMode.displayName)
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdNavy)
                     .padding(.horizontal, 10)

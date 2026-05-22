@@ -1,0 +1,72 @@
+import Foundation
+
+protocol AuthRepository {
+    func signUp(email: String, password: String) async throws -> SupabaseSession
+    func signIn(email: String, password: String) async throws -> SupabaseSession
+    func signOut() async throws
+}
+
+protocol ProfileRepository {
+    func fetchCurrentProfile(userID: UUID) async throws -> RemoteProfile?
+    func upsertProfile(_ profile: RemoteProfile) async throws
+}
+
+protocol CardCatalogRepository {
+    func fetchSets() async throws -> [RemoteCardSet]
+    func fetchCards(search: String?) async throws -> [RemoteCard]
+}
+
+protocol CollectionRepository {
+    func fetchCollection(userID: UUID) async throws -> [RemoteCollectionItem]
+    func upsertCollectionItem(_ item: RemoteCollectionItem) async throws
+    func deleteCollectionItem(id: UUID) async throws
+}
+
+protocol WishlistRepository {
+    func fetchWishlist(userID: UUID) async throws -> [RemoteWishlistItem]
+    func upsertWishlistItem(_ item: RemoteWishlistItem) async throws
+    func deleteWishlistItem(id: UUID) async throws
+}
+
+protocol FriendsRepository {
+    func fetchFriends(userID: UUID) async throws -> [RemoteFriendship]
+    func sendFriendRequest(from userID: UUID, to profileID: UUID) async throws
+    func updateFriendship(id: UUID, status: String) async throws
+}
+
+protocol BinderRepository {
+    func fetchBinderPages(userID: UUID) async throws -> [RemoteBinderPage]
+    func upsertBinderPage(_ page: RemoteBinderPage) async throws
+    func deleteBinderPage(id: UUID) async throws
+}
+
+protocol TradeRepository {
+    func fetchTradeListings(userID: UUID?) async throws -> [RemoteTradeListing]
+    func fetchTradeOffers(userID: UUID) async throws -> [RemoteTradeOffer]
+    func upsertTradeListing(_ listing: RemoteTradeListing) async throws
+    func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws
+    func updateTradeOfferStatus(id: UUID, status: String) async throws
+}
+
+protocol MarketplaceRepository {
+    func fetchMarketplaceListings(search: String?) async throws -> [RemoteMarketplaceListing]
+    func saveListing(userID: UUID, listingID: UUID) async throws
+    func reportListing(userID: UUID, listingID: UUID, reason: String) async throws
+}
+
+protocol EventsRepository {
+    func fetchEvents(userID: UUID) async throws -> [RemoteVaultEvent]
+    func upsertEvent(_ event: RemoteVaultEvent) async throws
+    func deleteEvent(id: UUID) async throws
+}
+
+protocol ReputationRepository {
+    func fetchReputation(profileID: UUID) async throws -> RemoteReputation?
+    func upsertReputation(_ reputation: RemoteReputation) async throws
+}
+
+protocol VaultStorageRepository {
+    func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String
+    func uploadCardPhoto(userID: UUID, cardID: UUID, data: Data, contentType: String) async throws -> String
+}
+
