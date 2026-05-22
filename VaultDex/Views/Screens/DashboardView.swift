@@ -2,9 +2,9 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var store: LocalVaultStore
-    @StateObject private var viewModel = DashboardViewModel()
     @State private var isLoading = true
     @State private var hasAnimated = false
+    @State private var glowPulse = false
 
     private let statColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -25,6 +25,10 @@ struct DashboardView: View {
 
     private var fairTradeSuggestions: Int {
         friendOpportunities.filter { !$0.theyOwn.isEmpty && !$0.youOwn.isEmpty }.count
+    }
+
+    private var highlightedFairTradeSuggestions: Int {
+        min(fairTradeSuggestions, 2)
     }
 
     private var rarestItem: CollectionItem? {
@@ -65,8 +69,8 @@ struct DashboardView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
-                .opacity(hasAnimated ? 1 : 0)
-                .offset(y: hasAnimated ? 0 : 12)
+                .opacity(isLoading || hasAnimated ? 1 : 0)
+                .offset(y: isLoading || hasAnimated ? 0 : 12)
             }
         }
         .navigationTitle("Today")
@@ -83,6 +87,9 @@ struct DashboardView: View {
         }
         .task {
             guard isLoading else { return }
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                glowPulse = true
+            }
             try? await Task.sleep(nanoseconds: 320_000_000)
             withAnimation(.spring(response: 0.5, dampingFraction: 0.86)) {
                 isLoading = false
@@ -167,9 +174,9 @@ struct DashboardView: View {
                 )
 
                 Circle()
-                    .fill(Color.vdGold.opacity(0.28))
-                    .blur(radius: 46)
-                    .frame(width: 170, height: 170)
+                    .fill(Color.vdGold.opacity(glowPulse ? 0.34 : 0.20))
+                    .blur(radius: glowPulse ? 52 : 38)
+                    .frame(width: glowPulse ? 190 : 160, height: glowPulse ? 190 : 160)
                     .offset(x: 118, y: -72)
 
                 LinearGradient(
@@ -177,6 +184,7 @@ struct DashboardView: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
+                .offset(x: glowPulse ? 24 : -18, y: glowPulse ? -10 : 10)
             }
             .clipShape(RoundedRectangle(cornerRadius: 26))
         }
@@ -252,7 +260,7 @@ struct DashboardView: View {
             if store.friends.isEmpty {
                 EmptyStateView(systemImage: "person.2.slash", title: "No collectors connected", message: "Add friends to compare wants, collections, and fair trade ideas.")
             } else {
-                HStack(spacing: 12) {
+                LazyVGrid(columns: statColumns, spacing: 12) {
                     OpportunityCard(
                         title: "\(friendsWithWantedCards) friends have cards you want",
                         subtitle: firstWantedMatchText,
@@ -261,8 +269,8 @@ struct DashboardView: View {
                     )
 
                     OpportunityCard(
-                        title: "\(fairTradeSuggestions) fair trades suggested",
-                        subtitle: "Balanced swaps from both wants lists",
+                        title: "\(highlightedFairTradeSuggestions) fair trades suggested",
+                        subtitle: "\(fairTradeSuggestions) total matches from both wants lists",
                         icon: "scale.3d",
                         tint: .vdLeaf
                     )
