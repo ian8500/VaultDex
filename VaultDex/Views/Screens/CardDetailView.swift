@@ -26,6 +26,7 @@ struct CardDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     hero
+                    friendWishlistBadges
                     collectionEditor
                     wishlistEditor
                 }
@@ -45,6 +46,10 @@ struct CardDetailView: View {
 
     private var savedWishlistItem: WishlistItem? {
         store.wishlistItem(for: card)
+    }
+
+    private var friendsWantingCard: [Friend] {
+        store.friendsWanting(card)
     }
 
     private var hero: some View {
@@ -67,6 +72,45 @@ struct CardDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var friendWishlistBadges: some View {
+        if !friendsWantingCard.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                VaultSectionHeader(title: "Friend Wishlist", subtitle: "Friends who want this card")
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(friendsWantingCard) { friend in
+                            HStack(spacing: 8) {
+                                Image(systemName: friend.avatarSymbol)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.vdGold)
+
+                                Text(friend.displayName)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.vdTextPrimary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.vdGold.opacity(0.12), in: Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+            )
         }
     }
 

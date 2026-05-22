@@ -5,8 +5,6 @@ final class LocalVaultStore: ObservableObject {
     let sets: [CardSet]
     let cards: [Card]
     let profile: UserProfile
-    let friends: [Friend]
-    let friendWants: [FriendWant]
     let tradeListings: [TradeListing]
     let tradeOffers: [TradeOffer]
     let events: [VaultEvent]
@@ -16,13 +14,14 @@ final class LocalVaultStore: ObservableObject {
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
     @Published var binderPages: [BinderPage]
+    @Published var friends: [Friend]
+    @Published var friendRequests: [FriendRequest]
+    @Published var friendWants: [FriendWant]
 
     init(repository: DemoVaultRepository = .shared) {
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
-        friends = repository.friends
-        friendWants = repository.friendWants
         tradeListings = repository.tradeListings
         tradeOffers = repository.tradeOffers
         events = repository.events
@@ -31,6 +30,9 @@ final class LocalVaultStore: ObservableObject {
         collectionItems = repository.collectionItems
         wishlistItems = repository.wishlistItems
         binderPages = repository.binderPages
+        friends = repository.friends
+        friendRequests = repository.friendRequests
+        friendWants = repository.friendWants
     }
 
     var totalCopiesOwned: Int {
@@ -164,6 +166,89 @@ final class LocalVaultStore: ObservableObject {
 
     func removeFromWishlist(_ card: Card) {
         wishlistItems.removeAll { $0.card.id == card.id }
+    }
+
+    func sendFriendRequest(to handleOrEmail: String) {
+        let trimmed = handleOrEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let normalized = trimmed.lowercased()
+        guard !friends.contains(where: { $0.handle.lowercased() == normalized || $0.email.lowercased() == normalized }) else { return }
+        guard !friendRequests.contains(where: { $0.handleOrEmail.lowercased() == normalized }) else { return }
+
+        friendRequests.insert(
+            FriendRequest(
+                displayName: trimmed.replacingOccurrences(of: "@", with: "").capitalized,
+                handleOrEmail: trimmed,
+                avatarSymbol: "paperplane.fill",
+                direction: .outgoing,
+                previewCard: cards.first
+            ),
+            at: 0
+        )
+    }
+
+    func acceptFriendRequest(_ request: FriendRequest) {
+        guard request.direction == .incoming else { return }
+        let favorite = request.previewCard ?? cards.first
+        guard let favorite else { return }
+        let newFriend = Friend(
+            displayName: request.displayName,
+            handle: request.handleOrEmail.hasPrefix("@") ? request.handleOrEmail : "@" + request.displayName.lowercased().replacingOccurrences(of: " ", with: ""),
+            email: request.handleOrEmail.contains("@") && !request.handleOrEmail.hasPrefix("@") ? request.handleOrEmail : "",
+            avatarSymbol: request.avatarSymbol,
+            collectorScore: 4100 + friends.count * 275,
+            favoriteCard: favorite,
+            completionPercent: 0.42,
+            mutualTrades: 0,
+            isOnline: true,
+            visibleCollection: [
+                CollectionItem(card: favorite, quantity: 1, variant: .normal, acquiredAt: .now)
+            ],
+            wishlist: wishlistItems.prefix(2).map { item in
+                WishlistItem(card: item.card, priority: item.priority, budget: item.budget, notes: "Shared target from accepted request.")
+            }
+        )
+        friends.insert(newFriend, at: 0)
+        friendRequests.removeAll { $0.id == request.id }
+    }
+
+    func rejectFriendRequest(_ request: FriendRequest) {
+        friendRequests.removeAll { $0.id == request.id }
+    }
+
+    func removeFriend(_ friend: Friend) {
+        friends.removeAll { $0.id == friend.id }
+        friendWants.removeAll { $0.friend.id == friend.id }
+    }
+
+    func blockFriend(_ friend: Friend) {
+        removeFriend(friend)
+    }
+
+    func friendsWanting(_ card: Card) -> [Friend] {
+        friends.filter { friend in
+            friend.wishlist.contains { $0.card.id == card.id }
+        }
+    }
+
+    func cardsIWantThatFriendOwns(_ friend: Friend) -> [CollectionItem] {
+        let wantedIDs = Set(wishlistItems.map(\.card.id))
+        return friend.visibleCollection.filter { wantedIDs.contains($0.card.id) }
+    }
+
+    func cardsFriendWantsThatIOwn(_ friend: Friend) -> [CollectionItem] {
+        let friendWantedIDs = Set(friend.wishlist.map(\.card.id))
+        return collectionItems.filter { friendWantedIDs.contains($0.card.id) }
+    }
+
+    func tradeOpportunities() -> [FriendTradeOpportunity] {
+        friends.compactMap { friend in
+            let theyOwn = cardsIWantThatFriendOwns(friend)
+            let youOwn = cardsFriendWantsThatIOwn(friend)
+            guard !theyOwn.isEmpty || !youOwn.isEmpty else { return nil }
+            return FriendTradeOpportunity(friend: friend, theyOwn: theyOwn, youOwn: youOwn)
+        }
+        .sorted { $0.score > $1.score }
     }
 
     func createBinderPage(title: String? = nil) -> BinderPage {

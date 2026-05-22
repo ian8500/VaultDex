@@ -65,37 +65,117 @@ struct FriendWant: Identifiable, Hashable {
     }
 }
 
+enum FriendRequestDirection: String, CaseIterable, Identifiable, Hashable {
+    case incoming
+    case outgoing
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .incoming: "Incoming"
+        case .outgoing: "Outgoing"
+        }
+    }
+}
+
+struct FriendRequest: Identifiable, Hashable {
+    let id: UUID
+    let displayName: String
+    let handleOrEmail: String
+    let avatarSymbol: String
+    let direction: FriendRequestDirection
+    let requestedAt: Date
+    let previewCard: Card?
+
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        handleOrEmail: String,
+        avatarSymbol: String,
+        direction: FriendRequestDirection,
+        requestedAt: Date = .now,
+        previewCard: Card? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.handleOrEmail = handleOrEmail
+        self.avatarSymbol = avatarSymbol
+        self.direction = direction
+        self.requestedAt = requestedAt
+        self.previewCard = previewCard
+    }
+}
+
 struct Friend: Identifiable, Hashable {
     let id: UUID
     let displayName: String
     let handle: String
+    let email: String
     let avatarSymbol: String
     let collectorScore: Int
     let favoriteCard: Card
     let completionPercent: Double
     let mutualTrades: Int
     let isOnline: Bool
+    let collectionVisibility: BinderVisibility
+    let wishlistVisibility: BinderVisibility
+    let visibleCollection: [CollectionItem]
+    let wishlist: [WishlistItem]
 
     init(
         id: UUID = UUID(),
         displayName: String,
         handle: String,
+        email: String = "",
         avatarSymbol: String,
         collectorScore: Int,
         favoriteCard: Card,
         completionPercent: Double,
         mutualTrades: Int,
-        isOnline: Bool
+        isOnline: Bool,
+        collectionVisibility: BinderVisibility = .friends,
+        wishlistVisibility: BinderVisibility = .friends,
+        visibleCollection: [CollectionItem] = [],
+        wishlist: [WishlistItem] = []
     ) {
         self.id = id
         self.displayName = displayName
         self.handle = handle
+        self.email = email
         self.avatarSymbol = avatarSymbol
         self.collectorScore = collectorScore
         self.favoriteCard = favoriteCard
         self.completionPercent = completionPercent
         self.mutualTrades = mutualTrades
         self.isOnline = isOnline
+        self.collectionVisibility = collectionVisibility
+        self.wishlistVisibility = wishlistVisibility
+        self.visibleCollection = visibleCollection
+        self.wishlist = wishlist
+    }
+}
+
+struct FriendTradeOpportunity: Identifiable, Hashable {
+    let id: UUID
+    let friend: Friend
+    let theyOwn: [CollectionItem]
+    let youOwn: [CollectionItem]
+
+    init(
+        id: UUID = UUID(),
+        friend: Friend,
+        theyOwn: [CollectionItem],
+        youOwn: [CollectionItem]
+    ) {
+        self.id = id
+        self.friend = friend
+        self.theyOwn = theyOwn
+        self.youOwn = youOwn
+    }
+
+    var score: Int {
+        theyOwn.count + youOwn.count
     }
 }
 

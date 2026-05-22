@@ -385,18 +385,27 @@ final class WishlistViewModel: ObservableObject {
 
 @MainActor
 final class FriendsViewModel: ObservableObject {
-    @Published private(set) var friends: [Friend]
+    @Published var addFriendText = ""
 
-    init(repository: DemoVaultRepository = .shared) {
-        friends = repository.friends
+    func onlineFriends(in store: LocalVaultStore) -> [Friend] {
+        store.friends.filter(\.isOnline)
     }
 
-    var onlineFriends: [Friend] {
-        friends.filter(\.isOnline)
+    func topCollectors(in store: LocalVaultStore) -> [Friend] {
+        store.friends.sorted { $0.collectorScore > $1.collectorScore }
     }
 
-    var topCollectors: [Friend] {
-        friends.sorted { $0.collectorScore > $1.collectorScore }
+    func incomingRequests(in store: LocalVaultStore) -> [FriendRequest] {
+        store.friendRequests.filter { $0.direction == .incoming }
+    }
+
+    func outgoingRequests(in store: LocalVaultStore) -> [FriendRequest] {
+        store.friendRequests.filter { $0.direction == .outgoing }
+    }
+
+    func addFriend(in store: LocalVaultStore) {
+        store.sendFriendRequest(to: addFriendText)
+        addFriendText = ""
     }
 }
 
@@ -504,6 +513,10 @@ final class InviteFriendsViewModel: ObservableObject {
 
     var pendingContacts: [InviteContact] {
         contacts.filter { !$0.isInvited }
+    }
+
+    var inviteMessage: String {
+        "Join me on VaultDex. Use invite code \(inviteCode) to compare collections, wishlists, and trade matches."
     }
 }
 

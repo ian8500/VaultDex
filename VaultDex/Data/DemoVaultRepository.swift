@@ -16,6 +16,7 @@ final class DemoVaultRepository {
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
     let friendWants: [FriendWant]
+    let friendRequests: [FriendRequest]
 
     private init() {
         let nebula = CardSet(name: "Nebula Crown", code: "NBC", releaseYear: 2026, totalCards: 182)
@@ -222,47 +223,102 @@ final class DemoVaultRepository {
             following: 212
         )
 
+        let maraCollection = [
+            CollectionItem(card: cards[11], quantity: 1, variant: .secretRare, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 6)),
+            CollectionItem(card: cards[6], quantity: 2, variant: .holo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 14)),
+            CollectionItem(card: cards[7], quantity: 1, variant: .promo, acquiredAt: .now.addingTimeInterval(-86400 * 21))
+        ]
+        let maraWishlist = [
+            WishlistItem(card: cards[2], priority: .high, budget: 92, notes: "Clean copy for Radiant Archive front page."),
+            WishlistItem(card: cards[8], priority: .medium, budget: 22, notes: "Need one more durable trade copy.")
+        ]
+        let theoCollection = [
+            CollectionItem(card: cards[10], quantity: 3, variant: .reverseHolo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 10)),
+            CollectionItem(card: cards[9], quantity: 1, variant: .normal, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 19)),
+            CollectionItem(card: cards[3], quantity: 1, variant: .normal, acquiredAt: .now.addingTimeInterval(-86400 * 24))
+        ]
+        let theoWishlist = [
+            WishlistItem(card: cards[5], priority: .medium, budget: 38, notes: "Building a Fire page."),
+            WishlistItem(card: cards[0], priority: .grail, budget: 180, notes: "Would bundle several cards for this.")
+        ]
+        let lenaCollection = [
+            CollectionItem(card: cards[4], quantity: 1, variant: .secretRare, isAvailableForTrade: false, acquiredAt: .now.addingTimeInterval(-86400 * 9)),
+            CollectionItem(card: cards[2], quantity: 1, variant: .holo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 32)),
+            CollectionItem(card: cards[1], quantity: 2, variant: .holo, acquiredAt: .now.addingTimeInterval(-86400 * 40))
+        ]
+        let lenaWishlist = [
+            WishlistItem(card: cards[7], priority: .grail, budget: 140, notes: "Promo variant only."),
+            WishlistItem(card: cards[10], priority: .low, budget: 16, notes: "Binder filler.")
+        ]
+        let owenCollection = [
+            CollectionItem(card: cards[5], quantity: 2, variant: .holo, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 18)),
+            CollectionItem(card: cards[8], quantity: 1, variant: .normal, isAvailableForTrade: true, acquiredAt: .now.addingTimeInterval(-86400 * 28))
+        ]
+        let owenWishlist = [
+            WishlistItem(card: cards[3], priority: .high, budget: 45, notes: "Needs near mint."),
+            WishlistItem(card: cards[6], priority: .medium, budget: 24, notes: "Any variant.")
+        ]
+
         friends = [
             Friend(
                 displayName: "Mara Quinn",
                 handle: "@maraquinn",
+                email: "mara@vaultdex.demo",
                 avatarSymbol: "moon.stars.fill",
                 collectorScore: 9180,
                 favoriteCard: cards[11],
                 completionPercent: 0.84,
                 mutualTrades: 7,
-                isOnline: true
+                isOnline: true,
+                visibleCollection: maraCollection,
+                wishlist: maraWishlist
             ),
             Friend(
                 displayName: "Theo Vale",
                 handle: "@theovale",
+                email: "theo@vaultdex.demo",
                 avatarSymbol: "bolt.fill",
                 collectorScore: 6735,
                 favoriteCard: cards[10],
                 completionPercent: 0.68,
                 mutualTrades: 3,
-                isOnline: true
+                isOnline: true,
+                visibleCollection: theoCollection,
+                wishlist: theoWishlist
             ),
             Friend(
                 displayName: "Lena Cross",
                 handle: "@lenacross",
+                email: "lena@vaultdex.demo",
                 avatarSymbol: "leaf.fill",
                 collectorScore: 7420,
                 favoriteCard: cards[4],
                 completionPercent: 0.73,
                 mutualTrades: 5,
-                isOnline: false
+                isOnline: false,
+                collectionVisibility: .public,
+                visibleCollection: lenaCollection,
+                wishlist: lenaWishlist
             ),
             Friend(
                 displayName: "Owen Pike",
                 handle: "@owenpike",
+                email: "owen@vaultdex.demo",
                 avatarSymbol: "flame.fill",
                 collectorScore: 5025,
                 favoriteCard: cards[5],
                 completionPercent: 0.51,
                 mutualTrades: 1,
-                isOnline: false
+                isOnline: false,
+                visibleCollection: owenCollection,
+                wishlist: owenWishlist
             )
+        ]
+
+        friendRequests = [
+            FriendRequest(displayName: "Nina Park", handleOrEmail: "@ninapark", avatarSymbol: "sparkle.magnifyingglass", direction: .incoming, requestedAt: .now.addingTimeInterval(-3600 * 6), previewCard: cards[1]),
+            FriendRequest(displayName: "Avery Stone", handleOrEmail: "avery@vaultdex.demo", avatarSymbol: "person.crop.circle.badge.plus", direction: .incoming, requestedAt: .now.addingTimeInterval(-86400), previewCard: cards[4]),
+            FriendRequest(displayName: "Samir Hart", handleOrEmail: "@samirhart", avatarSymbol: "paperplane.fill", direction: .outgoing, requestedAt: .now.addingTimeInterval(-3600 * 30), previewCard: cards[9])
         ]
 
         friendWants = [

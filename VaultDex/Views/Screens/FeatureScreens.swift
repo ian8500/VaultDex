@@ -340,6 +340,7 @@ struct WishlistView: View {
 }
 
 struct FriendsView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = FriendsViewModel()
 
     var body: some View {
@@ -349,6 +350,9 @@ struct FriendsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    addFriendCard
+                    requestList
+                    tradeMatches
                     friendsList
                 }
                 .padding(.horizontal, 20)
@@ -368,7 +372,7 @@ struct FriendsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Compare completion, favorite cards, and trade history.")
+                    Text("Requests, collections, wishlists, and local trade matches.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -388,8 +392,9 @@ struct FriendsView: View {
             }
 
             HStack(spacing: 12) {
-                MetricPill(title: "Friends", value: "\(viewModel.friends.count)")
-                MetricPill(title: "Online", value: "\(viewModel.onlineFriends.count)")
+                MetricPill(title: "Friends", value: "\(store.friends.count)")
+                MetricPill(title: "Online", value: "\(viewModel.onlineFriends(in: store).count)")
+                MetricPill(title: "Requests", value: "\(store.friendRequests.count)")
             }
         }
         .padding(18)
@@ -400,13 +405,101 @@ struct FriendsView: View {
         )
     }
 
+    private var addFriendCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Add Friend", subtitle: "Send a local request by username or email")
+
+            HStack(spacing: 10) {
+                TextField("@username or email", text: $viewModel.addFriendText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .padding(14)
+                    .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
+                    )
+
+                Button {
+                    viewModel.addFriend(in: store)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.vdBackground)
+                        .frame(width: 46, height: 46)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 8))
+                }
+                .disabled(viewModel.addFriendText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(viewModel.addFriendText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                .accessibilityLabel("Send friend request")
+            }
+        }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+
+    private var requestList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Friend Requests", subtitle: "\(viewModel.incomingRequests(in: store).count) incoming · \(viewModel.outgoingRequests(in: store).count) pending")
+
+            if store.friendRequests.isEmpty {
+                EmptyStateView(systemImage: "person.crop.circle.badge.checkmark", title: "No pending requests", message: "New friend requests will appear here.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(store.friendRequests) { request in
+                        FriendRequestRow(request: request) {
+                            store.acceptFriendRequest(request)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        } onReject: {
+                            store.rejectFriendRequest(request)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var tradeMatches: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Suggested Trades", subtitle: "Wishlist overlap from local friend data")
+
+            let opportunities = store.tradeOpportunities()
+            if opportunities.isEmpty {
+                EmptyStateView(systemImage: "arrow.left.arrow.right", title: "No matches yet", message: "Wishlist overlap will create suggested trade ideas.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(opportunities) { opportunity in
+                        NavigationLink {
+                            FriendProfileView(friend: opportunity.friend)
+                        } label: {
+                            TradeOpportunityRow(opportunity: opportunity)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
     private var friendsList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collectors", subtitle: "Sorted by collector score")
+            VaultSectionHeader(title: "My Friends", subtitle: "Public and friends-visible profiles")
 
             VStack(spacing: 12) {
-                ForEach(viewModel.topCollectors) { friend in
-                    FriendRow(friend: friend)
+                ForEach(viewModel.topCollectors(in: store)) { friend in
+                    NavigationLink {
+                        FriendProfileView(friend: friend)
+                    } label: {
+                        FriendRow(friend: friend)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -959,6 +1052,7 @@ struct EventsView: View {
 
 struct InviteFriendsView: View {
     @StateObject private var viewModel = InviteFriendsViewModel()
+    @State private var didCopyInvite = false
 
     var body: some View {
         ZStack {
@@ -1011,6 +1105,35 @@ struct InviteFriendsView: View {
                 )
 
             PrimaryButton(title: "Send Demo Invites", systemImage: "paperplane.fill") {}
+
+            HStack(spacing: 10) {
+                ShareLink(item: viewModel.inviteMessage) {
+                    Label("Share Invite", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.vdBackground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 8))
+                }
+
+                Button {
+                    UIPasteboard.general.string = viewModel.inviteMessage
+                    didCopyInvite = true
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Label(didCopyInvite ? "Copied" : "Copy", systemImage: didCopyInvite ? "checkmark" : "doc.on.doc")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -1294,6 +1417,430 @@ private struct WishlistRow: View {
         case .medium: .vdViolet
         case .low: .vdTextSecondary
         }
+    }
+}
+
+private struct FriendProfileView: View {
+    @EnvironmentObject private var store: LocalVaultStore
+    @Environment(\.dismiss) private var dismiss
+    let friend: Friend
+    @State private var isRemoveConfirmationPresented = false
+    @State private var actionMessage: String?
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 22) {
+                    profileHeader
+                    matchSummary
+                    visibleCollection
+                    wishlist
+                    safetyActions
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+        }
+        .navigationTitle(friend.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Remove friend?", isPresented: $isRemoveConfirmationPresented, titleVisibility: .visible) {
+            Button("Remove Friend", role: .destructive) {
+                store.removeFriend(friend)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the local friendship and hides their collection, wishlist, and trade matches.")
+        }
+    }
+
+    private var profileHeader: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                Image(systemName: friend.avatarSymbol)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(friend.isOnline ? Color.vdEmerald : Color.vdGold)
+                    .frame(width: 68, height: 68)
+                    .background(Color.vdPanelRaised.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke((friend.isOnline ? Color.vdEmerald : Color.vdGold).opacity(0.35), lineWidth: 1)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(friend.displayName)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+
+                    Text(friend.handle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.vdGold)
+
+                    Text(friend.email.isEmpty ? "VaultDex collector" : friend.email)
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                MetricPill(title: "Score", value: "\(friend.collectorScore)")
+                MetricPill(title: "Trades", value: "\(friend.mutualTrades)")
+                MetricPill(title: "Complete", value: friend.completionPercent.formatted(.percent.precision(.fractionLength(0))))
+            }
+        }
+        .padding(18)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+
+    private var matchSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Trade Match", subtitle: "Wishlist overlap between both collections")
+
+            VStack(spacing: 10) {
+                FriendMatchCard(
+                    title: "I want, \(friend.displayName) owns",
+                    items: store.cardsIWantThatFriendOwns(friend),
+                    tint: .vdGold
+                )
+
+                FriendMatchCard(
+                    title: "\(friend.displayName) wants, I own",
+                    items: store.cardsFriendWantsThatIOwn(friend),
+                    tint: .vdEmerald
+                )
+            }
+        }
+    }
+
+    private var visibleCollection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(
+                title: "Visible Collection",
+                subtitle: "\(friend.collectionVisibility.displayName) · \(friend.visibleCollection.count) cards"
+            )
+
+            if friend.visibleCollection.isEmpty {
+                EmptyStateView(systemImage: "lock.rectangle.stack", title: "No visible cards", message: "This friend has not shared collection cards yet.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(friend.visibleCollection) { item in
+                        NavigationLink {
+                            CardDetailView(card: item.card)
+                        } label: {
+                            FriendCardRow(item: item, badge: store.isWishlisted(item.card) ? "You want" : nil)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var wishlist: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(
+                title: "Wishlist",
+                subtitle: "\(friend.wishlistVisibility.displayName) · \(friend.wishlist.count) targets"
+            )
+
+            if friend.wishlist.isEmpty {
+                EmptyStateView(systemImage: "star.slash", title: "No visible wishlist", message: "Wishlist targets will appear here when shared.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(friend.wishlist) { item in
+                        NavigationLink {
+                            CardDetailView(card: item.card)
+                        } label: {
+                            FriendWishlistRow(item: item, youOwn: store.collectionItem(for: item.card) != nil)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var safetyActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Friend Controls", subtitle: "Local placeholders for future trust and safety")
+
+            PrimaryButton(title: "Remove Friend", systemImage: "person.fill.xmark") {
+                isRemoveConfirmationPresented = true
+            }
+
+            HStack(spacing: 10) {
+                PlaceholderActionButton(title: "Block", systemImage: "hand.raised.fill", tint: .vdCoral) {
+                    actionMessage = "Block placeholder saved for backend moderation."
+                }
+                PlaceholderActionButton(title: "Report", systemImage: "exclamationmark.bubble.fill", tint: .vdGold) {
+                    actionMessage = "Report placeholder saved for backend moderation."
+                }
+            }
+
+            if let actionMessage {
+                Text(actionMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+        }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+}
+
+private struct FriendRequestRow: View {
+    let request: FriendRequest
+    let onAccept: () -> Void
+    let onReject: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: request.avatarSymbol)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(request.direction == .incoming ? Color.vdEmerald : Color.vdGold)
+                .frame(width: 46, height: 46)
+                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(request.displayName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("\(request.direction.displayName) · \(request.handleOrEmail)")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            Spacer()
+
+            if request.direction == .incoming {
+                Button(action: onAccept) {
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdBackground)
+                        .frame(width: 34, height: 34)
+                        .background(Color.vdEmerald, in: Circle())
+                }
+                .accessibilityLabel("Accept friend request")
+
+                Button(action: onReject) {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdCoral)
+                        .frame(width: 34, height: 34)
+                        .background(Color.vdCoral.opacity(0.12), in: Circle())
+                }
+                .accessibilityLabel("Reject friend request")
+            } else {
+                StatusPill(title: "Pending", tint: .vdGold)
+            }
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
+        )
+    }
+}
+
+private struct TradeOpportunityRow: View {
+    let opportunity: FriendTradeOpportunity
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(opportunity.friend.displayName, systemImage: opportunity.friend.avatarSymbol)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Spacer()
+
+                StatusPill(title: "\(opportunity.score) matches", tint: .vdGold)
+            }
+
+            HStack(spacing: 10) {
+                MetricPill(title: "They Own", value: "\(opportunity.theyOwn.count)")
+                MetricPill(title: "You Own", value: "\(opportunity.youOwn.count)")
+            }
+
+            Text(previewText)
+                .font(.caption)
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(2)
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private var previewText: String {
+        let theirCard = opportunity.theyOwn.first?.card.name
+        let yourCard = opportunity.youOwn.first?.card.name
+        return switch (theirCard, yourCard) {
+        case let (.some(theirCard), .some(yourCard)):
+            "\(theirCard) could match with \(yourCard)."
+        case let (.some(theirCard), .none):
+            "They own \(theirCard), one of your wishlist targets."
+        case let (.none, .some(yourCard)):
+            "They want \(yourCard), which is in your collection."
+        default:
+            "Open profile for details."
+        }
+    }
+}
+
+private struct FriendMatchCard: View {
+    let title: String
+    let items: [CollectionItem]
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+
+                Spacer()
+
+                Text("\(items.count)")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(tint)
+            }
+
+            if items.isEmpty {
+                Text("No overlap yet")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.vdTextPrimary)
+            } else {
+                Text(items.map { $0.card.name }.joined(separator: ", "))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+private struct FriendCardRow: View {
+    let item: CollectionItem
+    let badge: String?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "rectangle.stack.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color.vdGold)
+                .frame(width: 46, height: 46)
+                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.card.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("\(item.card.set.code) #\(item.card.number) · \(item.variant.displayName)")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            Spacer()
+
+            if let badge {
+                StatusPill(title: badge, tint: .vdGold)
+            } else {
+                Text("x\(item.quantity)")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
+        )
+    }
+}
+
+private struct FriendWishlistRow: View {
+    let item: WishlistItem
+    let youOwn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: youOwn ? "checkmark.seal.fill" : "star.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(youOwn ? Color.vdEmerald : Color.vdGold)
+                .frame(width: 46, height: 46)
+                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.card.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("\(item.priority.displayName) · \(item.budget.vaultCurrency)")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            Spacer()
+
+            StatusPill(title: youOwn ? "You own" : "Wanted", tint: youOwn ? .vdEmerald : .vdGold)
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
+        )
+    }
+}
+
+private struct PlaceholderActionButton: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(tint.opacity(0.35), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
