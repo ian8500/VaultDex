@@ -73,7 +73,13 @@ struct TradeView: View {
 
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(Color.vdGold)
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 58, height: 58)
+                    .background(
+                        LinearGradient(colors: [Color(hex: 0xFFF06A), Color.vdGold], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 18)
+                    )
+                    .shadow(color: Color.vdGold.opacity(0.26), radius: 14, x: 0, y: 6)
             }
 
             HStack(spacing: 10) {
@@ -83,11 +89,19 @@ struct TradeView: View {
             }
         }
         .padding(18)
-        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.78)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+        )
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
     }
 
     private var listMyCardSection: some View {
@@ -171,8 +185,8 @@ struct TradeView: View {
                 .textInputAutocapitalization(.never)
                 .foregroundStyle(Color.vdTextPrimary)
                 .padding(14)
-                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdGold.opacity(0.22), lineWidth: 1))
 
             HStack(spacing: 10) {
                 Picker("Rarity", selection: $viewModel.selectedRarity) {
@@ -205,8 +219,8 @@ struct TradeView: View {
             }
         }
         .padding(14)
-        .background(Color.vdPanel.opacity(0.76), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.62), lineWidth: 1))
+        .background(Color.vdPanel.opacity(0.76), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.20), lineWidth: 1))
     }
 
     private var receivedOffersSection: some View {
@@ -508,8 +522,20 @@ private struct TradeListingRow: View {
             }
         }
         .padding(12)
-        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.84)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
+        )
+        .overlay(
+            LinearGradient(colors: [Color.white.opacity(0.16), Color.clear, Color.vdGold.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.vdGold.opacity(listing.isFeatured ? 0.42 : 0.22), lineWidth: 1.1))
+        .shadow(color: Color.vdGold.opacity(listing.isFeatured ? 0.16 : 0.08), radius: 16, x: 0, y: 8)
     }
 
     private func miniButton(title: String, systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
@@ -519,8 +545,8 @@ private struct TradeListingRow: View {
                 .foregroundStyle(tint)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(0.32), lineWidth: 1))
+                .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.32), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -600,8 +626,16 @@ private struct TradeOfferRow: View {
             }
         }
         .padding(16)
-        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.82)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.vdGold.opacity(0.20), lineWidth: 1))
+        .shadow(color: Color.vdGold.opacity(0.08), radius: 14, x: 0, y: 7)
     }
 
     private var statusBadge: some View {
@@ -629,8 +663,8 @@ private struct TradeOfferRow: View {
                 .foregroundStyle(tint)
                 .frame(maxWidth: .infinity)
                 .frame(height: 34)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(0.32), lineWidth: 1))
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.32), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

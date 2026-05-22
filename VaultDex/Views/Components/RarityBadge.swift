@@ -14,24 +14,35 @@ struct RarityBadge: View {
                 .textCase(.uppercase)
                 .tracking(0.4)
         }
-        .foregroundStyle(Color.vdTextPrimary)
+        .foregroundStyle(textColor)
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(tint.opacity(0.16), in: Capsule())
+        .background(
+            LinearGradient(colors: [tint.opacity(0.95), tint.opacity(0.52)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: Capsule()
+        )
         .overlay(
             Capsule()
-                .stroke(tint.opacity(0.42), lineWidth: 1)
+                .stroke(Color.white.opacity(0.32), lineWidth: 1)
         )
+        .shadow(color: tint.opacity(0.24), radius: 8, x: 0, y: 3)
     }
 
     private var tint: Color {
         switch rarity {
-        case .common: .vdTextSecondary
-        case .uncommon: .vdEmerald
-        case .rare: Color(hex: 0x6FC8FF)
+        case .common: Color(hex: 0x9BA6B8)
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
         case .epic: .vdViolet
         case .legendary: .vdGold
         case .mythic: .vdCoral
+        }
+    }
+
+    private var textColor: Color {
+        switch rarity {
+        case .legendary: .vdNavy
+        default: .white
         }
     }
 }

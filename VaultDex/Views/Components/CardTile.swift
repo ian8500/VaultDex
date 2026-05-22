@@ -21,12 +21,12 @@ struct CardTile: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.name)
-                            .font(style == .compact ? .subheadline.weight(.bold) : .headline)
+                            .font(style == .compact ? .subheadline.weight(.black) : .headline.weight(.black))
                             .foregroundStyle(Color.vdTextPrimary)
                             .lineLimit(2)
                             .minimumScaleFactor(0.86)
 
-            Text(card.set.code + " #" + card.number + " · " + card.cardType.displayName + " · " + card.typeLine)
+                        Text(card.set.code + " #" + card.number + " · " + card.cardType.displayName + " · " + card.typeLine)
                             .font(.caption)
                             .foregroundStyle(Color.vdTextSecondary)
                             .lineLimit(1)
@@ -40,7 +40,8 @@ struct CardTile: View {
                             .foregroundStyle(Color.vdGold)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
-                            .background(Color.vdGold.opacity(0.14), in: Capsule())
+                            .background(Color.vdGold.opacity(0.9), in: Capsule())
+                            .foregroundStyle(Color.vdNavy)
                     }
                 }
 
@@ -70,11 +71,20 @@ struct CardTile: View {
             }
         }
         .padding(12)
-        .background(Color.vdPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.98), Color.vdPanel.opacity(0.94)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(card.rarity.cardFrameTint.opacity(0.68), lineWidth: 1.25)
+        )
+        .overlay(cardShine.clipShape(RoundedRectangle(cornerRadius: 18)))
+        .shadow(color: card.rarity.cardFrameTint.opacity(0.16), radius: 16, x: 0, y: 8)
     }
 
     private var art: some View {
@@ -85,12 +95,20 @@ struct CardTile: View {
                 endPoint: .bottomTrailing
             )
 
+            LinearGradient(
+                colors: [Color.white.opacity(0.0), Color.white.opacity(0.32), Color.white.opacity(0.0)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .rotationEffect(.degrees(-10))
+
             VStack(alignment: .leading) {
                 Spacer()
 
                 Image(systemName: card.accent.symbolName)
                     .font(.system(size: style == .compact ? 30 : 42, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.86))
+                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
 
                 Text((condition ?? card.condition).displayName)
                     .font(.caption2.weight(.bold))
@@ -106,7 +124,7 @@ struct CardTile: View {
                 .foregroundStyle(Color(hex: 0x111318))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
-                .background(.white.opacity(0.82), in: Capsule())
+                .background(Color.vdGold.opacity(0.92), in: Capsule())
                 .padding(10)
 
             Text(card.cardType.displayName)
@@ -115,16 +133,25 @@ struct CardTile: View {
                 .foregroundStyle(.white.opacity(0.86))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(.black.opacity(0.24), in: Capsule())
+                .background(.black.opacity(0.26), in: Capsule())
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(10)
         }
         .frame(height: style == .compact ? 112 : 152)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.white.opacity(0.26), lineWidth: 1)
         )
+    }
+
+    private var cardShine: some View {
+        LinearGradient(
+            colors: [Color.white.opacity(0.16), Color.clear, Color.vdGold.opacity(0.08), Color.clear],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .allowsHitTesting(false)
     }
 }
 
@@ -132,17 +159,17 @@ private extension CardAccent {
     var gradientColors: [Color] {
         switch self {
         case .aurora:
-            [Color(hex: 0x2C7A7B), Color(hex: 0x5E5CE6), Color(hex: 0xEAC76A)]
+            [Color.vdMidnight, Color.vdSky, Color.vdGold]
         case .ember:
-            [Color(hex: 0x411E28), Color(hex: 0xC44D42), Color(hex: 0xEAC76A)]
+            [Color.vdNavy, Color.vdCoral, Color.vdGold]
         case .frost:
-            [Color(hex: 0x153748), Color(hex: 0x7EC8E3), Color(hex: 0xEAF7FF)]
+            [Color.vdMidnight, Color.vdSky, Color(hex: 0xEAF7FF)]
         case .solar:
-            [Color(hex: 0x47320E), Color(hex: 0xE8A84E), Color(hex: 0xF47F72)]
+            [Color(hex: 0x8E6100), Color.vdGold, Color.vdCoral]
         case .venom:
-            [Color(hex: 0x10251D), Color(hex: 0x3D9D72), Color(hex: 0xC7F464)]
+            [Color.vdNavy, Color.vdLeaf, Color.vdGold]
         case .void:
-            [Color(hex: 0x10131A), Color(hex: 0x4D315F), Color(hex: 0x9A85FF)]
+            [Color.vdMidnight, Color.vdViolet, Color.vdGold]
         }
     }
 
@@ -154,6 +181,19 @@ private extension CardAccent {
         case .solar: "sun.max.fill"
         case .venom: "leaf.fill"
         case .void: "moon.stars.fill"
+        }
+    }
+}
+
+private extension CardRarity {
+    var cardFrameTint: Color {
+        switch self {
+        case .common: Color(hex: 0x9BA6B8)
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
         }
     }
 }

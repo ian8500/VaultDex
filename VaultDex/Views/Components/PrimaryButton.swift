@@ -16,25 +16,69 @@ struct PrimaryButton: View {
                 }
 
                 Text(title)
-                    .font(.headline)
+                    .font(.headline.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
-            .foregroundStyle(Color(hex: 0x111318))
+            .foregroundStyle(Color.vdNavy)
             .frame(maxWidth: .infinity)
             .frame(height: 52)
             .background(
                 LinearGradient(
-                    colors: isEnabled ? [Color.vdGold, Color(hex: 0xF4DF9A)] : [Color.vdTextSecondary.opacity(0.5)],
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    colors: isEnabled ? [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep] : [Color.vdTextSecondary.opacity(0.5)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 ),
-                in: RoundedRectangle(cornerRadius: 8)
+                in: RoundedRectangle(cornerRadius: 14)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.white.opacity(0.48), lineWidth: 1)
             )
+            .overlay(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.52), Color.clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            )
+            .shadow(color: Color.vdGold.opacity(isEnabled ? 0.34 : 0), radius: 14, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.55)
+    }
+}
+
+struct SecondaryButton: View {
+    let title: String
+    var systemImage: String?
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 15, weight: .bold))
+                }
+
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(Color.vdTextPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(Color.vdPanelRaised.opacity(0.86), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.vdGold.opacity(0.38), lineWidth: 1)
+            )
+            .shadow(color: Color.vdGold.opacity(isEnabled ? 0.12 : 0), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)

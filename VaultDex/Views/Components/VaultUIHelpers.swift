@@ -8,7 +8,8 @@ struct VaultSectionHeader: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
+            .foregroundStyle(Color.vdTextPrimary)
+            .shadow(color: Color.vdGold.opacity(0.16), radius: 8, x: 0, y: 2)
 
             Text(subtitle)
                 .font(.caption)
@@ -46,8 +47,11 @@ struct FeatureLinkCard<Destination: View>: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(tint)
-                    .frame(width: 38, height: 38)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 42, height: 42)
+                    .background(
+                        LinearGradient(colors: [tint.opacity(0.22), Color.vdPanelRaised.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 14)
+                    )
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
@@ -69,13 +73,14 @@ struct FeatureLinkCard<Destination: View>: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
             }
-            .padding(14)
+            .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 16))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.vdGold.opacity(0.22), lineWidth: 1)
             )
+            .shadow(color: Color.vdGold.opacity(0.08), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }
@@ -100,7 +105,11 @@ struct MetricPill: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanelRaised.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.vdGold.opacity(0.16), lineWidth: 1)
+        )
     }
 }
 
@@ -114,7 +123,7 @@ struct StatusPill: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(tint.opacity(0.14), in: Capsule())
-            .overlay(Capsule().stroke(tint.opacity(0.35), lineWidth: 1))
+            .background(tint.opacity(0.16), in: Capsule())
+            .overlay(Capsule().stroke(tint.opacity(0.45), lineWidth: 1))
     }
 }

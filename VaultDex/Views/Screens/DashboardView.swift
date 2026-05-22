@@ -38,10 +38,10 @@ struct DashboardView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Text("Demo")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdGold)
+                    .foregroundStyle(Color.vdNavy)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.vdGold.opacity(0.14), in: Capsule())
+                    .background(Color.vdGold.opacity(0.92), in: Capsule())
             }
         }
     }
@@ -49,14 +49,22 @@ struct DashboardView: View {
     private var header: some View {
         HStack(spacing: 14) {
             Image(systemName: store.profile.avatarSymbol)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Color.vdGold)
-                .frame(width: 56, height: 56)
-                .background(Color.vdPanelRaised, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.vdStroke, lineWidth: 1)
+                .font(.system(size: 26, weight: .black))
+                .foregroundStyle(Color.vdNavy)
+                .frame(width: 62, height: 62)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 18)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.45), lineWidth: 1)
+                )
+                .shadow(color: Color.vdGold.opacity(0.28), radius: 14, x: 0, y: 6)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Welcome back")
@@ -71,12 +79,20 @@ struct DashboardView: View {
 
             Spacer()
         }
-        .padding(16)
-        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.7), lineWidth: 1)
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.76)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+        )
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
     }
 
     private var statsGrid: some View {
@@ -214,8 +230,8 @@ struct DashboardView: View {
                     HStack(spacing: 12) {
                         Image(systemName: activity.systemImage)
                             .foregroundStyle(Color.vdGold)
-                            .frame(width: 34, height: 34)
-                            .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            .frame(width: 36, height: 36)
+                            .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text(activity.title)
@@ -230,10 +246,10 @@ struct DashboardView: View {
                         Spacer()
                     }
                     .padding(12)
-                    .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
                     )
                 }
             }
@@ -281,8 +297,8 @@ struct DashboardView: View {
                         HStack(spacing: 12) {
                             Image(systemName: want.friend.avatarSymbol)
                                 .foregroundStyle(Color.vdGold)
-                                .frame(width: 34, height: 34)
-                                .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                .frame(width: 36, height: 36)
+                                .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(want.friend.displayName + " wants " + want.card.name)
@@ -301,10 +317,10 @@ struct DashboardView: View {
                             StatusPill(title: want.priority.displayName, tint: want.priority == .grail ? .vdCoral : .vdGold)
                         }
                         .padding(12)
-                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)

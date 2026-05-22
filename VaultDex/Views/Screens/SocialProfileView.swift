@@ -37,21 +37,22 @@ struct SocialProfileView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: store.profile.avatarSymbol)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(Color.vdGold)
-                    .frame(width: 72, height: 72)
+                    .font(.system(size: 32, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 78, height: 78)
                     .background(
                         LinearGradient(
-                            colors: [Color.vdPanelRaised, Color(hex: 0x241E30)],
+                            colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        in: RoundedRectangle(cornerRadius: 8)
+                        in: RoundedRectangle(cornerRadius: 22)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.vdGold.opacity(0.35), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(Color.white.opacity(0.48), lineWidth: 1)
                     )
+                    .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(store.profile.displayName)
@@ -93,11 +94,19 @@ struct SocialProfileView: View {
             }
         }
         .padding(18)
-        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.78)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+        )
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
     }
 
     private var profileEditor: some View {

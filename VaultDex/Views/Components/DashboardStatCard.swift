@@ -11,17 +11,17 @@ struct DashboardStatCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(tint)
-                    .frame(width: 34, height: 34)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 13))
 
                 Spacer()
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
-                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .font(.system(.title2, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -38,10 +38,22 @@ struct DashboardStatCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.96), Color.vdPanel.opacity(0.9)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(tint.opacity(0.34), lineWidth: 1)
+        )
+        .overlay(
+            LinearGradient(colors: [Color.white.opacity(0.16), Color.clear], startPoint: .top, endPoint: .center)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        )
+        .shadow(color: tint.opacity(0.12), radius: 12, x: 0, y: 6)
     }
 }
