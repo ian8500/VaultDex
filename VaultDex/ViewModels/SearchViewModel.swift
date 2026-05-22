@@ -11,7 +11,9 @@ final class SearchViewModel: ObservableObject {
         store.cards.filter { card in
             let matchesQuery = query.isEmpty
                 || card.name.localizedCaseInsensitiveContains(query)
+                || card.number.localizedCaseInsensitiveContains(query)
                 || card.set.name.localizedCaseInsensitiveContains(query)
+                || card.set.code.localizedCaseInsensitiveContains(query)
                 || card.cardType.displayName.localizedCaseInsensitiveContains(query)
                 || card.typeLine.localizedCaseInsensitiveContains(query)
 

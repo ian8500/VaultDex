@@ -28,6 +28,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Astra Prime",
                 set: nebula,
+                number: "001",
                 rarity: .mythic,
                 cardType: .psychic,
                 typeLine: "Celestial Vanguard",
@@ -39,6 +40,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Gilded Revenant",
                 set: obsidian,
+                number: "017",
                 rarity: .legendary,
                 cardType: .dark,
                 typeLine: "Relic Warden",
@@ -50,6 +52,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Solaris Wyrm",
                 set: radiant,
+                number: "024",
                 rarity: .epic,
                 cardType: .dragon,
                 typeLine: "Dragon Aspect",
@@ -61,6 +64,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Vesper Blade",
                 set: nebula,
+                number: "042",
                 rarity: .rare,
                 cardType: .dark,
                 typeLine: "Shadow Artifact",
@@ -72,6 +76,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Emerald Oracle",
                 set: radiant,
+                number: "058",
                 rarity: .legendary,
                 cardType: .grass,
                 typeLine: "Verdant Seer",
@@ -83,6 +88,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Cinder Paladin",
                 set: obsidian,
+                number: "063",
                 rarity: .epic,
                 cardType: .fire,
                 typeLine: "Flame Knight",
@@ -94,6 +100,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Glasswing Scout",
                 set: nebula,
+                number: "077",
                 rarity: .uncommon,
                 cardType: .colorless,
                 typeLine: "Aerial Scout",
@@ -105,6 +112,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Moonlit Vault",
                 set: obsidian,
+                number: "088",
                 rarity: .rare,
                 cardType: .psychic,
                 typeLine: "Hidden Location",
@@ -116,6 +124,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Ironroot Sentinel",
                 set: radiant,
+                number: "104",
                 rarity: .uncommon,
                 cardType: .metal,
                 typeLine: "Ancient Guardian",
@@ -127,6 +136,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Prism Courier",
                 set: nebula,
+                number: "121",
                 rarity: .common,
                 cardType: .electric,
                 typeLine: "Arcane Runner",
@@ -138,6 +148,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Ashen Contract",
                 set: obsidian,
+                number: "132",
                 rarity: .rare,
                 cardType: .fire,
                 typeLine: "Forbidden Pact",
@@ -149,6 +160,7 @@ final class DemoVaultRepository {
             Card(
                 name: "Frostbound Crown",
                 set: radiant,
+                number: "166",
                 rarity: .mythic,
                 cardType: .water,
                 typeLine: "Royal Relic",

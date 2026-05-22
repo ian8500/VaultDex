@@ -1,24 +1,374 @@
 import Foundation
 
+struct ParsedImportRow: Identifiable, Hashable {
+    let id = UUID()
+    let rowNumber: Int
+    let name: String
+    let set: String
+    let number: String
+    let quantity: Int
+    let condition: CardCondition
+    let variant: CardVariant
+    let language: String
+    let matchedCard: Card?
+
+    var isMatched: Bool {
+        matchedCard != nil
+    }
+}
+
+struct ImportResultSummary: Equatable {
+    var addedCards = 0
+    var updatedCards = 0
+    var unmatchedRows = 0
+}
+
 @MainActor
 final class ImportCollectionViewModel: ObservableObject {
-    @Published private(set) var previewItems: [ImportPreviewItem]
+    @Published var importText = ""
+    @Published private(set) var matchedRows: [ParsedImportRow] = []
+    @Published private(set) var unmatchedRows: [ParsedImportRow] = []
+    @Published private(set) var summary = ImportResultSummary()
+    @Published var errorMessage: String?
+    @Published var exportText = ""
 
-    init(repository: DemoVaultRepository = .shared) {
-        previewItems = repository.importPreviewItems
+    var totalRows: Int {
+        matchedRows.count + unmatchedRows.count
     }
 
-    var totalCopies: Int {
-        previewItems.reduce(0) { $0 + $1.quantity }
+    var matchedCopies: Int {
+        matchedRows.reduce(0) { $0 + $1.quantity }
     }
 
-    var estimatedValue: Double {
-        previewItems.reduce(0) { $0 + ($1.card.marketValue * Double($1.quantity)) }
+    var estimatedMatchedValue: Double {
+        matchedRows.reduce(0) { total, row in
+            total + ((row.matchedCard?.marketValue ?? 0) * Double(row.quantity))
+        }
     }
 
-    var averageConfidence: Double {
-        guard !previewItems.isEmpty else { return 0 }
-        return previewItems.reduce(0) { $0 + $1.confidence } / Double(previewItems.count)
+    var canConfirmImport: Bool {
+        !matchedRows.isEmpty
+    }
+
+    func loadSampleCSV() {
+        importText = """
+        Name,Set,Number,Quantity,Condition,Variant,Language
+        Astra Prime,Nebula Crown,001,1,Mint,Full Art,English
+        Prism Courier,NBC,121,4,Near Mint,Normal,English
+        Frostbound Crown,Radiant Archive,166,1,Mint,Secret Rare,Japanese
+        Unknown Prototype,Nebula Crown,999,2,Played,Holo,English
+        """
+    }
+
+    func parseImportText(in store: LocalVaultStore) {
+        let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            resetRows()
+            errorMessage = "Paste CSV or JSON before reviewing."
+            return
+        }
+
+        do {
+            let rows: [ParsedImportRow]
+            if trimmed.first == "[" || trimmed.first == "{" {
+                rows = try parseJSON(trimmed, store: store)
+            } else {
+                rows = try parseCSV(trimmed, store: store)
+            }
+
+            matchedRows = rows.filter(\.isMatched)
+            unmatchedRows = rows.filter { !$0.isMatched }
+            summary = ImportResultSummary(unmatchedRows: unmatchedRows.count)
+            exportText = ""
+            errorMessage = nil
+        } catch {
+            resetRows()
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func confirmImport(into store: LocalVaultStore) {
+        guard !matchedRows.isEmpty else { return }
+
+        var added = 0
+        var updated = 0
+
+        for row in matchedRows {
+            guard let card = row.matchedCard else { continue }
+
+            if store.collectionItem(for: card) == nil {
+                added += 1
+            } else {
+                updated += 1
+            }
+
+            store.addCard(
+                card,
+                quantity: row.quantity,
+                condition: row.condition,
+                variant: row.variant
+            )
+        }
+
+        summary = ImportResultSummary(
+            addedCards: added,
+            updatedCards: updated,
+            unmatchedRows: unmatchedRows.count
+        )
+    }
+
+    func exportCollectionCSV(from store: LocalVaultStore) {
+        let rows = store.collectionItems.map { item in
+            [
+                item.card.name,
+                item.card.set.name,
+                item.card.number,
+                "\(item.quantity)",
+                item.condition.displayName,
+                item.variant.displayName,
+                "English"
+            ]
+        }
+
+        exportText = csvString(
+            headers: ["Name", "Set", "Number", "Quantity", "Condition", "Variant", "Language"],
+            rows: rows
+        )
+    }
+
+    func exportWishlistCSV(from store: LocalVaultStore) {
+        let rows = store.wishlistItems.map { item in
+            [
+                item.card.name,
+                item.card.set.name,
+                item.card.number,
+                item.priority.displayName,
+                item.budget.vaultCSVValue,
+                item.notes
+            ]
+        }
+
+        exportText = csvString(
+            headers: ["Name", "Set", "Number", "Priority", "Budget", "Notes"],
+            rows: rows
+        )
+    }
+
+    private func resetRows() {
+        matchedRows = []
+        unmatchedRows = []
+        summary = ImportResultSummary()
+    }
+
+    private func parseCSV(_ text: String, store: LocalVaultStore) throws -> [ParsedImportRow] {
+        let records = csvRecords(from: text).filter { record in
+            record.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+
+        guard let header = records.first else {
+            throw ImportParseError.emptyInput
+        }
+
+        let columns = Dictionary(uniqueKeysWithValues: header.enumerated().map { index, value in
+            (Self.normalizedHeader(value), index)
+        })
+
+        guard columns["name"] != nil else {
+            throw ImportParseError.missingNameColumn
+        }
+
+        return records.dropFirst().enumerated().map { offset, record in
+            makeRow(rowNumber: offset + 2, valueFor: { key in
+                guard let index = columns[key], record.indices.contains(index) else { return "" }
+                return record[index]
+            }, store: store)
+        }
+    }
+
+    private func parseJSON(_ text: String, store: LocalVaultStore) throws -> [ParsedImportRow] {
+        guard let data = text.data(using: .utf8) else {
+            throw ImportParseError.emptyInput
+        }
+
+        let object = try JSONSerialization.jsonObject(with: data)
+        let rawRows: [[String: Any]]
+
+        if let array = object as? [[String: Any]] {
+            rawRows = array
+        } else if
+            let dictionary = object as? [String: Any],
+            let array = dictionary["cards"] as? [[String: Any]]
+        {
+            rawRows = array
+        } else {
+            throw ImportParseError.invalidJSON
+        }
+
+        return rawRows.enumerated().map { offset, dictionary in
+            let normalized = Dictionary(uniqueKeysWithValues: dictionary.map { key, value in
+                (Self.normalizedHeader(key), String(describing: value))
+            })
+
+            return makeRow(rowNumber: offset + 1, valueFor: { key in
+                normalized[key] ?? ""
+            }, store: store)
+        }
+    }
+
+    private func makeRow(
+        rowNumber: Int,
+        valueFor: (String) -> String,
+        store: LocalVaultStore
+    ) -> ParsedImportRow {
+        let name = clean(valueFor("name"))
+        let set = clean(valueFor("set"))
+        let number = clean(valueFor("number"))
+        let quantity = max(Int(clean(valueFor("quantity"))) ?? 1, 1)
+        let condition = Self.cardCondition(from: valueFor("condition"))
+        let variant = Self.cardVariant(from: valueFor("variant"))
+        let language = clean(valueFor("language")).isEmpty ? "English" : clean(valueFor("language"))
+        let card = matchCard(name: name, set: set, number: number, in: store)
+
+        return ParsedImportRow(
+            rowNumber: rowNumber,
+            name: name,
+            set: set,
+            number: number,
+            quantity: quantity,
+            condition: condition,
+            variant: variant,
+            language: language,
+            matchedCard: card
+        )
+    }
+
+    private func matchCard(name: String, set: String, number: String, in store: LocalVaultStore) -> Card? {
+        let normalizedName = Self.normalizedValue(name)
+        let normalizedSet = Self.normalizedValue(set)
+        let normalizedNumber = Self.normalizedValue(number)
+
+        return store.cards.first { card in
+            guard Self.normalizedValue(card.name) == normalizedName else { return false }
+
+            let setMatches = normalizedSet.isEmpty
+                || Self.normalizedValue(card.set.name) == normalizedSet
+                || Self.normalizedValue(card.set.code) == normalizedSet
+
+            let numberMatches = normalizedNumber.isEmpty
+                || Self.normalizedValue(card.number) == normalizedNumber
+
+            return setMatches && numberMatches
+        }
+    }
+
+    private func csvRecords(from text: String) -> [[String]] {
+        var records: [[String]] = []
+        var record: [String] = []
+        var field = ""
+        var isQuoted = false
+        var iterator = text.makeIterator()
+
+        while let character = iterator.next() {
+            if character == "\"" {
+                if isQuoted, let next = iterator.next() {
+                    if next == "\"" {
+                        field.append("\"")
+                    } else {
+                        isQuoted = false
+                        if next == "," {
+                            record.append(field)
+                            field = ""
+                        } else if next == "\n" {
+                            record.append(field)
+                            records.append(record)
+                            record = []
+                            field = ""
+                        } else if next != "\r" {
+                            field.append(next)
+                        }
+                    }
+                } else {
+                    isQuoted.toggle()
+                }
+            } else if character == "," && !isQuoted {
+                record.append(field)
+                field = ""
+            } else if character == "\n" && !isQuoted {
+                record.append(field)
+                records.append(record)
+                record = []
+                field = ""
+            } else if character != "\r" {
+                field.append(character)
+            }
+        }
+
+        record.append(field)
+        records.append(record)
+        return records
+    }
+
+    private func csvString(headers: [String], rows: [[String]]) -> String {
+        ([headers] + rows)
+            .map { row in row.map(Self.escapeCSV).joined(separator: ",") }
+            .joined(separator: "\n")
+    }
+
+    private func clean(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizedHeader(_ value: String) -> String {
+        normalizedValue(value)
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "_", with: "")
+    }
+
+    private static func normalizedValue(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func cardCondition(from value: String) -> CardCondition {
+        switch normalizedHeader(value) {
+        case "mint", "m": .mint
+        case "nearmint", "nm": .nearMint
+        case "excellent", "ex": .excellent
+        case "played", "pl": .played
+        default: .nearMint
+        }
+    }
+
+    private static func cardVariant(from value: String) -> CardVariant {
+        switch normalizedHeader(value) {
+        case "holo", "holographic": .holo
+        case "reverseholo", "reverse": .reverseHolo
+        case "fullart": .fullArt
+        case "secretrare", "secret": .secretRare
+        case "promo": .promo
+        default: .normal
+        }
+    }
+
+    private static func escapeCSV(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        if escaped.contains(",") || escaped.contains("\n") || escaped.contains("\"") {
+            return "\"" + escaped + "\""
+        }
+        return escaped
+    }
+}
+
+enum ImportParseError: LocalizedError {
+    case emptyInput
+    case missingNameColumn
+    case invalidJSON
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyInput: "No import rows were found."
+        case .missingNameColumn: "CSV must include a Name column."
+        case .invalidJSON: "JSON must be an array of cards or an object with a cards array."
+        }
     }
 }
 

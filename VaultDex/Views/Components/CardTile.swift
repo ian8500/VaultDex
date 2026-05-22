@@ -26,7 +26,7 @@ struct CardTile: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.86)
 
-                        Text(card.set.code + " · " + card.cardType.displayName + " · " + card.typeLine)
+            Text(card.set.code + " #" + card.number + " · " + card.cardType.displayName + " · " + card.typeLine)
                             .font(.caption)
                             .foregroundStyle(Color.vdTextSecondary)
                             .lineLimit(1)

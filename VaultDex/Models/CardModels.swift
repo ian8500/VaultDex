@@ -127,6 +127,7 @@ struct Card: Identifiable, Hashable {
     let id: UUID
     let name: String
     let set: CardSet
+    let number: String
     let rarity: CardRarity
     let cardType: CardType
     let typeLine: String
@@ -139,6 +140,7 @@ struct Card: Identifiable, Hashable {
         id: UUID = UUID(),
         name: String,
         set: CardSet,
+        number: String,
         rarity: CardRarity,
         cardType: CardType,
         typeLine: String,
@@ -150,6 +152,7 @@ struct Card: Identifiable, Hashable {
         self.id = id
         self.name = name
         self.set = set
+        self.number = number
         self.rarity = rarity
         self.cardType = cardType
         self.typeLine = typeLine

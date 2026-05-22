@@ -1,7 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import UIKit
 
 struct ImportCollectionView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = ImportCollectionViewModel()
+    @State private var isFileImporterPresented = false
 
     var body: some View {
         ZStack {
@@ -10,15 +14,26 @@ struct ImportCollectionView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    previewRows
+                    pasteInput
+                    reviewSummary
+                    matchedRows
+                    unmatchedRows
+                    exportTools
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Import")
+        .navigationTitle("Import Collection")
         .navigationBarTitleDisplayMode(.large)
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.commaSeparatedText, .json, .plainText],
+            allowsMultipleSelection: false
+        ) { result in
+            loadFile(result)
+        }
     }
 
     private var header: some View {
@@ -29,7 +44,7 @@ struct ImportCollectionView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Preview local scan, CSV, and manual entries before they touch the vault.")
+                    Text("Paste or upload collection data, review matches, then import only confirmed cards.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -43,12 +58,21 @@ struct ImportCollectionView: View {
             }
 
             HStack(spacing: 12) {
-                MetricPill(title: "Copies", value: "\(viewModel.totalCopies)")
-                MetricPill(title: "Estimate", value: viewModel.estimatedValue.compactVaultCurrency)
-                MetricPill(title: "Confidence", value: viewModel.averageConfidence.formatted(.percent.precision(.fractionLength(0))))
+                MetricPill(title: "Matched", value: "\(viewModel.matchedRows.count)")
+                MetricPill(title: "Unmatched", value: "\(viewModel.unmatchedRows.count)")
+                MetricPill(title: "Value", value: viewModel.estimatedMatchedValue.compactVaultCurrency)
             }
 
-            PrimaryButton(title: "Import Demo Batch", systemImage: "checkmark.circle.fill") {}
+            HStack(spacing: 10) {
+                compactAction(title: "Sample", systemImage: "doc.text.fill", tint: .vdViolet) {
+                    viewModel.loadSampleCSV()
+                    viewModel.parseImportText(in: store)
+                }
+
+                compactAction(title: "Upload CSV", systemImage: "folder.fill", tint: .vdEmerald) {
+                    isFileImporterPresented = true
+                }
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -58,16 +82,155 @@ struct ImportCollectionView: View {
         )
     }
 
-    private var previewRows: some View {
+    private var pasteInput: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Ready To Review", subtitle: "\(viewModel.previewItems.count) detected cards")
+            VaultSectionHeader(title: "Paste CSV or JSON", subtitle: "CSV columns: Name, Set, Number, Quantity, Condition, Variant, Language")
 
-            VStack(spacing: 12) {
-                ForEach(viewModel.previewItems) { item in
-                    ImportPreviewRow(item: item)
+            TextEditor(text: $viewModel.importText)
+                .font(.callout.monospaced())
+                .foregroundStyle(Color.vdTextPrimary)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 190)
+                .padding(12)
+                .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+                )
+
+            if let errorMessage = viewModel.errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdCoral)
+            }
+
+            PrimaryButton(title: "Review Import", systemImage: "checklist") {
+                viewModel.parseImportText(in: store)
+            }
+        }
+    }
+
+    private var reviewSummary: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VaultSectionHeader(title: "Import Summary", subtitle: "Nothing is added until you confirm")
+
+            HStack(spacing: 12) {
+                MetricPill(title: "Added", value: "\(viewModel.summary.addedCards)")
+                MetricPill(title: "Updated", value: "\(viewModel.summary.updatedCards)")
+                MetricPill(title: "Unmatched", value: "\(viewModel.summary.unmatchedRows)")
+            }
+
+            PrimaryButton(title: "Confirm Matched Import", systemImage: "tray.and.arrow.down.fill") {
+                viewModel.confirmImport(into: store)
+            }
+            .disabled(!viewModel.canConfirmImport)
+        }
+        .padding(18)
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+        )
+    }
+
+    private var matchedRows: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Matched Rows", subtitle: "\(viewModel.matchedRows.count) rows ready to import")
+
+            if viewModel.matchedRows.isEmpty {
+                EmptyStateView(
+                    systemImage: "checkmark.seal",
+                    title: "No matches yet",
+                    message: "Paste data and review it to see matched catalogue cards."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.matchedRows) { row in
+                        ImportReviewRow(row: row, isMatched: true)
+                    }
                 }
             }
         }
+    }
+
+    private var unmatchedRows: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Unmatched Rows", subtitle: "These will never import silently")
+
+            if viewModel.unmatchedRows.isEmpty {
+                EmptyStateView(
+                    systemImage: "shield.checkered",
+                    title: "No unmatched rows",
+                    message: "Rows that fail catalogue matching will appear here for manual cleanup."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.unmatchedRows) { row in
+                        ImportReviewRow(row: row, isMatched: false)
+                    }
+                }
+            }
+        }
+    }
+
+    private var exportTools: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Export", subtitle: "Generate local CSV snapshots")
+
+            HStack(spacing: 10) {
+                compactAction(title: "Collection CSV", systemImage: "square.and.arrow.up", tint: .vdGold) {
+                    viewModel.exportCollectionCSV(from: store)
+                }
+
+                compactAction(title: "Wishlist CSV", systemImage: "star.fill", tint: .vdViolet) {
+                    viewModel.exportWishlistCSV(from: store)
+                }
+            }
+
+            if !viewModel.exportText.isEmpty {
+                ExportCSVPanel(csvText: viewModel.exportText)
+            }
+        }
+    }
+
+    private func loadFile(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            viewModel.importText = try String(contentsOf: url, encoding: .utf8)
+            viewModel.parseImportText(in: store)
+        } catch {
+            viewModel.errorMessage = "Could not read file: \(error.localizedDescription)"
+        }
+    }
+
+    private func compactAction(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(tint.opacity(0.38), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -679,36 +842,130 @@ struct AccountDeletionView: View {
     }
 }
 
-private struct ImportPreviewRow: View {
-    let item: ImportPreviewItem
+private struct ImportReviewRow: View {
+    let row: ParsedImportRow
+    let isMatched: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            CardTile(card: item.card, quantity: item.quantity, style: .compact)
+            if let card = row.matchedCard {
+                CardTile(
+                    card: card,
+                    quantity: row.quantity,
+                    condition: row.condition,
+                    variant: row.variant,
+                    style: .compact
+                )
                 .frame(width: 150)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Image(systemName: "questionmark.square.dashed")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color.vdCoral)
+
+                    Text(row.name.isEmpty ? "Missing name" : row.name)
+                        .font(.headline)
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(2)
+
+                    Text(row.set.isEmpty ? "No set supplied" : row.set)
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(2)
+                }
+                .frame(width: 150, alignment: .topLeading)
+                .frame(minHeight: 190, alignment: .topLeading)
+                .padding(12)
+                .background(Color.vdPanelRaised.opacity(0.74), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdCoral.opacity(0.45), lineWidth: 1)
+                )
+            }
 
             VStack(alignment: .leading, spacing: 8) {
-                StatusPill(title: item.sourceName, tint: .vdEmerald)
+                StatusPill(title: isMatched ? "Matched" : "Needs Review", tint: isMatched ? .vdEmerald : .vdCoral)
 
-                Text(item.card.name)
+                Text(row.name.isEmpty ? "Unnamed row" : row.name)
                     .font(.headline)
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(2)
 
-                Text(item.condition.displayName + " · " + item.card.set.name)
+                Text(importDetails)
                     .font(.caption)
                     .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                ProgressView(value: item.confidence)
-                    .tint(Color.vdEmerald)
-                    .background(Color.vdStroke.opacity(0.55), in: Capsule())
-
-                Text(item.confidence.formatted(.percent.precision(.fractionLength(0))) + " match confidence")
-                    .font(.caption)
-                    .foregroundStyle(Color.vdTextSecondary)
+                if let card = row.matchedCard {
+                    Text(card.set.name + " #" + card.number)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdGold)
+                } else {
+                    Text("This row will be skipped until its name, set, or number matches the local catalogue.")
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(12)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke((isMatched ? Color.vdStroke : Color.vdCoral.opacity(0.5)), lineWidth: 1)
+        )
+    }
+
+    private var importDetails: String {
+        [
+            "Row \(row.rowNumber)",
+            row.set.isEmpty ? nil : row.set,
+            row.number.isEmpty ? nil : "#" + row.number,
+            "\(row.quantity)x",
+            row.condition.displayName,
+            row.variant.displayName,
+            row.language
+        ]
+        .compactMap { $0 }
+        .joined(separator: " · ")
+    }
+}
+
+private struct ExportCSVPanel: View {
+    let csvText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("CSV Preview", systemImage: "doc.plaintext.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = csvText
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.vdGold)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text(csvText)
+                .font(.caption.monospaced())
+                .foregroundStyle(Color.vdTextPrimary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color.vdPanelRaised.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+                )
+        }
+        .padding(14)
         .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
