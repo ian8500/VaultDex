@@ -469,6 +469,44 @@ final class BinderDesignerViewModel: ObservableObject {
 
 @MainActor
 final class CompletionTrackerViewModel: ObservableObject {
+    enum OwnershipFilter: String, CaseIterable, Identifiable {
+        case all
+        case caught
+        case missing
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .all: "All"
+            case .caught: "Caught"
+            case .missing: "Missing"
+            }
+        }
+    }
+
+    @Published var ownershipFilter: OwnershipFilter = .all
+    @Published var selectedGeneration: Int?
+    @Published var selectedType: CardType?
+    @Published var selectedRarity: CardRarity?
+    @Published var searchText = ""
+
+    func generations(in store: LocalVaultStore) -> [Int] {
+        Array(Set(store.sets.map(Self.generation(for:)))).sorted()
+    }
+
+    func totalTracked(in store: LocalVaultStore) -> Int {
+        store.cards.count
+    }
+
+    func ownedCount(in store: LocalVaultStore) -> Int {
+        Set(store.collectionItems.map(\.card.id)).count
+    }
+
+    func missingCount(in store: LocalVaultStore) -> Int {
+        max(totalTracked(in: store) - ownedCount(in: store), 0)
+    }
+
     func setProgress(in store: LocalVaultStore) -> [SetProgress] {
         store.sets.map { set in
             let owned = Set(store.collectionItems.filter { $0.card.set == set }.map(\.card.id)).count
@@ -479,26 +517,150 @@ final class CompletionTrackerViewModel: ObservableObject {
 
     func overallFraction(in store: LocalVaultStore) -> Double {
         guard !store.cards.isEmpty else { return 0 }
-        let owned = Set(store.collectionItems.map(\.card.id)).count
-        return Double(owned) / Double(store.cards.count)
+        return Double(ownedCount(in: store)) / Double(store.cards.count)
     }
 
     func missingCards(in store: LocalVaultStore) -> [Card] {
         let ownedIDs = Set(store.collectionItems.map(\.card.id))
         return store.cards.filter { !ownedIDs.contains($0.id) }
     }
+
+    func filteredCards(in store: LocalVaultStore) -> [Card] {
+        let ownedIDs = Set(store.collectionItems.map(\.card.id))
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        return store.cards.filter { card in
+            switch ownershipFilter {
+            case .all:
+                break
+            case .caught:
+                guard ownedIDs.contains(card.id) else { return false }
+            case .missing:
+                guard !ownedIDs.contains(card.id) else { return false }
+            }
+
+            if let selectedGeneration, Self.generation(for: card.set) != selectedGeneration { return false }
+            if let selectedType, card.cardType != selectedType { return false }
+            if let selectedRarity, card.rarity != selectedRarity { return false }
+
+            guard !query.isEmpty else { return true }
+            return card.name.lowercased().contains(query)
+                || card.set.name.lowercased().contains(query)
+                || card.number.lowercased().contains(query)
+        }
+        .sorted { lhs, rhs in
+            if lhs.set.releaseYear != rhs.set.releaseYear { return lhs.set.releaseYear < rhs.set.releaseYear }
+            return lhs.name < rhs.name
+        }
+    }
+
+    func isOwned(_ card: Card, in store: LocalVaultStore) -> Bool {
+        store.collectionItem(for: card) != nil
+    }
+
+    func isWishlisted(_ card: Card, in store: LocalVaultStore) -> Bool {
+        store.isWishlisted(card)
+    }
+
+    static func generation(for set: CardSet) -> Int {
+        switch set.releaseYear {
+        case ..<2020: 1
+        case 2020...2022: 2
+        case 2023...2024: 3
+        default: 4
+        }
+    }
 }
 
 @MainActor
 final class EventsViewModel: ObservableObject {
-    @Published private(set) var events: [VaultEvent]
+    @Published var selectedVisibility: BinderVisibility?
+    @Published var eventDraft = EventDraft()
 
-    init(repository: DemoVaultRepository = .shared) {
-        events = repository.events
+    func upcomingEvents(in store: LocalVaultStore) -> [VaultEvent] {
+        filteredEvents(in: store).filter { $0.date >= .now }
     }
 
-    var upcomingEvents: [VaultEvent] {
-        events.filter { $0.date >= .now }.sorted { $0.date < $1.date }
+    func filteredEvents(in store: LocalVaultStore) -> [VaultEvent] {
+        store.events
+            .filter { selectedVisibility == nil || $0.visibility == selectedVisibility }
+            .sorted { $0.date < $1.date }
+    }
+
+    func resetDraft(featuredSet: CardSet?) {
+        eventDraft = EventDraft(featuredSet: featuredSet)
+    }
+
+    func editDraft(from event: VaultEvent) {
+        eventDraft = EventDraft(event: event)
+    }
+
+    func makeEvent() -> VaultEvent {
+        eventDraft.makeEvent()
+    }
+}
+
+struct EventDraft {
+    var id: UUID?
+    var title: String
+    var venue: String
+    var date: Date
+    var emojiMarker: String
+    var notes: String
+    var visibility: BinderVisibility
+    var kind: VaultEventKind
+    var prize: String
+    var attendingFriends: Int
+    var featuredSet: CardSet?
+
+    init(featuredSet: CardSet? = nil) {
+        self.id = nil
+        self.title = ""
+        self.venue = ""
+        self.date = .now.addingTimeInterval(86400)
+        self.emojiMarker = "📅"
+        self.notes = ""
+        self.visibility = .private
+        self.kind = .community
+        self.prize = "Collector meetup"
+        self.attendingFriends = 0
+        self.featuredSet = featuredSet
+    }
+
+    init(event: VaultEvent) {
+        self.id = event.id
+        self.title = event.title
+        self.venue = event.venue
+        self.date = event.date
+        self.emojiMarker = event.emojiMarker
+        self.notes = event.notes
+        self.visibility = event.visibility
+        self.kind = event.kind
+        self.prize = event.prize
+        self.attendingFriends = event.attendingFriends
+        self.featuredSet = event.featuredSet
+    }
+
+    var isValid: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && featuredSet != nil
+    }
+
+    func makeEvent() -> VaultEvent {
+        VaultEvent(
+            id: id ?? UUID(),
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            venue: venue.trimmingCharacters(in: .whitespacesAndNewlines),
+            date: date,
+            kind: kind,
+            prize: prize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Collector meetup" : prize,
+            attendingFriends: max(attendingFriends, 0),
+            featuredSet: featuredSet ?? DemoVaultRepository.shared.sets[0],
+            emojiMarker: emojiMarker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "📅" : emojiMarker,
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            visibility: visibility
+        )
     }
 }
 

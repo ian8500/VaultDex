@@ -897,27 +897,29 @@ struct CompletionTrackerView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    filters
                     setRows
-                    missingCards
+                    cardResults
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Pokedex")
+        .navigationTitle("Pokédex")
         .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $viewModel.searchText, prompt: "Search Pokémon, set, or number")
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Completion Tracker")
+                    Text("Pokédex Tracker")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Demo catalog coverage by set, ready to become a synced dex later.")
+                    Text("Track caught, missing, wishlist targets, and set completion from your local VaultDex catalogue.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -933,6 +935,12 @@ struct CompletionTrackerView: View {
             ProgressView(value: viewModel.overallFraction(in: store))
                 .tint(Color.vdGold)
                 .background(Color.vdStroke.opacity(0.55), in: Capsule())
+
+            HStack(spacing: 10) {
+                MetricPill(title: "Tracked", value: "\(viewModel.totalTracked(in: store))")
+                MetricPill(title: "Caught", value: "\(viewModel.ownedCount(in: store))")
+                MetricPill(title: "Missing", value: "\(viewModel.missingCount(in: store))")
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -940,6 +948,44 @@ struct CompletionTrackerView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    private var filters: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VaultSectionHeader(title: "Filters", subtitle: "Focus by caught state, generation, type, or rarity")
+
+            Picker("Caught filter", selection: $viewModel.ownershipFilter) {
+                ForEach(CompletionTrackerViewModel.OwnershipFilter.allCases) { filter in
+                    Text(filter.displayName).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            VStack(spacing: 10) {
+                Picker("Generation", selection: $viewModel.selectedGeneration) {
+                    Text("All generations").tag(Int?.none)
+                    ForEach(viewModel.generations(in: store), id: \.self) { generation in
+                        Text("Gen \(generation)").tag(Int?.some(generation))
+                    }
+                }
+
+                Picker("Type", selection: $viewModel.selectedType) {
+                    Text("All types").tag(CardType?.none)
+                    ForEach(CardType.allCases) { type in
+                        Text(type.displayName).tag(CardType?.some(type))
+                    }
+                }
+
+                Picker("Rarity", selection: $viewModel.selectedRarity) {
+                    Text("All rarities").tag(CardRarity?.none)
+                    ForEach(CardRarity.allCases) { rarity in
+                        Text(rarity.displayName).tag(CardRarity?.some(rarity))
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Color.vdGold)
+        }
     }
 
     private var setRows: some View {
@@ -954,39 +1000,41 @@ struct CompletionTrackerView: View {
         }
     }
 
-    private var missingCards: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Missing Cards", subtitle: "Targets for wishlist, import, and trade")
+    @ViewBuilder
+    private var cardResults: some View {
+        let cards = viewModel.filteredCards(in: store)
 
-            if viewModel.missingCards(in: store).isEmpty {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Pokédex Entries", subtitle: "\(cards.count) cards match the current filters")
+
+            if cards.isEmpty {
                 EmptyStateView(
-                    systemImage: "checkmark.seal.fill",
-                    title: "Demo catalog complete",
-                    message: "Every local card is already in your vault."
+                    systemImage: "line.3.horizontal.decrease.circle.fill",
+                    title: "No matching entries",
+                    message: "Loosen the filters to see more of the local Pokédex catalogue."
                 )
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(viewModel.missingCards(in: store)) { card in
-                            NavigationLink {
-                                CardDetailView(card: card)
-                            } label: {
-                                CardTile(card: card, style: .compact)
-                                    .frame(width: 220)
-                            }
-                            .buttonStyle(.plain)
+                LazyVStack(spacing: 12) {
+                    ForEach(cards) { card in
+                        PokedexEntryRow(
+                            card: card,
+                            isOwned: viewModel.isOwned(card, in: store),
+                            isWishlisted: viewModel.isWishlisted(card, in: store)
+                        ) {
+                            store.addMissingCardToWishlist(card)
                         }
                     }
-                    .scrollTargetLayout()
                 }
-                .scrollTargetBehavior(.viewAligned)
             }
         }
     }
 }
 
 struct EventsView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = EventsViewModel()
+    @State private var isEditorPresented = false
+    @State private var eventPendingDelete: VaultEvent?
 
     var body: some View {
         ZStack {
@@ -995,7 +1043,10 @@ struct EventsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    calendarStrip
+                    visibilityFilters
                     eventList
+                    sharedPlaceholder
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -1004,6 +1055,54 @@ struct EventsView: View {
         }
         .navigationTitle("Events")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.resetDraft(featuredSet: store.sets.first)
+                    isEditorPresented = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .tint(Color.vdGold)
+            }
+        }
+        .sheet(isPresented: $isEditorPresented) {
+            EventEditorSheet(
+                draft: $viewModel.eventDraft,
+                sets: store.sets,
+                onCancel: { isEditorPresented = false },
+                onSave: {
+                    let event = viewModel.makeEvent()
+                    if viewModel.eventDraft.id == nil {
+                        store.addEvent(event)
+                    } else {
+                        store.updateEvent(event)
+                    }
+                    isEditorPresented = false
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .confirmationDialog(
+            "Delete this event?",
+            isPresented: Binding(
+                get: { eventPendingDelete != nil },
+                set: { if !$0 { eventPendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Event", role: .destructive) {
+                if let eventPendingDelete {
+                    store.deleteEvent(eventPendingDelete)
+                }
+                eventPendingDelete = nil
+            }
+
+            Button("Cancel", role: .cancel) {
+                eventPendingDelete = nil
+            }
+        }
     }
 
     private var header: some View {
@@ -1022,12 +1121,22 @@ struct EventsView: View {
 
                 Spacer()
 
-                Image(systemName: "calendar")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color.vdGold)
+                Button {
+                    viewModel.resetDraft(featuredSet: store.sets.first)
+                    isEditorPresented = true
+                } label: {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(Color.vdGold)
+                }
+                .buttonStyle(.plain)
             }
 
-            MetricPill(title: "Upcoming", value: "\(viewModel.upcomingEvents.count)")
+            HStack(spacing: 10) {
+                MetricPill(title: "Upcoming", value: "\(viewModel.upcomingEvents(in: store).count)")
+                MetricPill(title: "Shared", value: "Soon")
+                MetricPill(title: "Local", value: "\(store.events.count)")
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -1037,16 +1146,104 @@ struct EventsView: View {
         )
     }
 
+    private var calendarStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(viewModel.filteredEvents(in: store)) { event in
+                    VStack(spacing: 8) {
+                        Text(event.emojiMarker)
+                            .font(.title2)
+
+                        Text(event.date.formatted(.dateTime.month(.abbreviated)))
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.vdTextSecondary)
+
+                        Text(event.date.formatted(.dateTime.day()))
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(Color.vdTextPrimary)
+                    }
+                    .frame(width: 78, height: 104)
+                    .background(Color.vdPanelRaised.opacity(0.88), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(event.visibility == .public ? Color.vdGold.opacity(0.72) : Color.vdStroke.opacity(0.72), lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private var visibilityFilters: some View {
+        HStack(spacing: 10) {
+            Button("All") {
+                viewModel.selectedVisibility = nil
+            }
+            .buttonStyle(FilterChipStyle(isSelected: viewModel.selectedVisibility == nil))
+
+            ForEach(BinderVisibility.allCases) { visibility in
+                Button(visibility.displayName) {
+                    viewModel.selectedVisibility = visibility
+                }
+                .buttonStyle(FilterChipStyle(isSelected: viewModel.selectedVisibility == visibility))
+            }
+        }
+    }
+
     private var eventList: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Calendar", subtitle: "Offline event schedule")
 
-            VStack(spacing: 12) {
-                ForEach(viewModel.upcomingEvents) { event in
-                    VaultEventRow(event: event)
+            if viewModel.filteredEvents(in: store).isEmpty {
+                EmptyStateView(
+                    systemImage: "calendar.badge.exclamationmark",
+                    title: "No events yet",
+                    message: "Add your next trade night, release event, or collector meetup."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.filteredEvents(in: store)) { event in
+                        VaultEventRow(
+                            event: event,
+                            onEdit: {
+                                viewModel.editDraft(from: event)
+                                isEditorPresented = true
+                            },
+                            onDelete: {
+                                eventPendingDelete = event
+                            }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private var sharedPlaceholder: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.2.wave.2.fill")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(Color.vdViolet)
+                .frame(width: 46, height: 46)
+                .background(Color.vdViolet.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Shared Friend Events")
+                    .font(.headline)
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("Friend RSVPs and shared event calendars will connect here once sync is added.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
     }
 }
 
@@ -2340,15 +2537,101 @@ private struct CompletionProgressRow: View {
     }
 }
 
+private struct PokedexEntryRow: View {
+    let card: Card
+    let isOwned: Bool
+    let isWishlisted: Bool
+    let onWishlist: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CardTile(card: card, style: .compact)
+                .frame(width: 86, height: 118)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    StatusPill(title: isOwned ? "Caught" : "Missing", tint: isOwned ? .vdEmerald : .vdCoral)
+                    RarityBadge(rarity: card.rarity)
+                }
+
+                Text(card.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+
+                Text("\(card.set.name) · #\(card.number) · \(card.cardType.displayName)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(2)
+
+                ProgressView(value: min(Double(card.power) / 100, 1))
+                    .tint(isOwned ? Color.vdEmerald : Color.vdGold)
+                    .background(Color.vdStroke.opacity(0.45), in: Capsule())
+            }
+
+            Spacer()
+
+            VStack(spacing: 10) {
+                NavigationLink {
+                    CardDetailView(card: card)
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color.vdGold)
+                }
+                .buttonStyle(.plain)
+
+                if !isOwned {
+                    Button {
+                        onWishlist()
+                    } label: {
+                        Image(systemName: isWishlisted ? "star.fill" : "star")
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundStyle(isWishlisted ? Color.vdGold : Color.vdTextSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isWishlisted)
+                    .accessibilityLabel(isWishlisted ? "Already on wishlist" : "Add missing card to wishlist")
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isOwned ? Color.vdEmerald.opacity(0.34) : Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
+    }
+}
+
+private struct FilterChipStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.bold))
+            .foregroundStyle(isSelected ? Color.vdBackground : Color.vdTextSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(isSelected ? Color.vdGold : Color.vdPanelRaised.opacity(0.82), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.vdGold.opacity(0.2) : Color.vdStroke.opacity(0.72), lineWidth: 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
 private struct VaultEventRow: View {
     let event: VaultEvent
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: eventIcon)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Color.vdGold)
+                Text(event.emojiMarker)
+                    .font(.system(size: 26))
                     .frame(width: 44, height: 44)
                     .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
 
@@ -2365,20 +2648,45 @@ private struct VaultEventRow: View {
 
                 Spacer()
 
-                StatusPill(title: event.kind.displayName, tint: .vdViolet)
+                Menu {
+                    Button("Edit", systemImage: "pencil") {
+                        onEdit()
+                    }
+
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        onDelete()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
             }
 
             HStack(spacing: 12) {
                 Label(event.date.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
-                Label("\(event.attendingFriends) friends", systemImage: "person.2.fill")
+                Label(event.visibility.displayName, systemImage: event.visibility.systemImage)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(Color.vdTextSecondary)
+
+            HStack(spacing: 8) {
+                StatusPill(title: event.kind.displayName, tint: .vdViolet)
+                StatusPill(title: "\(event.attendingFriends) friends", tint: .vdEmerald)
+            }
 
             Text(event.prize + " · " + event.featuredSet.name)
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if !event.notes.isEmpty {
+                Text(event.notes)
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
         }
         .padding(16)
         .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
@@ -2387,13 +2695,114 @@ private struct VaultEventRow: View {
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
     }
+}
 
-    private var eventIcon: String {
-        switch event.kind {
-        case .tournament: "trophy.fill"
-        case .tradeNight: "arrow.left.arrow.right"
-        case .release: "shippingbox.fill"
-        case .community: "person.3.fill"
+private struct EventEditorSheet: View {
+    @Binding var draft: EventDraft
+    let sets: [CardSet]
+    let onCancel: () -> Void
+    let onSave: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .center, spacing: 12) {
+                            TextField("📅", text: $draft.emojiMarker)
+                                .font(.system(size: 34))
+                                .multilineTextAlignment(.center)
+                                .frame(width: 68, height: 68)
+                                .background(Color.vdPanelRaised.opacity(0.88), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+                                )
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                TextField("Event name", text: $draft.title)
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(Color.vdTextPrimary)
+
+                                TextField("Location", text: $draft.venue)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.vdTextSecondary)
+                            }
+                            .textFieldStyle(.plain)
+                        }
+
+                        DatePicker("Date", selection: $draft.date)
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .tint(Color.vdGold)
+
+                        Picker("Event type", selection: $draft.kind) {
+                            ForEach(VaultEventKind.allCases) { kind in
+                                Text(kind.displayName).tag(kind)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.vdGold)
+
+                        Picker("Visibility", selection: $draft.visibility) {
+                            ForEach(BinderVisibility.allCases) { visibility in
+                                Label(visibility.displayName, systemImage: visibility.systemImage).tag(visibility)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Picker("Featured set", selection: $draft.featuredSet) {
+                            ForEach(sets) { set in
+                                Text(set.name).tag(CardSet?.some(set))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.vdGold)
+
+                        TextField("Prize or event focus", text: $draft.prize)
+                            .textFieldStyle(.roundedBorder)
+
+                        Stepper("Friends attending: \(draft.attendingFriends)", value: $draft.attendingFriends, in: 0...99)
+                            .foregroundStyle(Color.vdTextPrimary)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+
+                            TextEditor(text: $draft.notes)
+                                .frame(minHeight: 110)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(Color.vdPanelRaised.opacity(0.88), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+                                )
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle(draft.id == nil ? "Add Event" : "Edit Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                    .tint(Color.vdTextSecondary)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave()
+                    }
+                    .disabled(!draft.isValid)
+                    .tint(Color.vdGold)
+                }
+            }
         }
     }
 }

@@ -5,12 +5,12 @@ final class LocalVaultStore: ObservableObject {
     let sets: [CardSet]
     let cards: [Card]
     let profile: UserProfile
-    let events: [VaultEvent]
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
 
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
+    @Published var events: [VaultEvent]
     @Published var binderPages: [BinderPage]
     @Published var friends: [Friend]
     @Published var friendRequests: [FriendRequest]
@@ -27,6 +27,7 @@ final class LocalVaultStore: ObservableObject {
         inviteContacts = repository.inviteContacts
         collectionItems = repository.collectionItems
         wishlistItems = repository.wishlistItems
+        events = repository.events
         binderPages = repository.binderPages
         friends = repository.friends
         friendRequests = repository.friendRequests
@@ -311,6 +312,26 @@ final class LocalVaultStore: ObservableObject {
     func updateTradeOfferStatus(_ offer: TradeOffer, status: TradeStatus) {
         guard let index = tradeOffers.firstIndex(where: { $0.id == offer.id }) else { return }
         tradeOffers[index].status = status
+    }
+
+    func addMissingCardToWishlist(_ card: Card) {
+        guard collectionItem(for: card) == nil else { return }
+        addToWishlist(card, priority: .high, budget: card.marketValue, notes: "Added from Pokédex missing tracker.")
+    }
+
+    func addEvent(_ event: VaultEvent) {
+        events.append(event)
+        events.sort { $0.date < $1.date }
+    }
+
+    func updateEvent(_ event: VaultEvent) {
+        guard let index = events.firstIndex(where: { $0.id == event.id }) else { return }
+        events[index] = event
+        events.sort { $0.date < $1.date }
+    }
+
+    func deleteEvent(_ event: VaultEvent) {
+        events.removeAll { $0.id == event.id }
     }
 
     func createBinderPage(title: String? = nil) -> BinderPage {

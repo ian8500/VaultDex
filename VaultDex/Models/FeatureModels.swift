@@ -315,13 +315,16 @@ enum VaultEventKind: String, CaseIterable, Identifiable, Hashable {
 
 struct VaultEvent: Identifiable, Hashable {
     let id: UUID
-    let title: String
-    let venue: String
-    let date: Date
-    let kind: VaultEventKind
-    let prize: String
-    let attendingFriends: Int
-    let featuredSet: CardSet
+    var title: String
+    var venue: String
+    var date: Date
+    var kind: VaultEventKind
+    var prize: String
+    var attendingFriends: Int
+    var featuredSet: CardSet
+    var emojiMarker: String
+    var notes: String
+    var visibility: BinderVisibility
 
     init(
         id: UUID = UUID(),
@@ -331,7 +334,10 @@ struct VaultEvent: Identifiable, Hashable {
         kind: VaultEventKind,
         prize: String,
         attendingFriends: Int,
-        featuredSet: CardSet
+        featuredSet: CardSet,
+        emojiMarker: String = "📅",
+        notes: String = "",
+        visibility: BinderVisibility = .private
     ) {
         self.id = id
         self.title = title
@@ -341,6 +347,9 @@ struct VaultEvent: Identifiable, Hashable {
         self.prize = prize
         self.attendingFriends = attendingFriends
         self.featuredSet = featuredSet
+        self.emojiMarker = emojiMarker
+        self.notes = notes
+        self.visibility = visibility
     }
 }
 

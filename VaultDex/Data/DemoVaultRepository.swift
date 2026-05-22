@@ -444,7 +444,10 @@ final class DemoVaultRepository {
                 kind: .tournament,
                 prize: "Foil promo pack",
                 attendingFriends: 3,
-                featuredSet: nebula
+                featuredSet: nebula,
+                emojiMarker: "🏆",
+                notes: "Bring a 60-card deck and two trade binders. Demo prize support is local-only.",
+                visibility: .friends
             ),
             VaultEvent(
                 title: "Friday Trade Night",
@@ -453,7 +456,10 @@ final class DemoVaultRepository {
                 kind: .tradeNight,
                 prize: "Swap table access",
                 attendingFriends: 6,
-                featuredSet: obsidian
+                featuredSet: obsidian,
+                emojiMarker: "🤝",
+                notes: "Great night for wishlist matching and testing safe-trade flows.",
+                visibility: .public
             ),
             VaultEvent(
                 title: "Radiant Archive Completion Sprint",
@@ -462,7 +468,10 @@ final class DemoVaultRepository {
                 kind: .community,
                 prize: "Collector badge",
                 attendingFriends: 2,
-                featuredSet: radiant
+                featuredSet: radiant,
+                emojiMarker: "✨",
+                notes: "Shared friend events will appear here once syncing is connected.",
+                visibility: .private
             )
         ]
 
