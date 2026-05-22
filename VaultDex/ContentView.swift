@@ -50,21 +50,21 @@ struct ContentView: View {
                 VaultView()
             }
             .tabItem {
-                Label("Vault", systemImage: "lock.shield")
+                Label("My Vault", systemImage: "lock.shield")
             }
 
             NavigationStack {
                 TradeView()
             }
             .tabItem {
-                Label("Trade", systemImage: "arrow.left.arrow.right")
+                Label("Trade Hub", systemImage: "arrow.left.arrow.right")
             }
 
             NavigationStack {
                 SocialProfileView()
             }
             .tabItem {
-                Label("Profile", systemImage: "person.crop.circle")
+                Label("Collector", systemImage: "person.crop.circle")
             }
         }
         .tint(Color.vdGold)

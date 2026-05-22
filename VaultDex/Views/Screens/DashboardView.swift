@@ -32,7 +32,7 @@ struct DashboardView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Dashboard")
+        .navigationTitle("Today")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -114,7 +114,7 @@ struct DashboardView: View {
             )
 
             DashboardStatCard(
-                title: "Wishlist",
+                title: "Wants",
                 value: "\(store.wishlistItems.count)",
                 caption: "Cards being watched",
                 systemImage: "star.fill",
@@ -149,7 +149,7 @@ struct DashboardView: View {
 
     private var featureGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "VaultDex Hub", subtitle: "Native demo flows ready for offline use")
+            VaultSectionHeader(title: "Collector Hub", subtitle: "Track your collection value")
 
             LazyVGrid(columns: featureColumns, spacing: 10) {
                 FeatureLinkCard(
@@ -162,8 +162,8 @@ struct DashboardView: View {
                 }
 
                 FeatureLinkCard(
-                    title: "Wishlist",
-                    subtitle: "Track chase cards and target prices",
+                    title: "Wants",
+                    subtitle: "Find your next grail",
                     systemImage: "star.fill",
                     tint: .vdGold
                 ) {
@@ -171,8 +171,8 @@ struct DashboardView: View {
                 }
 
                 FeatureLinkCard(
-                    title: "Binder Designer",
-                    subtitle: "Arrange showcase pages and empty slots",
+                    title: "My Binder",
+                    subtitle: "Build your dream binder",
                     systemImage: "rectangle.grid.3x2.fill",
                     tint: .vdViolet
                 ) {
@@ -180,8 +180,8 @@ struct DashboardView: View {
                 }
 
                 FeatureLinkCard(
-                    title: "Pokedex Tracker",
-                    subtitle: "See demo catalog completion by set",
+                    title: "Completion Tracker",
+                    subtitle: "Follow set progress at a glance",
                     systemImage: "checklist.checked",
                     tint: .vdCoral
                 ) {
@@ -193,7 +193,7 @@ struct DashboardView: View {
 
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Featured Vault", subtitle: "Highest value demo cards")
+            VaultSectionHeader(title: "Featured My Vault", subtitle: "Highest value demo cards")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
@@ -287,7 +287,7 @@ struct DashboardView: View {
 
     private var friendsWantSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Friends Want", subtitle: "Trade ideas from your local social graph")
+            VaultSectionHeader(title: "Collector Matches", subtitle: "Match with collectors")
 
             VStack(spacing: 10) {
                 ForEach(store.friendWants) { want in

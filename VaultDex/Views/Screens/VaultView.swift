@@ -25,7 +25,7 @@ struct VaultView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Vault")
+        .navigationTitle("My Vault")
         .navigationBarTitleDisplayMode(.large)
     }
 
@@ -50,7 +50,7 @@ struct VaultView: View {
                     .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(Color.vdGold)
                     .frame(width: 52, height: 52)
-                    .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.vdGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 16))
             }
 
             HStack(spacing: 12) {
@@ -60,16 +60,16 @@ struct VaultView: View {
             }
         }
         .padding(18)
-        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.26), lineWidth: 1)
         )
     }
 
     private var collectionTools: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collection Tools", subtitle: "Import, organize, and complete your vault")
+            VaultSectionHeader(title: "Collection Tools", subtitle: "Track your collection value")
 
             FeatureLinkCard(
                 title: "Import Collection",
@@ -81,8 +81,8 @@ struct VaultView: View {
             }
 
             FeatureLinkCard(
-                title: "Wishlist",
-                subtitle: "\(store.wishlistItems.count) targets with budgets and notes",
+                title: "Wants",
+                subtitle: "Find your next grail · \(store.wishlistItems.count) targets",
                 systemImage: "star.fill",
                 tint: .vdGold
             ) {
@@ -90,8 +90,8 @@ struct VaultView: View {
             }
 
             FeatureLinkCard(
-                title: "Binder Designer",
-                subtitle: "Build pages for favorites, sets, and incoming trades",
+                title: "My Binder",
+                subtitle: "Build your dream binder",
                 systemImage: "rectangle.grid.3x2.fill",
                 tint: .vdViolet
             ) {
@@ -99,7 +99,7 @@ struct VaultView: View {
             }
 
             FeatureLinkCard(
-                title: "Pokedex Tracker",
+                title: "Completion Tracker",
                 subtitle: "Track set-by-set demo completion",
                 systemImage: "checklist.checked",
                 tint: .vdCoral
@@ -145,12 +145,12 @@ struct VaultView: View {
 
     private var collectionGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collection", subtitle: "Offline inventory")
+            VaultSectionHeader(title: "My Vault", subtitle: "Offline inventory")
 
             if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "rectangle.stack.badge.plus",
-                    title: "Vault is empty",
+                    title: "My Vault is empty",
                     message: "Demo cards will appear here once added."
                 )
             } else {

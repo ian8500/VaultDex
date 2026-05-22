@@ -182,7 +182,7 @@ struct ImportCollectionView: View {
                     viewModel.exportCollectionCSV(from: store)
                 }
 
-                compactAction(title: "Wishlist CSV", systemImage: "star.fill", tint: .vdViolet) {
+                compactAction(title: "Wants CSV", systemImage: "star.fill", tint: .vdViolet) {
                     viewModel.exportWishlistCSV(from: store)
                 }
             }
@@ -253,7 +253,7 @@ struct WishlistView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Wishlist")
+        .navigationTitle("Wants")
         .navigationBarTitleDisplayMode(.large)
     }
 
@@ -261,11 +261,11 @@ struct WishlistView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Wishlist")
+                    Text("Wants")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Chase targets and price notes stay local for now.")
+                    Text("Find your next grail. Chase targets and price notes stay local for now.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -292,7 +292,7 @@ struct WishlistView: View {
     private var chaseStrip: some View {
         if !viewModel.highPriorityItems(in: store).isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Chase Board", subtitle: "The cards to watch first")
+                VaultSectionHeader(title: "Grail Board", subtitle: "Find your next grail")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -315,12 +315,12 @@ struct WishlistView: View {
 
     private var allItems: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "All Wishlist Items", subtitle: "Priority, target price, and notes")
+            VaultSectionHeader(title: "All Wants", subtitle: "Priority, target price, and notes")
 
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star",
-                    title: "Wishlist is empty",
+                    title: "No wants yet",
                     message: "Add cards from search or card detail to start tracking targets."
                 )
             } else {
@@ -372,7 +372,7 @@ struct FriendsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Requests, collections, wishlists, and local trade matches.")
+                    Text("Requests, collections, wants, and local trade matches.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -468,11 +468,11 @@ struct FriendsView: View {
 
     private var tradeMatches: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Suggested Trades", subtitle: "Wishlist overlap from local friend data")
+            VaultSectionHeader(title: "Suggested Trades", subtitle: "Wants overlap from local friend data")
 
             let opportunities = store.tradeOpportunities()
             if opportunities.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right", title: "No matches yet", message: "Wishlist overlap will create suggested trade ideas.")
+                EmptyStateView(systemImage: "arrow.left.arrow.right", title: "No matches yet", message: "Wants overlap will create suggested trade ideas.")
             } else {
                 VStack(spacing: 10) {
                     ForEach(opportunities) { opportunity in
@@ -539,7 +539,7 @@ struct BinderDesignerView: View {
                         EmptyStateView(
                             systemImage: "rectangle.grid.3x2",
                             title: "No binder pages",
-                            message: "Create a page to start arranging a 3 by 3 card album."
+                            message: "Build your dream binder with a 3 by 3 card album page."
                         )
                     }
                 }
@@ -548,7 +548,7 @@ struct BinderDesignerView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Binder")
+        .navigationTitle("My Binder")
         .navigationBarTitleDisplayMode(.large)
         .sheet(item: $selectedSlot) { slot in
             if let page = selectedPage {
@@ -608,11 +608,11 @@ struct BinderDesignerView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Binder Designer")
+                    Text("My Binder")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Arrange your collection into polished 3 by 3 album pages.")
+                    Text("Build your dream binder with polished 3 by 3 album pages.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -622,7 +622,10 @@ struct BinderDesignerView: View {
 
                 Image(systemName: "rectangle.grid.3x2.fill")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color.vdViolet)
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 56, height: 56)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 18))
+                    .shadow(color: Color.vdGold.opacity(0.26), radius: 14, x: 0, y: 6)
             }
 
             HStack(spacing: 12) {
@@ -656,19 +659,37 @@ struct BinderDesignerView: View {
         .padding(18)
         .background {
             ZStack {
-                Color.vdPanel.opacity(0.9)
+                binderTexture
                 LinearGradient(
                     colors: [Color.vdGold.opacity(0.12), Color.clear, Color.vdViolet.opacity(0.1)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.32), lineWidth: 1)
         )
+    }
+
+    private var binderTexture: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: 0x201713), Color.vdPanel.opacity(0.92), Color(hex: 0x3A2515).opacity(0.72)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            ForEach(0..<7, id: \.self) { index in
+                Rectangle()
+                    .fill(Color.white.opacity(0.035))
+                    .frame(height: 1)
+                    .rotationEffect(.degrees(-12))
+                    .offset(y: CGFloat(index * 18 - 54))
+            }
+        }
     }
 
     private var pageList: some View {
@@ -755,9 +776,9 @@ struct BinderDesignerView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(viewModel.canUndo ? Color.vdTextPrimary : Color.vdTextSecondary.opacity(0.45))
                         .frame(width: 44, height: 44)
-                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 14)
                                 .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
                         )
                 }
@@ -777,25 +798,25 @@ struct BinderDesignerView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.vdTextPrimary)
                         .frame(width: 44, height: 44)
-                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 14)
                                 .stroke(Color.vdStroke.opacity(0.65), lineWidth: 1)
                         )
                 }
             }
         }
         .padding(16)
-        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.22), lineWidth: 1)
         )
     }
 
     private func pageGrid(_ page: BinderPage) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            VaultSectionHeader(title: "Page Layout", subtitle: "Tap a slot to add, replace, or remove a card")
+            VaultSectionHeader(title: "3x3 Page Layout", subtitle: "Tap a slot to add, replace, or remove a card")
 
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(page.slots) { slot in
@@ -812,19 +833,32 @@ struct BinderDesignerView: View {
         .padding(12)
         .background {
             ZStack {
-                Color(hex: 0x14100D).opacity(0.84)
+                binderPageTexture
                 LinearGradient(
                     colors: [Color.vdGold.opacity(0.08), Color.clear, Color.black.opacity(0.24)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 22))
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(Color.vdGold.opacity(0.26), lineWidth: 1)
         )
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
+    }
+
+    private var binderPageTexture: some View {
+        ZStack {
+            LinearGradient(colors: [Color(hex: 0x1B130F), Color(hex: 0x2A1B12), Color(hex: 0x120E0B)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            ForEach(0..<10, id: \.self) { index in
+                Rectangle()
+                    .fill(index.isMultiple(of: 2) ? Color.white.opacity(0.025) : Color.black.opacity(0.045))
+                    .frame(height: 1)
+                    .offset(y: CGFloat(index * 18 - 82))
+            }
+        }
     }
 
     @ViewBuilder
@@ -906,20 +940,20 @@ struct CompletionTrackerView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Pokédex")
+        .navigationTitle("Completion")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $viewModel.searchText, prompt: "Search Pokémon, set, or number")
+        .searchable(text: $viewModel.searchText, prompt: "Search card, set, or number")
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Pokédex Tracker")
+                    Text("Completion Tracker")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Track caught, missing, wishlist targets, and set completion from your local VaultDex catalogue.")
+                    Text("Track owned, missing, wants, and set completion from your local VaultDex catalogue.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -990,7 +1024,7 @@ struct CompletionTrackerView: View {
 
     private var setRows: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Set Progress", subtitle: "Owned unique cards in the demo catalog")
+            VaultSectionHeader(title: "Set Completion", subtitle: "Owned unique cards in the demo catalog")
 
             VStack(spacing: 12) {
                 ForEach(viewModel.setProgress(in: store)) { progress in
@@ -1005,13 +1039,13 @@ struct CompletionTrackerView: View {
         let cards = viewModel.filteredCards(in: store)
 
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Pokédex Entries", subtitle: "\(cards.count) cards match the current filters")
+            VaultSectionHeader(title: "Card Entries", subtitle: "\(cards.count) cards match the current filters")
 
             if cards.isEmpty {
                 EmptyStateView(
                     systemImage: "line.3.horizontal.decrease.circle.fill",
                     title: "No matching entries",
-                    message: "Loosen the filters to see more of the local Pokédex catalogue."
+                    message: "Loosen the filters to see more of the local card catalogue."
                 )
             } else {
                 LazyVStack(spacing: 12) {
@@ -1389,7 +1423,7 @@ struct AccountDeletionView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes collection, wishlist, binder, trade, and profile data in local mode, then restores the bundled demo state.")
+            Text("This deletes collection, wants, binder, trade, and profile data in local mode, then restores the bundled demo state.")
         }
     }
 
@@ -1403,7 +1437,7 @@ struct AccountDeletionView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Deleting an account removes collection, wishlist, binder, trade, and profile data. In local mode this resets VaultDex back to the bundled demo user state.")
+            Text("Deleting an account removes collection, wants, binder, trade, and profile data. In local mode this resets VaultDex back to the bundled demo user state.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1602,16 +1636,14 @@ private struct WishlistRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            CardTile(card: item.card, style: .compact)
+            CardTile(card: item.card, variant: item.priority == .grail ? .secretRare : nil, style: .compact)
                 .frame(width: 150)
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    StatusPill(title: item.priority.displayName, tint: priorityTint)
+                    StatusPill(title: item.priority == .grail ? "Grail" : item.priority.displayName, tint: priorityTint)
                     Spacer()
-                    Text(item.budget.vaultCurrency)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.vdGold)
+                    tradeValueChip(item.budget.vaultCurrency, tint: .vdGold)
                 }
 
                 Text(item.card.name)
@@ -1626,11 +1658,31 @@ private struct WishlistRow: View {
             }
         }
         .padding(12)
-        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: item.priority == .grail
+                ? [Color.vdGold.opacity(0.20), Color.vdPanel.opacity(0.92), Color.vdCoral.opacity(0.12)]
+                : [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.86)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke((item.priority == .grail ? Color.vdGold : Color.vdStroke).opacity(item.priority == .grail ? 0.58 : 0.72), lineWidth: 1.1)
+        )
+        .shadow(color: (item.priority == .grail ? Color.vdGold : Color.clear).opacity(0.18), radius: 18, x: 0, y: 8)
+    }
+
+    private func tradeValueChip(_ value: String, tint: Color) -> some View {
+        Label(value, systemImage: "seal.fill")
+            .font(.caption.weight(.black))
+            .foregroundStyle(Color.vdNavy)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(tint.opacity(0.92), in: Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.34), lineWidth: 1))
     }
 
     private var priorityTint: Color {
@@ -1676,7 +1728,7 @@ private struct FriendProfileView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the local friendship and hides their collection, wishlist, and trade matches.")
+            Text("This removes the local friendship and hides their collection, wants, and trade matches.")
         }
     }
 
@@ -1726,7 +1778,7 @@ private struct FriendProfileView: View {
 
     private var matchSummary: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Trade Match", subtitle: "Wishlist overlap between both collections")
+            VaultSectionHeader(title: "Trade Match", subtitle: "Wants overlap between both collections")
 
             VStack(spacing: 10) {
                 FriendMatchCard(
@@ -1771,12 +1823,12 @@ private struct FriendProfileView: View {
     private var wishlist: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(
-                title: "Wishlist",
+                title: "Wants",
                 subtitle: "\(friend.wishlistVisibility.displayName) · \(friend.wishlist.count) targets"
             )
 
             if friend.wishlist.isEmpty {
-                EmptyStateView(systemImage: "star.slash", title: "No visible wishlist", message: "Wishlist targets will appear here when shared.")
+                EmptyStateView(systemImage: "star.slash", title: "No visible wants", message: "Wanted cards will appear here when shared.")
             } else {
                 VStack(spacing: 10) {
                     ForEach(friend.wishlist) { item in
@@ -1920,7 +1972,7 @@ private struct TradeOpportunityRow: View {
         case let (.some(theirCard), .some(yourCard)):
             "\(theirCard) could match with \(yourCard)."
         case let (.some(theirCard), .none):
-            "They own \(theirCard), one of your wishlist targets."
+            "They own \(theirCard), one of your wanted cards."
         case let (.none, .some(yourCard)):
             "They want \(yourCard), which is in your collection."
         default:
@@ -2164,19 +2216,24 @@ private struct BinderPageListCard: View {
         .padding(14)
         .background {
             ZStack {
-                Color.vdPanelRaised.opacity(0.92)
+                LinearGradient(
+                    colors: [Color(hex: 0x2A1B12).opacity(0.88), Color.vdPanelRaised.opacity(0.88)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
                 LinearGradient(
                     colors: [Color.vdGold.opacity(isSelected ? 0.16 : 0.06), Color.clear],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(isSelected ? Color.vdGold.opacity(0.88) : Color.vdStroke.opacity(0.68), lineWidth: isSelected ? 1.4 : 1)
         )
+        .shadow(color: isSelected ? Color.vdGold.opacity(0.16) : Color.clear, radius: 12, x: 0, y: 6)
     }
 }
 
@@ -2397,9 +2454,12 @@ private struct BinderPreviewView: View {
                     }
                 }
                 .padding(14)
-                .background(Color(hex: 0x120E0B).opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                .background(
+                    LinearGradient(colors: [Color(hex: 0x2A1B12), Color(hex: 0x120E0B)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: 22)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 22)
                         .stroke(Color.vdGold.opacity(0.24), lineWidth: 1)
                 )
 
@@ -2417,7 +2477,7 @@ private struct BinderSlotCell: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(slotBackground)
                     .overlay(texture)
 
@@ -2425,7 +2485,7 @@ private struct BinderSlotCell: View {
                     VStack(spacing: 8) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(Color.vdGold)
+                            .foregroundStyle(card.rarity.slotTint)
 
                         Text(card.name)
                             .font(.caption.weight(.bold))
@@ -2456,8 +2516,13 @@ private struct BinderSlotCell: View {
             .frame(height: 138)
             .shadow(color: glowColor, radius: glowRadius, x: 0, y: 0)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 14)
                     .stroke(isSelected ? Color.vdGold : borderColor, lineWidth: isSelected ? 1.6 : 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.white.opacity(slot.card == nil ? 0.06 : 0.18), lineWidth: 0.7)
+                    .padding(5)
             )
 
             Text("#\(slot.index)")
@@ -2484,7 +2549,7 @@ private struct BinderSlotCell: View {
             }
         }
 
-        return LinearGradient(colors: [Color(hex: 0x211A14), Color(hex: 0x120F0C)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        return LinearGradient(colors: [Color(hex: 0x2B221B), Color(hex: 0x120F0C)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     private var texture: some View {
@@ -2495,9 +2560,18 @@ private struct BinderSlotCell: View {
                 endPoint: .bottomTrailing
             )
 
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(Color.white.opacity(slot.card == nil ? 0.05 : 0.12), lineWidth: 0.5)
                 .padding(5)
+
+            if slot.card != nil {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.20), Color.clear, Color.vdGold.opacity(0.10), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .blendMode(.screen)
+            }
         }
     }
 
@@ -2531,8 +2605,10 @@ private struct CompletionProgressRow: View {
     let progress: SetProgress
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
+        HStack(spacing: 14) {
+            SetProgressRing(fraction: progress.fraction)
+
+            VStack(alignment: .leading, spacing: 9) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(progress.cardSet.name)
                         .font(.subheadline.weight(.bold))
@@ -2543,23 +2619,46 @@ private struct CompletionProgressRow: View {
                         .foregroundStyle(Color.vdTextSecondary)
                 }
 
-                Spacer()
+                HStack {
+                    ProgressView(value: progress.fraction)
+                        .tint(Color.vdGold)
+                        .background(Color.vdStroke.opacity(0.55), in: Capsule())
 
-                Text("\(progress.owned)/\(progress.total)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdGold)
+                    Text("\(progress.owned)/\(progress.total)")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                }
             }
-
-            ProgressView(value: progress.fraction)
-                .tint(Color.vdGold)
-                .background(Color.vdStroke.opacity(0.55), in: Capsule())
         }
         .padding(14)
-        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.vdGold.opacity(0.22), lineWidth: 1)
         )
+    }
+}
+
+private struct SetProgressRing: View {
+    let fraction: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.vdStroke.opacity(0.45), lineWidth: 7)
+            Circle()
+                .trim(from: 0, to: min(max(fraction, 0), 1))
+                .stroke(
+                    LinearGradient(colors: [Color.vdGold, Color.vdLeaf, Color.vdSky], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            Text(fraction.formatted(.percent.precision(.fractionLength(0))))
+                .font(.caption2.weight(.black))
+                .foregroundStyle(Color.vdTextPrimary)
+        }
+        .frame(width: 50, height: 50)
+        .shadow(color: Color.vdGold.opacity(0.16), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -2617,7 +2716,7 @@ private struct PokedexEntryRow: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isWishlisted)
-                    .accessibilityLabel(isWishlisted ? "Already on wishlist" : "Add missing card to wishlist")
+                    .accessibilityLabel(isWishlisted ? "Already in wants" : "Add missing card to wants")
                 }
             }
         }
@@ -2645,6 +2744,19 @@ private struct FilterChipStyle: ButtonStyle {
                     .stroke(isSelected ? Color.vdGold.opacity(0.2) : Color.vdStroke.opacity(0.72), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
+    }
+}
+
+private extension CardRarity {
+    var slotTint: Color {
+        switch self {
+        case .common: Color.white.opacity(0.72)
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
+        }
     }
 }
 

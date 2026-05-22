@@ -79,7 +79,7 @@ struct CardDetailView: View {
     private var friendWishlistBadges: some View {
         if !friendsWantingCard.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Friend Wishlist", subtitle: "Friends who want this card")
+                VaultSectionHeader(title: "Friend Wants", subtitle: "Friends who want this card")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -174,8 +174,8 @@ struct CardDetailView: View {
     private var wishlistEditor: some View {
         VStack(alignment: .leading, spacing: 16) {
             VaultSectionHeader(
-                title: "Wishlist",
-                subtitle: savedWishlistItem == nil ? "Track budget, priority, and notes" : "Edit this wishlist target"
+                title: "Wants",
+                subtitle: savedWishlistItem == nil ? "Find your next grail with budget, priority, and notes" : "Edit this want"
             )
 
             Picker("Priority", selection: $wishlistPriority) {
@@ -206,7 +206,7 @@ struct CardDetailView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
 
-                TextField("Wishlist notes", text: $wishlistNotes, axis: .vertical)
+                TextField("Want notes", text: $wishlistNotes, axis: .vertical)
                     .lineLimit(3...5)
                     .foregroundStyle(Color.vdTextPrimary)
                     .padding(14)
@@ -218,17 +218,17 @@ struct CardDetailView: View {
             }
 
             if savedWishlistItem == nil {
-                PrimaryButton(title: "Add to Wishlist", systemImage: "star.fill") {
+                PrimaryButton(title: "Add to Wants", systemImage: "star.fill") {
                     store.addToWishlist(card, priority: wishlistPriority, budget: wishlistBudget, notes: wishlistNotes)
                     syncState()
                 }
             } else {
-                PrimaryButton(title: "Save Wishlist", systemImage: "checkmark.circle.fill") {
+                PrimaryButton(title: "Save Want", systemImage: "checkmark.circle.fill") {
                     store.updateWishlist(for: card, priority: wishlistPriority, budget: wishlistBudget, notes: wishlistNotes)
                     syncState()
                 }
 
-                secondaryButton(title: "Remove from Wishlist", systemImage: "star.slash.fill", tint: .vdCoral) {
+                secondaryButton(title: "Remove from Wants", systemImage: "star.slash.fill", tint: .vdCoral) {
                     store.removeFromWishlist(card)
                     syncState()
                 }

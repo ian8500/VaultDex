@@ -24,7 +24,7 @@ struct TradeView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Trade Zone")
+        .navigationTitle("Trade Hub")
         .navigationBarTitleDisplayMode(.large)
         .sheet(item: $listingCard) { item in
             ListCardSheet(item: item, viewModel: viewModel) {
@@ -59,11 +59,11 @@ struct TradeView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Premium Trade Marketplace")
+                    Text("Trade Hub")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Prototype trades only. No real money, payments, or checkout.")
+                    Text("Trade safely with friends. Prototype trades only, with no real money or checkout.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -159,7 +159,7 @@ struct TradeView: View {
 
     private var marketplaceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Marketplace", subtitle: "Browse friends and public demo listings")
+            VaultSectionHeader(title: "Card Market", subtitle: "Browse friends and public demo listings")
             filters
 
             let listings = viewModel.filteredListings(in: store)
@@ -489,7 +489,7 @@ private struct TradeListingRow: View {
 
                     HStack(spacing: 8) {
                         RarityBadge(rarity: listing.card.rarity)
-                        StatusPill(title: listing.estimatedValue.vaultCurrency, tint: .vdEmerald)
+                        TradeValueChip(value: listing.estimatedValue.vaultCurrency, tint: .vdLeaf)
                     }
 
                     HStack(spacing: 8) {
@@ -549,6 +549,25 @@ private struct TradeListingRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.32), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct TradeValueChip: View {
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        Label(value, systemImage: "seal.fill")
+            .font(.caption.weight(.black))
+            .foregroundStyle(Color.vdNavy)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(
+                LinearGradient(colors: [tint, Color.vdGold], startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: Capsule()
+            )
+            .overlay(Capsule().stroke(Color.white.opacity(0.34), lineWidth: 1))
+            .shadow(color: tint.opacity(0.20), radius: 8, x: 0, y: 3)
     }
 }
 

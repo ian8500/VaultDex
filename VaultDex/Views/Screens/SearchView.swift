@@ -46,9 +46,9 @@ struct SearchView: View {
                                         )
 
                                         if store.isWishlisted(card) {
-                                            StatusPill(title: "Wishlisted", tint: .vdGold)
+                                            StatusPill(title: "Wanted", tint: .vdGold)
                                         } else if item != nil {
-                                            StatusPill(title: "In Vault", tint: .vdEmerald)
+                                            StatusPill(title: "In My Vault", tint: .vdEmerald)
                                         }
                                     }
                                 }

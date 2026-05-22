@@ -84,7 +84,8 @@ struct CardTile: View {
                 .stroke(card.rarity.cardFrameTint.opacity(0.68), lineWidth: 1.25)
         )
         .overlay(cardShine.clipShape(RoundedRectangle(cornerRadius: 18)))
-        .shadow(color: card.rarity.cardFrameTint.opacity(0.16), radius: 16, x: 0, y: 8)
+        .shadow(color: card.rarity.rarityGlow.opacity(0.34), radius: card.rarity.glowRadius, x: 0, y: 0)
+        .shadow(color: Color.vdNavy.opacity(0.18), radius: 16, x: 0, y: 8)
     }
 
     private var art: some View {
@@ -95,12 +96,20 @@ struct CardTile: View {
                 endPoint: .bottomTrailing
             )
 
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.vdGold.opacity(0.72), lineWidth: 2)
+                .padding(7)
+
             LinearGradient(
                 colors: [Color.white.opacity(0.0), Color.white.opacity(0.32), Color.white.opacity(0.0)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .rotationEffect(.degrees(-10))
+
+            if isFoil {
+                foilShimmer
+            }
 
             VStack(alignment: .leading) {
                 Spacer()
@@ -145,12 +154,46 @@ struct CardTile: View {
         )
     }
 
+    private var isFoil: Bool {
+        switch variant {
+        case .holo, .reverseHolo, .fullArt, .secretRare, .promo:
+            true
+        case .normal, .none:
+            false
+        }
+    }
+
     private var cardShine: some View {
         LinearGradient(
             colors: [Color.white.opacity(0.16), Color.clear, Color.vdGold.opacity(0.08), Color.clear],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+        .allowsHitTesting(false)
+    }
+
+    private var foilShimmer: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.0),
+                    Color.white.opacity(0.34),
+                    Color.vdSky.opacity(0.26),
+                    Color.vdGold.opacity(0.30),
+                    Color.white.opacity(0.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .rotationEffect(.degrees(12))
+            .blendMode(.screen)
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.28))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(14)
+        }
         .allowsHitTesting(false)
     }
 }
@@ -194,6 +237,27 @@ private extension CardRarity {
         case .epic: .vdViolet
         case .legendary: .vdGold
         case .mythic: .vdCoral
+        }
+    }
+
+    var rarityGlow: Color {
+        switch self {
+        case .common: Color.clear
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
+        }
+    }
+
+    var glowRadius: CGFloat {
+        switch self {
+        case .common: 0
+        case .uncommon: 6
+        case .rare: 10
+        case .epic: 14
+        case .legendary, .mythic: 18
         }
     }
 }

@@ -24,7 +24,7 @@ struct SocialProfileView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Profile")
+        .navigationTitle("Collector Profile")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             guard !hasLoadedDraft else { return }
@@ -68,6 +68,13 @@ struct SocialProfileView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.vdTextSecondary)
 
+                    Text("Collector-style profile card")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.vdGold.opacity(0.92), in: Capsule())
+
                     Text(store.profile.bio)
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
@@ -77,7 +84,13 @@ struct SocialProfileView: View {
 
             HStack(spacing: 8) {
                 ForEach(store.profile.trustBadges.prefix(3), id: \.self) { badge in
-                    StatusPill(title: badge, tint: .vdEmerald)
+                    Label(badge, systemImage: "checkmark.seal.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.vdLeaf.opacity(0.92), in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
                 }
             }
 
@@ -96,7 +109,7 @@ struct SocialProfileView: View {
         .padding(18)
         .background(
             LinearGradient(
-                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.78)],
+                colors: [Color.vdGold.opacity(0.16), Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.78)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
@@ -111,7 +124,7 @@ struct SocialProfileView: View {
 
     private var profileEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VaultSectionHeader(title: "My Profile", subtitle: "Edit the local profile fields that will sync later")
+            VaultSectionHeader(title: "Collector Profile", subtitle: "Edit the local profile fields that will sync later")
 
             VStack(spacing: 12) {
                 ProfileTextField(title: "Avatar symbol", text: $draft.avatarSymbol, systemImage: "photo.badge.plus")
@@ -452,7 +465,7 @@ struct SettingsView: View {
             VaultSectionHeader(title: "Trading Preferences", subtitle: "Prototype toggles for future safety rules")
 
             SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send local demo trade offers.", isOn: $allowFriendTradeRequests)
-            SafetyToggleRow(title: "Show wishlist badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
+            SafetyToggleRow(title: "Show wants badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
             SafetyToggleRow(title: "Safe trade for high value", subtitle: "Prefer intermediary flow placeholders for expensive cards.", isOn: $requireSafeTradeForHighValue)
         }
     }
@@ -518,7 +531,7 @@ struct SafetyCentreView: View {
 
             SafetyInfoRow(systemImage: "person.2.fill", title: "Use supervised accounts", message: "Children should trade only with parent or guardian awareness, especially for high-value cards.")
             SafetyInfoRow(systemImage: "lock.shield.fill", title: "Keep personal details private", message: "Do not share home addresses, school details, phone numbers, or payment information in trade messages.")
-            SafetyInfoRow(systemImage: "checkmark.seal.fill", title: "Confirm every trade", message: "Review condition, variant, value balance, and wishlist intent before accepting an offer.")
+            SafetyInfoRow(systemImage: "checkmark.seal.fill", title: "Confirm every trade", message: "Review condition, variant, value balance, and wants before accepting an offer.")
         }
     }
 
@@ -688,10 +701,11 @@ private struct ProfileStatTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(tint.opacity(0.32), lineWidth: 1)
         )
+        .shadow(color: tint.opacity(0.10), radius: 10, x: 0, y: 5)
     }
 }
