@@ -11,6 +11,7 @@ struct SocialProfileView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     profileHeader
                     socialStats
+                    socialTools
                     setProgress
                     showcase
                 }
@@ -73,14 +74,56 @@ struct SocialProfileView: View {
     private var socialStats: some View {
         HStack(spacing: 12) {
             ProfileStatTile(title: "Score", value: "\(viewModel.profile.collectorScore)", systemImage: "crown.fill", tint: .vdGold)
-            ProfileStatTile(title: "Followers", value: "\(viewModel.profile.followers)", systemImage: "person.2.fill", tint: .vdEmerald)
+            ProfileStatTile(title: "Online", value: "\(viewModel.onlineFriends)", systemImage: "person.2.fill", tint: .vdEmerald)
             ProfileStatTile(title: "Mythics", value: "\(viewModel.mythicCount)", systemImage: "sparkles", tint: .vdCoral)
+        }
+    }
+
+    private var socialTools: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Social", subtitle: "Friends, invites, events, and account controls")
+
+            FeatureLinkCard(
+                title: "Friends",
+                subtitle: "\(viewModel.friends.count) demo collectors connected",
+                systemImage: "person.2.fill",
+                tint: .vdEmerald
+            ) {
+                FriendsView()
+            }
+
+            FeatureLinkCard(
+                title: "Events",
+                subtitle: viewModel.nextEvent?.title ?? "Upcoming local events",
+                systemImage: "calendar",
+                tint: .vdGold
+            ) {
+                EventsView()
+            }
+
+            FeatureLinkCard(
+                title: "Invite Friends",
+                subtitle: "Share a local demo invite code",
+                systemImage: "paperplane.fill",
+                tint: .vdViolet
+            ) {
+                InviteFriendsView()
+            }
+
+            FeatureLinkCard(
+                title: "Account Deletion",
+                subtitle: "Offline dry-run for the future privacy flow",
+                systemImage: "person.crop.circle.badge.xmark",
+                tint: .vdCoral
+            ) {
+                AccountDeletionView()
+            }
         }
     }
 
     private var setProgress: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Set Progress", subtitle: "Local collection coverage")
+            VaultSectionHeader(title: "Set Progress", subtitle: "Local collection coverage")
 
             VStack(spacing: 10) {
                 ForEach(viewModel.setProgress) { progress in
@@ -120,7 +163,7 @@ struct SocialProfileView: View {
 
     private var showcase: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Showcase", subtitle: "Favorite vault pieces")
+            VaultSectionHeader(title: "Showcase", subtitle: "Favorite vault pieces")
 
             if viewModel.collectionItems.isEmpty {
                 EmptyStateView(
@@ -140,18 +183,6 @@ struct SocialProfileView: View {
                 }
                 .scrollTargetBehavior(.viewAligned)
             }
-        }
-    }
-
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
         }
     }
 }

@@ -15,6 +15,7 @@ struct VaultView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     summary
+                    collectionTools
                     favorites
                     collectionGrid
                 }
@@ -52,9 +53,9 @@ struct VaultView: View {
             }
 
             HStack(spacing: 12) {
-                metric(title: "Cards", value: "\(viewModel.totalCopies)")
-                metric(title: "Unique", value: "\(viewModel.collectionItems.count)")
-                metric(title: "Favorites", value: "\(viewModel.favoriteItems.count)")
+                MetricPill(title: "Cards", value: "\(viewModel.totalCopies)")
+                MetricPill(title: "Unique", value: "\(viewModel.collectionItems.count)")
+                MetricPill(title: "Complete", value: viewModel.completionPercent.formatted(.percent.precision(.fractionLength(0))))
             }
         }
         .padding(18)
@@ -65,26 +66,53 @@ struct VaultView: View {
         )
     }
 
-    private func metric(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
+    private var collectionTools: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Collection Tools", subtitle: "Import, organize, and complete your vault")
 
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
+            FeatureLinkCard(
+                title: "Import Collection",
+                subtitle: "\(viewModel.binderFilledSlots)/\(viewModel.binderTotalSlots) binder slots filled; scan demo cards next",
+                systemImage: "square.and.arrow.down.on.square.fill",
+                tint: .vdEmerald
+            ) {
+                ImportCollectionView()
+            }
+
+            FeatureLinkCard(
+                title: "Wishlist",
+                subtitle: "\(viewModel.wishlistItems.count) chase targets with price notes",
+                systemImage: "star.fill",
+                tint: .vdGold
+            ) {
+                WishlistView()
+            }
+
+            FeatureLinkCard(
+                title: "Binder Designer",
+                subtitle: "Build pages for favorites, sets, and incoming trades",
+                systemImage: "rectangle.grid.3x2.fill",
+                tint: .vdViolet
+            ) {
+                BinderDesignerView()
+            }
+
+            FeatureLinkCard(
+                title: "Pokedex Tracker",
+                subtitle: "Track set-by-set demo completion",
+                systemImage: "checklist.checked",
+                tint: .vdCoral
+            ) {
+                CompletionTrackerView()
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder
     private var favorites: some View {
         if !viewModel.favoriteItems.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                sectionHeader(title: "Favorites", subtitle: "Pinned cards in your demo vault")
+                VaultSectionHeader(title: "Favorites", subtitle: "Pinned cards in your demo vault")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -102,7 +130,7 @@ struct VaultView: View {
 
     private var collectionGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Collection", subtitle: "Offline inventory")
+            VaultSectionHeader(title: "Collection", subtitle: "Offline inventory")
 
             if viewModel.collectionItems.isEmpty {
                 EmptyStateView(
@@ -117,18 +145,6 @@ struct VaultView: View {
                     }
                 }
             }
-        }
-    }
-
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
         }
     }
 }

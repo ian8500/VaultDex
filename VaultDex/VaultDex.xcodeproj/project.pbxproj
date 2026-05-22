@@ -36,6 +36,7 @@
 				".DS_Store",
 				VaultDex/Assets.xcassets,
 				VaultDex/ContentView.swift,
+				VaultDex.xcodeproj,
 				VaultDex/VaultDexApp.swift,
 				VaultDexTests/VaultDexTests.swift,
 				VaultDexUITests/VaultDexUITests.swift,

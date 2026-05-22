@@ -8,6 +8,10 @@ struct DashboardView: View {
         GridItem(.flexible(), spacing: 12)
     ]
 
+    private let featureColumns = [
+        GridItem(.flexible(), spacing: 12)
+    ]
+
     var body: some View {
         ZStack {
             AppBackground()
@@ -16,6 +20,8 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     statsGrid
+                    featureGrid
+                    nextEvent
                     featuredCards
                     activityFeed
                 }
@@ -104,12 +110,118 @@ struct DashboardView: View {
                 systemImage: "arrow.left.arrow.right",
                 tint: .vdCoral
             )
+
+            DashboardStatCard(
+                title: "Demo Dex",
+                value: viewModel.completionPercent.formatted(.percent.precision(.fractionLength(0))),
+                caption: "\(viewModel.wishlistCount) wishlist targets",
+                systemImage: "checklist.checked",
+                tint: .vdEmerald
+            )
+
+            DashboardStatCard(
+                title: "Friends Online",
+                value: "\(viewModel.onlineFriends)",
+                caption: "\(viewModel.friends.count) collectors linked",
+                systemImage: "person.2.fill",
+                tint: .vdViolet
+            )
+        }
+    }
+
+    private var featureGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "VaultDex Hub", subtitle: "Native demo flows ready for offline use")
+
+            LazyVGrid(columns: featureColumns, spacing: 10) {
+                FeatureLinkCard(
+                    title: "Import Collection",
+                    subtitle: "Review camera, CSV, and manual demo imports",
+                    systemImage: "square.and.arrow.down.on.square.fill",
+                    tint: .vdEmerald
+                ) {
+                    ImportCollectionView()
+                }
+
+                FeatureLinkCard(
+                    title: "Wishlist",
+                    subtitle: "Track chase cards and target prices",
+                    systemImage: "star.fill",
+                    tint: .vdGold
+                ) {
+                    WishlistView()
+                }
+
+                FeatureLinkCard(
+                    title: "Binder Designer",
+                    subtitle: "Arrange showcase pages and empty slots",
+                    systemImage: "rectangle.grid.3x2.fill",
+                    tint: .vdViolet
+                ) {
+                    BinderDesignerView()
+                }
+
+                FeatureLinkCard(
+                    title: "Pokedex Tracker",
+                    subtitle: "See demo catalog completion by set",
+                    systemImage: "checklist.checked",
+                    tint: .vdCoral
+                ) {
+                    CompletionTrackerView()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var nextEvent: some View {
+        if let event = viewModel.nextEvent {
+            VStack(alignment: .leading, spacing: 12) {
+                VaultSectionHeader(title: "Next Event", subtitle: "Local event calendar")
+
+                NavigationLink {
+                    EventsView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Color.vdGold)
+                            .frame(width: 50, height: 50)
+                            .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(event.title)
+                                .font(.headline)
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .lineLimit(2)
+
+                            Text(event.venue + " · " + event.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption)
+                                .foregroundStyle(Color.vdTextSecondary)
+                                .lineLimit(2)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.vdTextSecondary)
+                    }
+                    .padding(16)
+                    .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Featured Vault", subtitle: "Highest value demo cards")
+            VaultSectionHeader(title: "Featured Vault", subtitle: "Highest value demo cards")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
@@ -126,7 +238,7 @@ struct DashboardView: View {
 
     private var activityFeed: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Recent Activity", subtitle: "Local demo events")
+            VaultSectionHeader(title: "Recent Activity", subtitle: "Local demo events")
 
             VStack(spacing: 10) {
                 ForEach(viewModel.recentActivity) { activity in
@@ -156,18 +268,6 @@ struct DashboardView: View {
                     )
                 }
             }
-        }
-    }
-
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
         }
     }
 }

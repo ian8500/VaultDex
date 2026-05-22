@@ -10,6 +10,7 @@ struct TradeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    listingsSection
                     activeSection
                     completedSection
                 }
@@ -18,7 +19,7 @@ struct TradeView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Trade")
+        .navigationTitle("Trade Zone")
         .navigationBarTitleDisplayMode(.large)
     }
 
@@ -30,7 +31,7 @@ struct TradeView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Offline offers with demo counterparties")
+                    Text("Offline listings and offers with demo counterparties")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -52,9 +53,21 @@ struct TradeView: View {
         )
     }
 
+    private var listingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Trade Listings", subtitle: "\(viewModel.listings.count) cards available")
+
+            VStack(spacing: 12) {
+                ForEach(viewModel.listings) { listing in
+                    TradeListingRow(listing: listing)
+                }
+            }
+        }
+    }
+
     private var activeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Active Offers", subtitle: "\(viewModel.activeOffers.count) open")
+            VaultSectionHeader(title: "Active Offers", subtitle: "\(viewModel.activeOffers.count) open")
 
             if viewModel.activeOffers.isEmpty {
                 EmptyStateView(
@@ -74,7 +87,7 @@ struct TradeView: View {
 
     private var completedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "History", subtitle: "Completed demo activity")
+            VaultSectionHeader(title: "History", subtitle: "Completed demo activity")
 
             VStack(spacing: 12) {
                 ForEach(viewModel.completedOffers) { offer in
@@ -83,17 +96,51 @@ struct TradeView: View {
             }
         }
     }
+}
 
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
+private struct TradeListingRow: View {
+    let listing: TradeListing
 
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            CardTile(card: listing.card, style: .compact)
+                .frame(width: 150)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(listing.ownerName)
+                            .font(.headline)
+                            .foregroundStyle(Color.vdTextPrimary)
+
+                        Text(listing.ownerHandle + " · " + listing.locationLabel)
+                            .font(.caption)
+                            .foregroundStyle(Color.vdTextSecondary)
+                    }
+
+                    Spacer()
+
+                    if listing.isFeatured {
+                        StatusPill(title: "Featured", tint: .vdGold)
+                    }
+                }
+
+                Text(listing.askingFor)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label(listing.listedAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
         }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+        )
     }
 }
 
