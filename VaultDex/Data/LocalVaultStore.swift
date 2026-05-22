@@ -4,10 +4,10 @@ import Foundation
 final class LocalVaultStore: ObservableObject {
     let sets: [CardSet]
     let cards: [Card]
-    let profile: UserProfile
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
 
+    @Published var profile: UserProfile
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
     @Published var events: [VaultEvent]
@@ -312,6 +312,23 @@ final class LocalVaultStore: ObservableObject {
     func updateTradeOfferStatus(_ offer: TradeOffer, status: TradeStatus) {
         guard let index = tradeOffers.firstIndex(where: { $0.id == offer.id }) else { return }
         tradeOffers[index].status = status
+    }
+
+    func updateProfile(_ updatedProfile: UserProfile) {
+        profile = updatedProfile
+    }
+
+    func resetDemoUserState(repository: DemoVaultRepository = .shared) {
+        profile = repository.profile
+        collectionItems = repository.collectionItems
+        wishlistItems = repository.wishlistItems
+        binderPages = repository.binderPages
+        friends = repository.friends
+        friendRequests = repository.friendRequests
+        friendWants = repository.friendWants
+        tradeListings = repository.tradeListings
+        tradeOffers = repository.tradeOffers
+        events = repository.events
     }
 
     func addMissingCardToWishlist(_ card: Card) {

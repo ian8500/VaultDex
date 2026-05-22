@@ -687,10 +687,10 @@ final class AccountDeletionViewModel: ObservableObject {
     @Published var confirmationText = ""
 
     let checklist = [
-        "Export collection history",
-        "Close active trade offers",
-        "Remove social profile",
-        "Delete local demo data"
+        "Delete collection data",
+        "Delete wishlist data",
+        "Delete binder pages",
+        "Delete profile and reset local demo state"
     ]
 
     var canRequestDeletion: Bool {

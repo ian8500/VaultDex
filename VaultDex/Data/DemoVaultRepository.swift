@@ -214,8 +214,13 @@ final class DemoVaultRepository {
         profile = UserProfile(
             displayName: "Ian Vaultwright",
             handle: "@vaultdexian",
+            location: "London, UK",
             bio: "Building a pristine digital vault, one mythic chase card at a time.",
+            collectorType: "Set Completionist",
             avatarSymbol: "sparkles",
+            reputationScore: 98,
+            trustBadges: ["Verified Collector", "Safe Trader", "Launch Member"],
+            completedTrades: 37,
             collectorScore: 8420,
             favoriteSet: nebula,
             joinedDate: .now.addingTimeInterval(-86400 * 320),

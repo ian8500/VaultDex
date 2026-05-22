@@ -1354,7 +1354,10 @@ struct InviteFriendsView: View {
 }
 
 struct AccountDeletionView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = AccountDeletionViewModel()
+    @State private var isDeleteConfirmationPresented = false
+    @State private var didResetDemoState = false
 
     var body: some View {
         ZStack {
@@ -1373,6 +1376,21 @@ struct AccountDeletionView: View {
         }
         .navigationTitle("Delete Account")
         .navigationBarTitleDisplayMode(.large)
+        .confirmationDialog(
+            "Delete local demo account data?",
+            isPresented: $isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete and Reset Demo User State", role: .destructive) {
+                store.resetDemoUserState()
+                viewModel.confirmationText = ""
+                didResetDemoState = true
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes collection, wishlist, binder, trade, and profile data in local mode, then restores the bundled demo state.")
+        }
     }
 
     private var warning: some View {
@@ -1385,7 +1403,7 @@ struct AccountDeletionView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("This is a local dry-run screen. When backend accounts exist, this flow can request export, revoke sessions, and permanently delete server records.")
+            Text("Deleting an account removes collection, wishlist, binder, trade, and profile data. In local mode this resets VaultDex back to the bundled demo user state.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1427,8 +1445,16 @@ struct AccountDeletionView: View {
                         .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
                 )
 
-            PrimaryButton(title: "Request Demo Deletion", systemImage: "trash.fill") {}
+            PrimaryButton(title: "Delete Account", systemImage: "trash.fill") {
+                isDeleteConfirmationPresented = true
+            }
                 .disabled(!viewModel.canRequestDeletion)
+
+            if didResetDemoState {
+                Label("Local demo user state reset", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdEmerald)
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
