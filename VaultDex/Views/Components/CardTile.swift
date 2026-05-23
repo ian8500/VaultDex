@@ -111,13 +111,31 @@ struct CardTile: View {
                 foilShimmer
             }
 
+            if let imageURL = card.smallImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .padding(8)
+                            .transition(.opacity)
+                    default:
+                        EmptyView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
             VStack(alignment: .leading) {
                 Spacer()
 
-                Image(systemName: card.accent.symbolName)
-                    .font(.system(size: style == .compact ? 30 : 42, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.86))
-                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                if card.smallImageURL == nil {
+                    Image(systemName: card.accent.symbolName)
+                        .font(.system(size: style == .compact ? 30 : 42, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.86))
+                        .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                }
 
                 Text((condition ?? card.condition).displayName)
                     .font(.caption2.weight(.bold))

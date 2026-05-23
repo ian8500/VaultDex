@@ -87,6 +87,17 @@ struct TradeView: View {
                 MetricPill(title: "Market", value: "\(viewModel.publicListings(in: store).count)")
                 MetricPill(title: "Offers", value: "\(store.tradeOffers.count)")
             }
+
+            if let error = store.lastSyncError, error.contains("Trade offer") {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdCoral)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if store.runtimeMode == .supabase {
+                Label("Trade offers sync through Supabase. Internal credits are prototype-only.", systemImage: "icloud.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdSky)
+            }
         }
         .padding(18)
         .background(
@@ -226,7 +237,7 @@ struct TradeView: View {
     private var receivedOffersSection: some View {
         offerSection(
             title: "Offers Received",
-            subtitle: "\(viewModel.receivedOffers(in: store).count) local offers",
+            subtitle: "\(viewModel.receivedOffers(in: store).count) cloud-ready offers",
             offers: viewModel.receivedOffers(in: store)
         )
     }
@@ -634,7 +645,8 @@ private struct TradeOfferRow: View {
                 }
 
                 actionButton("Dispute", "exclamationmark.triangle.fill", .vdGold) {
-                    disputeMessage = "Dispute placeholder saved locally. Backend moderation can attach here later."
+                    disputeMessage = "Dispute placeholder saved. Backend moderation can attach evidence and notes here later."
+                    onStatus(.disputed)
                 }
             }
 

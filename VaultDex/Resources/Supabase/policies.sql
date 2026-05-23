@@ -20,7 +20,7 @@ drop policy if exists "profiles are publicly readable when visible" on public.pr
 create policy "profiles are publicly readable when visible"
 on public.profiles
 for select
-using (profile_visibility = 'public' or id = auth.uid());
+using (auth.uid() is not null and (profile_visibility = 'public' or id = auth.uid()));
 
 drop policy if exists "users insert own profile" on public.profiles;
 create policy "users insert own profile"
@@ -50,47 +50,116 @@ on public.card_sets
 for select
 using (true);
 
+drop policy if exists "authenticated users can cache card sets" on public.card_sets;
+create policy "authenticated users can cache card sets"
+on public.card_sets
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "authenticated users can refresh card sets" on public.card_sets;
+create policy "authenticated users can refresh card sets"
+on public.card_sets
+for update
+to authenticated
+using (true)
+with check (true);
+
 drop policy if exists "cards are readable" on public.cards;
 create policy "cards are readable"
 on public.cards
 for select
 using (is_active = true);
 
+drop policy if exists "authenticated users can cache cards" on public.cards;
+create policy "authenticated users can cache cards"
+on public.cards
+for insert
+to authenticated
+with check (is_active = true);
+
+drop policy if exists "authenticated users can refresh cards" on public.cards;
+create policy "authenticated users can refresh cards"
+on public.cards
+for update
+to authenticated
+using (is_active = true)
+with check (is_active = true);
+
 drop policy if exists "users read own collection and tradeable public items" on public.collection_items;
 create policy "users read own collection and tradeable public items"
 on public.collection_items
 for select
 to authenticated
-using (user_id = auth.uid() or is_available_for_trade = true);
+using (
+  owner_id = auth.uid()
+  or visibility = 'public'
+  or available_for_trade = true
+  or (
+    visibility = 'friends'
+    and exists (
+      select 1
+      from public.friendships f
+      where f.status = 'active'
+        and (
+          (f.user_a_id = auth.uid() and f.user_b_id = collection_items.owner_id)
+          or (f.user_b_id = auth.uid() and f.user_a_id = collection_items.owner_id)
+        )
+    )
+  )
+);
 
 drop policy if exists "users insert own collection" on public.collection_items;
 create policy "users insert own collection"
 on public.collection_items
 for insert
 to authenticated
-with check (user_id = auth.uid());
+with check (owner_id = auth.uid());
 
 drop policy if exists "users update own collection" on public.collection_items;
 create policy "users update own collection"
 on public.collection_items
 for update
 to authenticated
-using (user_id = auth.uid())
-with check (user_id = auth.uid());
+using (owner_id = auth.uid())
+with check (owner_id = auth.uid());
 
 drop policy if exists "users delete own collection" on public.collection_items;
 create policy "users delete own collection"
 on public.collection_items
 for delete
 to authenticated
-using (user_id = auth.uid());
+using (owner_id = auth.uid());
 
 drop policy if exists "users read own wishlist" on public.wishlist_items;
 create policy "users read own wishlist"
 on public.wishlist_items
 for select
 to authenticated
-using (user_id = auth.uid());
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1
+    from public.profiles p
+    where p.id = wishlist_items.user_id
+      and p.wishlist_visibility = 'public'
+  )
+  or exists (
+    select 1
+    from public.profiles p
+    where p.id = wishlist_items.user_id
+      and p.wishlist_visibility = 'friends'
+      and exists (
+        select 1
+        from public.friendships f
+        where f.status = 'active'
+          and (
+            (f.user_a_id = auth.uid() and f.user_b_id = wishlist_items.user_id)
+            or (f.user_b_id = auth.uid() and f.user_a_id = wishlist_items.user_id)
+          )
+      )
+  )
+);
 
 drop policy if exists "users insert own wishlist" on public.wishlist_items;
 create policy "users insert own wishlist"
@@ -133,8 +202,8 @@ create policy "friend request participants update"
 on public.friend_requests
 for update
 to authenticated
-using (requester_id = auth.uid() or addressee_id = auth.uid())
-with check (requester_id = auth.uid() or addressee_id = auth.uid());
+using (addressee_id = auth.uid())
+with check (addressee_id = auth.uid());
 
 drop policy if exists "friend request participants delete" on public.friend_requests;
 create policy "friend request participants delete"
@@ -155,7 +224,16 @@ create policy "users create own friendships"
 on public.friendships
 for insert
 to authenticated
-with check (user_a_id = auth.uid() or user_b_id = auth.uid());
+with check (
+  (user_a_id = auth.uid() or user_b_id = auth.uid())
+  and exists (
+    select 1
+    from public.friend_requests r
+    where r.status = 'accepted'
+      and r.requester_id = friendships.user_a_id
+      and r.addressee_id = friendships.user_b_id
+  )
+);
 
 drop policy if exists "friendship participants update" on public.friendships;
 create policy "friendship participants update"

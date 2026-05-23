@@ -38,6 +38,8 @@ enum TradeOfferDirection: String, CaseIterable, Identifiable, Hashable {
 
 struct TradeOffer: Identifiable, Hashable {
     let id: UUID
+    let senderID: UUID?
+    let receiverID: UUID?
     let partnerName: String
     let partnerHandle: String
     let offeredCards: [Card]
@@ -52,6 +54,8 @@ struct TradeOffer: Identifiable, Hashable {
 
     init(
         id: UUID = UUID(),
+        senderID: UUID? = nil,
+        receiverID: UUID? = nil,
         partnerName: String,
         partnerHandle: String,
         offeredCards: [Card],
@@ -65,6 +69,8 @@ struct TradeOffer: Identifiable, Hashable {
         usesSafeTrade: Bool = false
     ) {
         self.id = id
+        self.senderID = senderID
+        self.receiverID = receiverID
         self.partnerName = partnerName
         self.partnerHandle = partnerHandle
         self.offeredCards = offeredCards

@@ -143,13 +143,14 @@ final class ImportCollectionViewModel: ObservableObject {
                 item.card.set.name,
                 item.card.number,
                 item.priority.displayName,
+                item.preferredCondition.displayName,
                 item.budget.vaultCSVValue,
                 item.notes
             ]
         }
 
         exportText = csvString(
-            headers: ["Name", "Set", "Number", "Priority", "Budget", "Notes"],
+            headers: ["Name", "Set", "Number", "Priority", "Preferred Condition", "Max Trade Value", "Notes"],
             rows: rows
         )
     }
@@ -386,6 +387,7 @@ final class WishlistViewModel: ObservableObject {
 @MainActor
 final class FriendsViewModel: ObservableObject {
     @Published var addFriendText = ""
+    private var lastSearchText = ""
 
     func onlineFriends(in store: LocalVaultStore) -> [Friend] {
         store.friends.filter(\.isOnline)
@@ -406,6 +408,13 @@ final class FriendsViewModel: ObservableObject {
     func addFriend(in store: LocalVaultStore) {
         store.sendFriendRequest(to: addFriendText)
         addFriendText = ""
+    }
+
+    func searchUsers(in store: LocalVaultStore) {
+        let trimmed = addFriendText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != lastSearchText else { return }
+        lastSearchText = trimmed
+        store.searchFriendUsers(matching: trimmed)
     }
 }
 

@@ -32,6 +32,7 @@
 		841967CC2FC090F30033B46B /* VaultDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		84820F6A2FC0EF3200928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
+		8482106F2FC1B07300928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -117,6 +118,13 @@
 			sourceTree = "<group>";
 		};
 		84820F6C2FC0EF3200928DDB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		848210712FC1B07300928DDB /* Products */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -234,6 +242,10 @@
 			productRefGroup = 841967C02FC090F20033B46B /* Products */;
 			projectDirPath = "";
 			projectReferences = (
+				{
+					ProductGroup = 848210712FC1B07300928DDB /* Products */;
+					ProjectRef = 8482106F2FC1B07300928DDB /* VaultDex.xcodeproj */;
+				},
 				{
 					ProductGroup = 84820F6C2FC0EF3200928DDB /* Products */;
 					ProjectRef = 84820F6A2FC0EF3200928DDB /* VaultDex.xcodeproj */;

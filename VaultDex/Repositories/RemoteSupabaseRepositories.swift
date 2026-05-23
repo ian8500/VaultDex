@@ -12,11 +12,13 @@ class SupabaseTableRepository {
         return try await client.send(request, decode: [T].self)
     }
 
-    func upsert<T: Encodable>(_ value: T, into table: String) async throws {
+    func upsert<T: Encodable>(_ value: T, into table: String, onConflict: String? = nil) async throws {
         let data = try JSONEncoder.supabase.encode(value)
+        let queryItems = onConflict.map { [URLQueryItem(name: "on_conflict", value: $0)] } ?? []
         let request = try client.restRequest(
             table: table,
             method: .post,
+            queryItems: queryItems,
             body: data,
             prefer: "resolution=merge-duplicates"
         )
@@ -109,18 +111,26 @@ final class SupabaseCardCatalogRepository: SupabaseTableRepository, CardCatalogR
         }
         return try await fetchRows(from: "cards", queryItems: queryItems)
     }
+
+    func upsertSet(_ set: RemoteCardSet) async throws {
+        try await upsert(set, into: "card_sets", onConflict: "id")
+    }
+
+    func upsertCard(_ card: RemoteCard) async throws {
+        try await upsert(card, into: "cards", onConflict: "id")
+    }
 }
 
 final class SupabaseCollectionRepository: SupabaseTableRepository, CollectionRepository {
     func fetchCollection(userID: UUID) async throws -> [RemoteCollectionItem] {
         try await fetchRows(from: "collection_items", queryItems: [
-            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "owner_id", value: "eq.\(userID.uuidString)"),
             URLQueryItem(name: "order", value: "acquired_at.desc")
         ])
     }
 
     func upsertCollectionItem(_ item: RemoteCollectionItem) async throws {
-        try await upsert(item, into: "collection_items")
+        try await upsert(item, into: "collection_items", onConflict: "id")
     }
 
     func deleteCollectionItem(id: UUID) async throws {
@@ -137,7 +147,7 @@ final class SupabaseWishlistRepository: SupabaseTableRepository, WishlistReposit
     }
 
     func upsertWishlistItem(_ item: RemoteWishlistItem) async throws {
-        try await upsert(item, into: "wishlist_items")
+        try await upsert(item, into: "wishlist_items", onConflict: "id")
     }
 
     func deleteWishlistItem(id: UUID) async throws {
@@ -149,17 +159,86 @@ final class SupabaseFriendsRepository: SupabaseTableRepository, FriendsRepositor
     func fetchFriends(userID: UUID) async throws -> [RemoteFriendship] {
         try await fetchRows(from: "friendships", queryItems: [
             URLQueryItem(name: "or", value: "(user_a_id.eq.\(userID.uuidString),user_b_id.eq.\(userID.uuidString))"),
+            URLQueryItem(name: "status", value: "eq.active"),
             URLQueryItem(name: "order", value: "updated_at.desc")
         ])
     }
 
-    func sendFriendRequest(from userID: UUID, to profileID: UUID) async throws {
-        let friendship = RemoteFriendship(id: UUID(), requesterID: userID, addresseeID: profileID, status: "pending", createdAt: nil, updatedAt: nil)
-        try await upsert(friendship, into: "friendships")
+    func fetchFriendRequests(userID: UUID) async throws -> [RemoteFriendRequest] {
+        try await fetchRows(from: "friend_requests", queryItems: [
+            URLQueryItem(name: "or", value: "(requester_id.eq.\(userID.uuidString),addressee_id.eq.\(userID.uuidString))"),
+            URLQueryItem(name: "status", value: "eq.pending"),
+            URLQueryItem(name: "order", value: "created_at.desc")
+        ])
     }
 
-    func updateFriendship(id: UUID, status: String) async throws {
-        try await patch(["status": status], table: "friendships", id: id)
+    func searchProfiles(username: String, currentUserID: UUID) async throws -> [RemoteProfile] {
+        let trimmed = username
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "@", with: "")
+        guard !trimmed.isEmpty else { return [] }
+        return try await fetchRows(from: "profiles", queryItems: [
+            URLQueryItem(name: "username", value: "ilike.*\(trimmed)*"),
+            URLQueryItem(name: "id", value: "neq.\(currentUserID.uuidString)"),
+            URLQueryItem(name: "limit", value: "8")
+        ])
+    }
+
+    func fetchProfiles(ids: [UUID]) async throws -> [RemoteProfile] {
+        let uniqueIDs = Array(Set(ids))
+        guard !uniqueIDs.isEmpty else { return [] }
+        let idList = uniqueIDs.map(\.uuidString).joined(separator: ",")
+        return try await fetchRows(from: "profiles", queryItems: [
+            URLQueryItem(name: "id", value: "in.(\(idList))")
+        ])
+    }
+
+    func fetchVisibleCollection(ownerID: UUID) async throws -> [RemoteCollectionItem] {
+        try await fetchRows(from: "collection_items", queryItems: [
+            URLQueryItem(name: "owner_id", value: "eq.\(ownerID.uuidString)"),
+            URLQueryItem(name: "order", value: "acquired_at.desc")
+        ])
+    }
+
+    func fetchVisibleWishlist(userID: UUID) async throws -> [RemoteWishlistItem] {
+        try await fetchRows(from: "wishlist_items", queryItems: [
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "order", value: "added_at.desc")
+        ])
+    }
+
+    func sendFriendRequest(from userID: UUID, to profileID: UUID) async throws {
+        let request = RemoteFriendRequest(
+            id: UUID(),
+            requesterID: userID,
+            addresseeID: profileID,
+            message: nil,
+            status: "pending",
+            createdAt: nil,
+            updatedAt: nil
+        )
+        try await upsert(request, into: "friend_requests", onConflict: "requester_id,addressee_id")
+    }
+
+    func acceptFriendRequest(_ request: RemoteFriendRequest) async throws {
+        try await patch(["status": "accepted"], table: "friend_requests", id: request.id)
+        let friendship = RemoteFriendship(
+            id: UUID(),
+            requesterID: request.requesterID,
+            addresseeID: request.addresseeID,
+            status: "active",
+            createdAt: nil,
+            updatedAt: nil
+        )
+        try await upsert(friendship, into: "friendships", onConflict: "user_a_id,user_b_id")
+    }
+
+    func rejectFriendRequest(id: UUID) async throws {
+        try await patch(["status": "rejected"], table: "friend_requests", id: id)
+    }
+
+    func removeFriendship(id: UUID) async throws {
+        try await delete(from: "friendships", id: id)
     }
 }
 
@@ -196,12 +275,26 @@ final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
         ])
     }
 
+    func fetchTradeOfferItems(offerIDs: [UUID]) async throws -> [RemoteTradeOfferItem] {
+        let uniqueIDs = Array(Set(offerIDs))
+        guard !uniqueIDs.isEmpty else { return [] }
+        let idList = uniqueIDs.map(\.uuidString).joined(separator: ",")
+        return try await fetchRows(from: "trade_offer_items", queryItems: [
+            URLQueryItem(name: "trade_offer_id", value: "in.(\(idList))")
+        ])
+    }
+
     func upsertTradeListing(_ listing: RemoteTradeListing) async throws {
         try await upsert(listing, into: "marketplace_listings")
     }
 
     func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws {
-        try await upsert(offer, into: "trade_offers")
+        try await upsert(offer, into: "trade_offers", onConflict: "id")
+    }
+
+    func upsertTradeOfferItems(_ items: [RemoteTradeOfferItem]) async throws {
+        guard !items.isEmpty else { return }
+        try await upsert(items, into: "trade_offer_items", onConflict: "id")
     }
 
     func updateTradeOfferStatus(id: UUID, status: String) async throws {

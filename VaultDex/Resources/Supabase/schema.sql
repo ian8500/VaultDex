@@ -55,33 +55,93 @@ create table if not exists public.cards (
 
 create table if not exists public.collection_items (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  owner_id uuid not null references public.profiles(id) on delete cascade,
   card_id uuid not null references public.cards(id) on delete cascade,
   quantity integer not null default 1 check (quantity > 0),
   condition text not null default 'nearMint',
   variant text not null default 'normal',
   language text not null default 'English',
-  is_available_for_trade boolean not null default false,
+  graded_company text,
+  graded_score text,
+  notes text,
+  visibility text not null default 'private' check (visibility in ('private', 'friends', 'public')),
+  available_for_trade boolean not null default false,
+  available_for_credits boolean not null default false,
+  asking_credits integer check (asking_credits is null or asking_credits >= 0),
   is_favorite boolean not null default false,
   acquired_at timestamptz not null default now(),
-  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (user_id, card_id, condition, variant, language)
+  unique (owner_id, card_id, condition, variant, language)
 );
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'collection_items' and column_name = 'user_id'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'collection_items' and column_name = 'owner_id'
+  ) then
+    alter table public.collection_items rename column user_id to owner_id;
+  end if;
+end $$;
+
+alter table public.collection_items add column if not exists language text not null default 'English';
+alter table public.collection_items add column if not exists graded_company text;
+alter table public.collection_items add column if not exists graded_score text;
+alter table public.collection_items add column if not exists notes text;
+alter table public.collection_items add column if not exists visibility text not null default 'private';
+alter table public.collection_items add column if not exists available_for_trade boolean not null default false;
+alter table public.collection_items add column if not exists available_for_credits boolean not null default false;
+alter table public.collection_items add column if not exists asking_credits integer;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'collection_items' and column_name = 'is_available_for_trade'
+  ) then
+    update public.collection_items
+    set available_for_trade = is_available_for_trade
+    where available_for_trade = false and is_available_for_trade = true;
+  end if;
+end $$;
 
 create table if not exists public.wishlist_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   card_id uuid not null references public.cards(id) on delete cascade,
   priority text not null default 'medium',
-  budget numeric(10, 2) not null default 0,
+  preferred_condition text not null default 'nearMint',
+  max_trade_value numeric(10, 2) not null default 0,
   notes text not null default '',
   added_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, card_id)
 );
+
+alter table public.wishlist_items add column if not exists preferred_condition text not null default 'nearMint';
+alter table public.wishlist_items add column if not exists max_trade_value numeric(10, 2) not null default 0;
+alter table public.wishlist_items add column if not exists notes text not null default '';
+alter table public.wishlist_items add column if not exists added_at timestamptz not null default now();
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'wishlist_items'
+      and column_name = 'budget'
+  ) then
+    update public.wishlist_items
+    set max_trade_value = budget
+    where max_trade_value = 0 and budget is not null and budget > 0;
+  end if;
+end $$;
 
 create table if not exists public.friend_requests (
   id uuid primary key default gen_random_uuid(),
@@ -242,7 +302,7 @@ create table if not exists public.safety_reports (
 
 create index if not exists cards_set_id_idx on public.cards(set_id);
 create index if not exists cards_name_idx on public.cards using gin (to_tsvector('english', name));
-create index if not exists collection_items_user_id_idx on public.collection_items(user_id);
+create index if not exists collection_items_owner_id_idx on public.collection_items(owner_id);
 create index if not exists collection_items_card_id_idx on public.collection_items(card_id);
 create index if not exists wishlist_items_user_id_idx on public.wishlist_items(user_id);
 create index if not exists wishlist_items_card_id_idx on public.wishlist_items(card_id);

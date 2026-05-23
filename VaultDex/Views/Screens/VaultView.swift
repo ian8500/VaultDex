@@ -16,6 +16,7 @@ struct VaultView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     summary
+                    syncStatus
                     collectionTools
                     favorites
                     collectionGrid
@@ -27,6 +28,30 @@ struct VaultView: View {
         }
         .navigationTitle("My Vault")
         .navigationBarTitleDisplayMode(.large)
+    }
+
+    @ViewBuilder
+    private var syncStatus: some View {
+        if let error = store.lastSyncError, error.contains("Collection") {
+            Label(error, systemImage: "exclamationmark.icloud.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdCoral)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.vdCoral.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdCoral.opacity(0.28), lineWidth: 1)
+                )
+        } else if store.runtimeMode == .supabase {
+            Label("My Vault is syncing to Supabase", systemImage: "checkmark.icloud.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdEmerald)
+        } else if store.runtimeMode == .offline {
+            Label("Showing offline cached vault data", systemImage: "icloud.slash.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdGold)
+        }
     }
 
     private var summary: some View {
@@ -145,7 +170,7 @@ struct VaultView: View {
 
     private var collectionGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "My Vault", subtitle: "Offline inventory")
+            VaultSectionHeader(title: "My Vault", subtitle: store.runtimeMode == .supabase ? "Cloud-backed inventory" : "Offline inventory")
 
             if store.collectionItems.isEmpty {
                 EmptyStateView(

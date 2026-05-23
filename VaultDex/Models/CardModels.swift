@@ -90,6 +90,22 @@ enum CardVariant: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum CollectionVisibility: String, CaseIterable, Identifiable, Hashable {
+    case `private`
+    case friends
+    case `public`
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .private: "Private"
+        case .friends: "Friends"
+        case .public: "Public"
+        }
+    }
+}
+
 enum CardAccent: String, CaseIterable, Identifiable, Hashable {
     case aurora
     case ember
@@ -107,20 +123,33 @@ struct CardSet: Identifiable, Hashable {
     let code: String
     let releaseYear: Int
     let totalCards: Int
+    let externalID: String?
 
     init(
         id: UUID = UUID(),
         name: String,
         code: String,
         releaseYear: Int,
-        totalCards: Int
+        totalCards: Int,
+        externalID: String? = nil
     ) {
         self.id = id
         self.name = name
         self.code = code
         self.releaseYear = releaseYear
         self.totalCards = totalCards
+        self.externalID = externalID
     }
+}
+
+struct CardPriceInfo: Hashable {
+    var low: Double?
+    var mid: Double?
+    var high: Double?
+    var market: Double?
+    var directLow: Double?
+    var averageSellPrice: Double?
+    var trendPrice: Double?
 }
 
 struct Card: Identifiable, Hashable {
@@ -135,6 +164,14 @@ struct Card: Identifiable, Hashable {
     let condition: CardCondition
     let marketValue: Double
     let accent: CardAccent
+    let externalID: String?
+    let types: [String]
+    let subtypes: [String]
+    let artist: String?
+    let smallImageURL: URL?
+    let largeImageURL: URL?
+    let tcgplayerPrices: CardPriceInfo?
+    let cardmarketPrices: CardPriceInfo?
 
     init(
         id: UUID = UUID(),
@@ -147,7 +184,15 @@ struct Card: Identifiable, Hashable {
         power: Int,
         condition: CardCondition,
         marketValue: Double,
-        accent: CardAccent
+        accent: CardAccent,
+        externalID: String? = nil,
+        types: [String] = [],
+        subtypes: [String] = [],
+        artist: String? = nil,
+        smallImageURL: URL? = nil,
+        largeImageURL: URL? = nil,
+        tcgplayerPrices: CardPriceInfo? = nil,
+        cardmarketPrices: CardPriceInfo? = nil
     ) {
         self.id = id
         self.name = name
@@ -160,6 +205,14 @@ struct Card: Identifiable, Hashable {
         self.condition = condition
         self.marketValue = marketValue
         self.accent = accent
+        self.externalID = externalID
+        self.types = types
+        self.subtypes = subtypes
+        self.artist = artist
+        self.smallImageURL = smallImageURL
+        self.largeImageURL = largeImageURL
+        self.tcgplayerPrices = tcgplayerPrices
+        self.cardmarketPrices = cardmarketPrices
     }
 }
 
@@ -170,6 +223,12 @@ struct CollectionItem: Identifiable, Hashable {
     var condition: CardCondition
     var variant: CardVariant
     var isAvailableForTrade: Bool
+    var language: String
+    var gradedCompany: String?
+    var gradedScore: String?
+    var visibility: CollectionVisibility
+    var isAvailableForCredits: Bool
+    var askingCredits: Int?
     var isFavorite: Bool
     var acquiredAt: Date
     var notes: String?
@@ -181,6 +240,12 @@ struct CollectionItem: Identifiable, Hashable {
         condition: CardCondition? = nil,
         variant: CardVariant = .normal,
         isAvailableForTrade: Bool = false,
+        language: String = "English",
+        gradedCompany: String? = nil,
+        gradedScore: String? = nil,
+        visibility: CollectionVisibility = .private,
+        isAvailableForCredits: Bool = false,
+        askingCredits: Int? = nil,
         isFavorite: Bool = false,
         acquiredAt: Date = .now,
         notes: String? = nil
@@ -191,6 +256,12 @@ struct CollectionItem: Identifiable, Hashable {
         self.condition = condition ?? card.condition
         self.variant = variant
         self.isAvailableForTrade = isAvailableForTrade
+        self.language = language
+        self.gradedCompany = gradedCompany
+        self.gradedScore = gradedScore
+        self.visibility = visibility
+        self.isAvailableForCredits = isAvailableForCredits
+        self.askingCredits = askingCredits
         self.isFavorite = isFavorite
         self.acquiredAt = acquiredAt
         self.notes = notes

@@ -22,6 +22,7 @@ struct WishlistItem: Identifiable, Hashable {
     let id: UUID
     let card: Card
     var priority: WishlistPriority
+    var preferredCondition: CardCondition
     var budget: Double
     var notes: String
     var addedAt: Date
@@ -30,6 +31,7 @@ struct WishlistItem: Identifiable, Hashable {
         id: UUID = UUID(),
         card: Card,
         priority: WishlistPriority,
+        preferredCondition: CardCondition = .nearMint,
         budget: Double,
         notes: String,
         addedAt: Date = .now
@@ -37,6 +39,7 @@ struct WishlistItem: Identifiable, Hashable {
         self.id = id
         self.card = card
         self.priority = priority
+        self.preferredCondition = preferredCondition
         self.budget = budget
         self.notes = notes
         self.addedAt = addedAt
@@ -81,6 +84,8 @@ enum FriendRequestDirection: String, CaseIterable, Identifiable, Hashable {
 
 struct FriendRequest: Identifiable, Hashable {
     let id: UUID
+    let requesterID: UUID?
+    let addresseeID: UUID?
     let displayName: String
     let handleOrEmail: String
     let avatarSymbol: String
@@ -90,6 +95,8 @@ struct FriendRequest: Identifiable, Hashable {
 
     init(
         id: UUID = UUID(),
+        requesterID: UUID? = nil,
+        addresseeID: UUID? = nil,
         displayName: String,
         handleOrEmail: String,
         avatarSymbol: String,
@@ -98,6 +105,8 @@ struct FriendRequest: Identifiable, Hashable {
         previewCard: Card? = nil
     ) {
         self.id = id
+        self.requesterID = requesterID
+        self.addresseeID = addresseeID
         self.displayName = displayName
         self.handleOrEmail = handleOrEmail
         self.avatarSymbol = avatarSymbol
@@ -109,6 +118,7 @@ struct FriendRequest: Identifiable, Hashable {
 
 struct Friend: Identifiable, Hashable {
     let id: UUID
+    let friendshipID: UUID?
     let displayName: String
     let handle: String
     let email: String
@@ -125,6 +135,7 @@ struct Friend: Identifiable, Hashable {
 
     init(
         id: UUID = UUID(),
+        friendshipID: UUID? = nil,
         displayName: String,
         handle: String,
         email: String = "",
@@ -140,6 +151,7 @@ struct Friend: Identifiable, Hashable {
         wishlist: [WishlistItem] = []
     ) {
         self.id = id
+        self.friendshipID = friendshipID
         self.displayName = displayName
         self.handle = handle
         self.email = email
@@ -244,6 +256,8 @@ struct BinderPage: Identifiable, Hashable {
 
 struct TradeListing: Identifiable, Hashable {
     let id: UUID
+    let ownerID: UUID?
+    let collectionItemID: UUID?
     let ownerName: String
     let ownerHandle: String
     let card: Card
@@ -260,6 +274,8 @@ struct TradeListing: Identifiable, Hashable {
 
     init(
         id: UUID = UUID(),
+        ownerID: UUID? = nil,
+        collectionItemID: UUID? = nil,
         ownerName: String,
         ownerHandle: String,
         card: Card,
@@ -275,6 +291,8 @@ struct TradeListing: Identifiable, Hashable {
         usesSafeTrade: Bool = false
     ) {
         self.id = id
+        self.ownerID = ownerID
+        self.collectionItemID = collectionItemID
         self.ownerName = ownerName
         self.ownerHandle = ownerHandle
         self.card = card

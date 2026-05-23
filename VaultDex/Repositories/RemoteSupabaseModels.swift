@@ -12,6 +12,9 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
     var trustBadges: [String]
     var completedTrades: Int
     var collectorScore: Int
+    var profileVisibility: String?
+    var collectionVisibility: String?
+    var wishlistVisibility: String?
     var createdAt: Date?
     var updatedAt: Date?
 
@@ -27,6 +30,9 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
         case trustBadges = "trust_badges"
         case completedTrades = "completed_trades"
         case collectorScore = "collector_score"
+        case profileVisibility = "profile_visibility"
+        case collectionVisibility = "collection_visibility"
+        case wishlistVisibility = "wishlist_visibility"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -58,6 +64,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
     var marketValue: Double
     var accent: String
     var imagePath: String?
+    var artistName: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, number, rarity, power, accent
@@ -66,26 +73,37 @@ struct RemoteCard: Codable, Identifiable, Hashable {
         case typeLine = "type_line"
         case marketValue = "market_value"
         case imagePath = "image_path"
+        case artistName = "artist_name"
     }
 }
 
 struct RemoteCollectionItem: Codable, Identifiable, Hashable {
     let id: UUID
-    var userID: UUID
+    var ownerID: UUID
     var cardID: UUID
     var quantity: Int
     var condition: String
     var variant: String
+    var language: String
+    var gradedCompany: String?
+    var gradedScore: String?
+    var notes: String?
+    var visibility: String
     var isAvailableForTrade: Bool
+    var isAvailableForCredits: Bool
+    var askingCredits: Int?
     var isFavorite: Bool
     var acquiredAt: Date
-    var notes: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, quantity, condition, variant, notes
-        case userID = "owner_id"
+        case id, quantity, condition, variant, language, notes, visibility
+        case ownerID = "owner_id"
         case cardID = "card_id"
-        case isAvailableForTrade = "is_available_for_trade"
+        case gradedCompany = "graded_company"
+        case gradedScore = "graded_score"
+        case isAvailableForTrade = "available_for_trade"
+        case isAvailableForCredits = "available_for_credits"
+        case askingCredits = "asking_credits"
         case isFavorite = "is_favorite"
         case acquiredAt = "acquired_at"
     }
@@ -96,14 +114,17 @@ struct RemoteWishlistItem: Codable, Identifiable, Hashable {
     var userID: UUID
     var cardID: UUID
     var priority: String
+    var preferredCondition: String
     var budget: Double
     var notes: String
     var addedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, priority, budget, notes
+        case id, priority, notes
         case userID = "user_id"
         case cardID = "card_id"
+        case preferredCondition = "preferred_condition"
+        case budget = "max_trade_value"
         case addedAt = "added_at"
     }
 }
@@ -120,6 +141,24 @@ struct RemoteFriendship: Codable, Identifiable, Hashable {
         case id, status
         case requesterID = "user_a_id"
         case addresseeID = "user_b_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct RemoteFriendRequest: Codable, Identifiable, Hashable {
+    let id: UUID
+    var requesterID: UUID
+    var addresseeID: UUID
+    var message: String?
+    var status: String
+    var createdAt: Date?
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, message, status
+        case requesterID = "requester_id"
+        case addresseeID = "addressee_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -202,10 +241,33 @@ struct RemoteTradeOffer: Codable, Identifiable, Hashable {
     }
 }
 
+struct RemoteTradeOfferItem: Codable, Identifiable, Hashable {
+    let id: UUID
+    var tradeOfferID: UUID
+    var ownerID: UUID?
+    var cardID: UUID
+    var collectionItemID: UUID?
+    var side: String
+    var quantity: Int
+    var estimatedValue: Double
+    var createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, side, quantity
+        case tradeOfferID = "trade_offer_id"
+        case ownerID = "owner_id"
+        case cardID = "card_id"
+        case collectionItemID = "collection_item_id"
+        case estimatedValue = "estimated_value"
+        case createdAt = "created_at"
+    }
+}
+
 struct RemoteMarketplaceListing: Codable, Identifiable, Hashable {
     let id: UUID
     var cardID: UUID
     var ownerID: UUID?
+    var collectionItemID: UUID?
     var title: String?
     var rarity: String
     var condition: String
@@ -223,6 +285,7 @@ struct RemoteMarketplaceListing: Codable, Identifiable, Hashable {
         case id, rarity, condition, variant
         case cardID = "card_id"
         case ownerID = "owner_id"
+        case collectionItemID = "collection_item_id"
         case title
         case askingFor = "asking_for"
         case estimatedValue = "estimated_value"

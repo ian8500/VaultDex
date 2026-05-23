@@ -14,6 +14,8 @@ protocol ProfileRepository {
 protocol CardCatalogRepository {
     func fetchSets() async throws -> [RemoteCardSet]
     func fetchCards(search: String?) async throws -> [RemoteCard]
+    func upsertSet(_ set: RemoteCardSet) async throws
+    func upsertCard(_ card: RemoteCard) async throws
 }
 
 protocol CollectionRepository {
@@ -30,8 +32,15 @@ protocol WishlistRepository {
 
 protocol FriendsRepository {
     func fetchFriends(userID: UUID) async throws -> [RemoteFriendship]
+    func fetchFriendRequests(userID: UUID) async throws -> [RemoteFriendRequest]
+    func searchProfiles(username: String, currentUserID: UUID) async throws -> [RemoteProfile]
+    func fetchProfiles(ids: [UUID]) async throws -> [RemoteProfile]
+    func fetchVisibleCollection(ownerID: UUID) async throws -> [RemoteCollectionItem]
+    func fetchVisibleWishlist(userID: UUID) async throws -> [RemoteWishlistItem]
     func sendFriendRequest(from userID: UUID, to profileID: UUID) async throws
-    func updateFriendship(id: UUID, status: String) async throws
+    func acceptFriendRequest(_ request: RemoteFriendRequest) async throws
+    func rejectFriendRequest(id: UUID) async throws
+    func removeFriendship(id: UUID) async throws
 }
 
 protocol BinderRepository {
@@ -43,8 +52,10 @@ protocol BinderRepository {
 protocol TradeRepository {
     func fetchTradeListings(userID: UUID?) async throws -> [RemoteTradeListing]
     func fetchTradeOffers(userID: UUID) async throws -> [RemoteTradeOffer]
+    func fetchTradeOfferItems(offerIDs: [UUID]) async throws -> [RemoteTradeOfferItem]
     func upsertTradeListing(_ listing: RemoteTradeListing) async throws
     func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws
+    func upsertTradeOfferItems(_ items: [RemoteTradeOfferItem]) async throws
     func updateTradeOfferStatus(id: UUID, status: String) async throws
 }
 
@@ -69,4 +80,3 @@ protocol VaultStorageRepository {
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String
     func uploadCardPhoto(userID: UUID, cardID: UUID, data: Data, contentType: String) async throws -> String
 }
-

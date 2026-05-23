@@ -19,6 +19,8 @@ final class LocalVaultStore: ObservableObject {
     @Published var binderPages: [BinderPage]
     @Published var friends: [Friend]
     @Published var friendRequests: [FriendRequest]
+    @Published var friendSearchResults: [RemoteProfile] = []
+    @Published var isSearchingFriends = false
     @Published var friendWants: [FriendWant]
     @Published var tradeListings: [TradeListing]
     @Published var tradeOffers: [TradeOffer]
@@ -101,9 +103,32 @@ final class LocalVaultStore: ObservableObject {
         async let remoteCollection = repositories.collection.fetchCollection(userID: userID)
         async let remoteWishlist = repositories.wishlist.fetchWishlist(userID: userID)
         async let remoteFriends = repositories.friends.fetchFriends(userID: userID)
+        async let remoteFriendRequests = repositories.friends.fetchFriendRequests(userID: userID)
         async let remoteOffers = repositories.trades.fetchTradeOffers(userID: userID)
         async let remoteListings = repositories.marketplace.fetchMarketplaceListings(search: nil)
         async let remoteEvents = repositories.events.fetchEvents(userID: userID)
+
+        let friendships = try await remoteFriends
+        let friendRequests = try await remoteFriendRequests
+        let tradeOffers = try await remoteOffers
+        let tradeOfferItems = try await repositories.trades.fetchTradeOfferItems(offerIDs: tradeOffers.map(\.id))
+        let friendIDs = friendships.map { $0.friendID(for: userID) }
+        let requestProfileIDs = friendRequests.map { $0.otherUserID(for: userID) }
+        let tradeProfileIDs = tradeOffers.map { $0.senderID == userID ? $0.receiverID : $0.senderID }
+        let profiles = try await repositories.friends.fetchProfiles(ids: friendIDs + requestProfileIDs + tradeProfileIDs)
+
+        var visibleFriendData: [RemoteFriendVisibleData] = []
+        for friendID in friendIDs {
+            async let visibleCollection = repositories.friends.fetchVisibleCollection(ownerID: friendID)
+            async let visibleWishlist = repositories.friends.fetchVisibleWishlist(userID: friendID)
+            visibleFriendData.append(
+                RemoteFriendVisibleData(
+                    friendID: friendID,
+                    collection: try await visibleCollection,
+                    wishlist: try await visibleWishlist
+                )
+            )
+        }
 
         return try await CloudVaultSnapshot(
             profile: remoteProfile,
@@ -111,8 +136,12 @@ final class LocalVaultStore: ObservableObject {
             cards: remoteCards,
             collection: remoteCollection,
             wishlist: remoteWishlist,
-            friends: remoteFriends,
-            tradeOffers: remoteOffers,
+            friends: friendships,
+            friendRequests: friendRequests,
+            friendProfiles: profiles,
+            visibleFriendData: visibleFriendData,
+            tradeOffers: tradeOffers,
+            tradeOfferItems: tradeOfferItems,
             marketplaceListings: remoteListings,
             events: remoteEvents
         )
@@ -130,11 +159,32 @@ final class LocalVaultStore: ObservableObject {
         profile = snapshot.profile?.localProfile(favoriteSet: sets.first ?? fallbackSet) ?? profile
         collectionItems = snapshot.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
         wishlistItems = snapshot.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
+        let profileByID = Dictionary(uniqueKeysWithValues: (snapshot.friendProfiles ?? []).map { ($0.id, $0) })
         tradeListings = snapshot.marketplaceListings.compactMap { $0.localListing(card: cardByID[$0.cardID], currentUserID: userID) }
-        tradeOffers = snapshot.tradeOffers.map { $0.localOffer(cards: cardByID, currentUserID: userID) }
+        let tradeItemsByOfferID = Dictionary(grouping: snapshot.tradeOfferItems ?? [], by: \.tradeOfferID)
+        tradeOffers = snapshot.tradeOffers.map { offer in
+            offer.localOffer(
+                cards: cardByID,
+                items: tradeItemsByOfferID[offer.id] ?? [],
+                profiles: profileByID,
+                currentUserID: userID
+            )
+        }
         events = snapshot.events.compactMap { $0.localEvent(featuredSet: sets.first ?? fallbackSet) }
-        friends = snapshot.friends.compactMap { $0.localFriend(cards: cards, currentUserID: userID) }
-        friendRequests = []
+        let visibleDataByID = Dictionary(uniqueKeysWithValues: (snapshot.visibleFriendData ?? []).map { ($0.friendID, $0) })
+        friends = snapshot.friends.compactMap { friendship in
+            let friendID = friendship.friendID(for: userID)
+            return friendship.localFriend(
+                profile: profileByID[friendID],
+                visibleData: visibleDataByID[friendID],
+                cards: cards,
+                cardByID: cardByID,
+                currentUserID: userID
+            )
+        }
+        friendRequests = (snapshot.friendRequests ?? []).compactMap { request in
+            request.localRequest(profile: profileByID[request.otherUserID(for: userID)], currentUserID: userID, previewCard: cards.first)
+        }
         friendWants = []
     }
 
@@ -209,7 +259,15 @@ final class LocalVaultStore: ObservableObject {
         let removed = collectionItems.first { $0.card.id == card.id }
         collectionItems.removeAll { $0.card.id == card.id }
         if let removed, runtimeMode == .supabase {
-            Task { try? await repositories.collection.deleteCollectionItem(id: removed.id) }
+            Task {
+                do {
+                    try await repositories.collection.deleteCollectionItem(id: removed.id)
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Collection delete failed: \(error.localizedDescription)"
+                    }
+                }
+            }
         }
     }
 
@@ -217,7 +275,18 @@ final class LocalVaultStore: ObservableObject {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
 
         if quantity <= 0 {
-            collectionItems.remove(at: index)
+            let removed = collectionItems.remove(at: index)
+            if runtimeMode == .supabase {
+                Task {
+                    do {
+                        try await repositories.collection.deleteCollectionItem(id: removed.id)
+                    } catch {
+                        await MainActor.run {
+                            lastSyncError = "Collection delete failed: \(error.localizedDescription)"
+                        }
+                    }
+                }
+            }
         } else {
             collectionItems[index].quantity = quantity
             syncCollectionItem(collectionItems[index])
@@ -242,14 +311,37 @@ final class LocalVaultStore: ObservableObject {
         syncCollectionItem(collectionItems[index])
     }
 
+    func updateCollectionDetails(
+        for card: Card,
+        language: String,
+        gradedCompany: String?,
+        gradedScore: String?,
+        notes: String?,
+        visibility: CollectionVisibility,
+        availableForCredits: Bool,
+        askingCredits: Int?
+    ) {
+        guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
+        collectionItems[index].language = language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "English" : language
+        collectionItems[index].gradedCompany = gradedCompany?.nilIfBlank
+        collectionItems[index].gradedScore = gradedScore?.nilIfBlank
+        collectionItems[index].notes = notes?.nilIfBlank
+        collectionItems[index].visibility = visibility
+        collectionItems[index].isAvailableForCredits = availableForCredits
+        collectionItems[index].askingCredits = availableForCredits ? askingCredits.map { max($0, 0) } : nil
+        syncCollectionItem(collectionItems[index])
+    }
+
     func addToWishlist(
         _ card: Card,
         priority: WishlistPriority = .medium,
+        preferredCondition: CardCondition = .nearMint,
         budget: Double? = nil,
         notes: String = ""
     ) {
         if let index = wishlistItems.firstIndex(where: { $0.card.id == card.id }) {
             wishlistItems[index].priority = priority
+            wishlistItems[index].preferredCondition = preferredCondition
             wishlistItems[index].budget = budget ?? wishlistItems[index].budget
             wishlistItems[index].notes = notes
             syncWishlistItem(wishlistItems[index])
@@ -257,6 +349,7 @@ final class LocalVaultStore: ObservableObject {
             let item = WishlistItem(
                 card: card,
                 priority: priority,
+                preferredCondition: preferredCondition,
                 budget: budget ?? card.marketValue,
                 notes: notes
             )
@@ -268,11 +361,13 @@ final class LocalVaultStore: ObservableObject {
     func updateWishlist(
         for card: Card,
         priority: WishlistPriority,
+        preferredCondition: CardCondition = .nearMint,
         budget: Double,
         notes: String
     ) {
         guard let index = wishlistItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         wishlistItems[index].priority = priority
+        wishlistItems[index].preferredCondition = preferredCondition
         wishlistItems[index].budget = max(budget, 0)
         wishlistItems[index].notes = notes
         syncWishlistItem(wishlistItems[index])
@@ -282,7 +377,20 @@ final class LocalVaultStore: ObservableObject {
         let removed = wishlistItems.first { $0.card.id == card.id }
         wishlistItems.removeAll { $0.card.id == card.id }
         if let removed, runtimeMode == .supabase {
-            Task { try? await repositories.wishlist.deleteWishlistItem(id: removed.id) }
+            Task {
+                do {
+                    try await repositories.wishlist.deleteWishlistItem(id: removed.id)
+                    await MainActor.run {
+                        if lastSyncError?.contains("Wants delete failed") == true {
+                            lastSyncError = nil
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Wants delete failed: \(error.localizedDescription)"
+                    }
+                }
+            }
         }
     }
 
@@ -292,6 +400,45 @@ final class LocalVaultStore: ObservableObject {
         let normalized = trimmed.lowercased()
         guard !friends.contains(where: { $0.handle.lowercased() == normalized || $0.email.lowercased() == normalized }) else { return }
         guard !friendRequests.contains(where: { $0.handleOrEmail.lowercased() == normalized }) else { return }
+
+        if runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID {
+            Task {
+                do {
+                    let matches = try await repositories.friends.searchProfiles(username: trimmed, currentUserID: userID)
+                    guard let matchedProfile = matches.first else {
+                        await MainActor.run {
+                            friendSearchResults = []
+                            lastSyncError = "Friend request failed: no VaultDex user found for \(trimmed)."
+                        }
+                        return
+                    }
+
+                    try await repositories.friends.sendFriendRequest(from: userID, to: matchedProfile.id)
+                    let request = FriendRequest(
+                        requesterID: userID,
+                        addresseeID: matchedProfile.id,
+                        displayName: matchedProfile.displayName,
+                        handleOrEmail: "@\(matchedProfile.username)",
+                        avatarSymbol: "paperplane.fill",
+                        direction: .outgoing,
+                        previewCard: cards.first
+                    )
+                    await MainActor.run {
+                        friendRequests.removeAll { $0.addresseeID == matchedProfile.id || $0.handleOrEmail.lowercased() == request.handleOrEmail.lowercased() }
+                        friendRequests.insert(request, at: 0)
+                        friendSearchResults = []
+                        if lastSyncError?.contains("Friend request failed") == true {
+                            lastSyncError = nil
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Friend request failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+            return
+        }
 
         friendRequests.insert(
             FriendRequest(
@@ -305,8 +452,67 @@ final class LocalVaultStore: ObservableObject {
         )
     }
 
+    func searchFriendUsers(matching query: String) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
+            friendSearchResults = []
+            return
+        }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            friendSearchResults = []
+            return
+        }
+
+        isSearchingFriends = true
+        Task {
+            do {
+                let matches = try await repositories.friends.searchProfiles(username: trimmed, currentUserID: userID)
+                await MainActor.run {
+                    friendSearchResults = matches
+                    isSearchingFriends = false
+                }
+            } catch {
+                await MainActor.run {
+                    friendSearchResults = []
+                    isSearchingFriends = false
+                    lastSyncError = "Friend search failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     func acceptFriendRequest(_ request: FriendRequest) {
         guard request.direction == .incoming else { return }
+        if runtimeMode == .supabase,
+           let requesterID = request.requesterID,
+           let addresseeID = request.addresseeID {
+            let remoteRequest = RemoteFriendRequest(
+                id: request.id,
+                requesterID: requesterID,
+                addresseeID: addresseeID,
+                message: nil,
+                status: "pending",
+                createdAt: nil,
+                updatedAt: nil
+            )
+            Task {
+                do {
+                    try await repositories.friends.acceptFriendRequest(remoteRequest)
+                    let snapshot = try await fetchCloudSnapshot(userID: addresseeID)
+                    await MainActor.run {
+                        apply(snapshot: snapshot, userID: addresseeID)
+                        CloudVaultCache.save(snapshot)
+                        lastSyncError = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Friend request accept failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+            return
+        }
+
         let favorite = request.previewCard ?? cards.first
         guard let favorite else { return }
         let newFriend = Friend(
@@ -332,11 +538,33 @@ final class LocalVaultStore: ObservableObject {
 
     func rejectFriendRequest(_ request: FriendRequest) {
         friendRequests.removeAll { $0.id == request.id }
+        if runtimeMode == .supabase {
+            Task {
+                do {
+                    try await repositories.friends.rejectFriendRequest(id: request.id)
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Friend request reject failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
 
     func removeFriend(_ friend: Friend) {
         friends.removeAll { $0.id == friend.id }
         friendWants.removeAll { $0.friend.id == friend.id }
+        if runtimeMode == .supabase, let friendshipID = friend.friendshipID {
+            Task {
+                do {
+                    try await repositories.friends.removeFriendship(id: friendshipID)
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Remove friend failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
 
     func blockFriend(_ friend: Friend) {
@@ -409,26 +637,47 @@ final class LocalVaultStore: ObservableObject {
     ) {
         guard !offeredCards.isEmpty || internalCredits > 0 else { return }
         guard !requestedCards.isEmpty else { return }
-        tradeOffers.insert(
-            TradeOffer(
-                partnerName: listing.ownerName,
-                partnerHandle: listing.ownerHandle,
-                offeredCards: offeredCards,
-                requestedCards: requestedCards,
-                status: .pending,
-                direction: .sent,
-                internalCredits: max(internalCredits, 0),
-                expiresInDays: 7,
-                note: message.isEmpty ? "Trade offer sent from marketplace." : message,
-                usesSafeTrade: usesSafeTrade
-            ),
-            at: 0
+
+        let offer = TradeOffer(
+            senderID: repositories.clientProvider.currentSession?.userID,
+            receiverID: listing.ownerID,
+            partnerName: listing.ownerName,
+            partnerHandle: listing.ownerHandle,
+            offeredCards: offeredCards,
+            requestedCards: requestedCards,
+            status: .pending,
+            direction: .sent,
+            internalCredits: max(internalCredits, 0),
+            expiresInDays: 7,
+            note: message.isEmpty ? "Trade offer sent from marketplace." : message,
+            usesSafeTrade: usesSafeTrade
         )
+        tradeOffers.insert(offer, at: 0)
+
+        if runtimeMode == .supabase {
+            syncTradeOffer(offer, listing: listing)
+        }
     }
 
     func updateTradeOfferStatus(_ offer: TradeOffer, status: TradeStatus) {
         guard let index = tradeOffers.firstIndex(where: { $0.id == offer.id }) else { return }
         tradeOffers[index].status = status
+        if runtimeMode == .supabase {
+            Task {
+                do {
+                    try await repositories.trades.updateTradeOfferStatus(id: offer.id, status: status.rawValue)
+                    await MainActor.run {
+                        if lastSyncError?.contains("Trade offer") == true {
+                            lastSyncError = nil
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = "Trade offer update failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
     }
 
     func updateProfile(_ updatedProfile: UserProfile) {
@@ -555,6 +804,9 @@ final class LocalVaultStore: ObservableObject {
             trustBadges: profile.trustBadges,
             completedTrades: profile.completedTrades,
             collectorScore: profile.collectorScore,
+            profileVisibility: "public",
+            collectionVisibility: "friends",
+            wishlistVisibility: "friends",
             createdAt: nil,
             updatedAt: nil
         )
@@ -565,17 +817,38 @@ final class LocalVaultStore: ObservableObject {
         guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
         let remoteItem = RemoteCollectionItem(
             id: item.id,
-            userID: userID,
+            ownerID: userID,
             cardID: item.card.id,
             quantity: item.quantity,
             condition: item.condition.rawValue,
             variant: item.variant.rawValue,
+            language: item.language,
+            gradedCompany: item.gradedCompany,
+            gradedScore: item.gradedScore,
+            notes: item.notes,
+            visibility: item.visibility.rawValue,
             isAvailableForTrade: item.isAvailableForTrade,
+            isAvailableForCredits: item.isAvailableForCredits,
+            askingCredits: item.askingCredits,
             isFavorite: item.isFavorite,
-            acquiredAt: item.acquiredAt,
-            notes: item.notes
+            acquiredAt: item.acquiredAt
         )
-        Task { try? await repositories.collection.upsertCollectionItem(remoteItem) }
+        Task {
+            do {
+                try await repositories.cards.upsertSet(item.card.remoteSet)
+                try await repositories.cards.upsertCard(item.card.remoteCard)
+                try await repositories.collection.upsertCollectionItem(remoteItem)
+                await MainActor.run {
+                    if lastSyncError?.contains("Collection save failed") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = "Collection save failed: \(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     private func syncWishlistItem(_ item: WishlistItem) {
@@ -585,11 +858,102 @@ final class LocalVaultStore: ObservableObject {
             userID: userID,
             cardID: item.card.id,
             priority: item.priority.rawValue,
+            preferredCondition: item.preferredCondition.rawValue,
             budget: item.budget,
             notes: item.notes,
             addedAt: item.addedAt
         )
-        Task { try? await repositories.wishlist.upsertWishlistItem(remoteItem) }
+        Task {
+            do {
+                try await repositories.cards.upsertSet(item.card.remoteSet)
+                try await repositories.cards.upsertCard(item.card.remoteCard)
+                try await repositories.wishlist.upsertWishlistItem(remoteItem)
+                await MainActor.run {
+                    if lastSyncError?.contains("Wants save failed") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = "Wants save failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func syncTradeOffer(_ offer: TradeOffer, listing: TradeListing) {
+        guard runtimeMode == .supabase,
+              let senderID = repositories.clientProvider.currentSession?.userID,
+              let receiverID = listing.ownerID,
+              senderID != receiverID
+        else {
+            lastSyncError = "Trade offer save failed: this listing is missing a cloud friend owner."
+            return
+        }
+
+        let offeredCollectionItems = collectionItems.filter { item in
+            offer.offeredCards.contains { $0.id == item.card.id }
+        }
+        let requestedCollectionItemID = listing.collectionItemID
+        let remoteOffer = RemoteTradeOffer(
+            id: offer.id,
+            senderID: senderID,
+            receiverID: receiverID,
+            offeredCardIDs: offer.offeredCards.map(\.id),
+            requestedCardIDs: offer.requestedCards.map(\.id),
+            internalCredits: offer.internalCredits,
+            message: offer.note,
+            status: offer.status.rawValue,
+            usesSafeTrade: offer.usesSafeTrade,
+            createdAt: offer.createdAt
+        )
+        let offeredItems = offeredCollectionItems.map { item in
+            RemoteTradeOfferItem(
+                id: UUID(),
+                tradeOfferID: offer.id,
+                ownerID: senderID,
+                cardID: item.card.id,
+                collectionItemID: item.id,
+                side: "offered",
+                quantity: 1,
+                estimatedValue: item.card.marketValue,
+                createdAt: nil
+            )
+        }
+        let requestedItems = offer.requestedCards.map { card in
+            RemoteTradeOfferItem(
+                id: UUID(),
+                tradeOfferID: offer.id,
+                ownerID: receiverID,
+                cardID: card.id,
+                collectionItemID: requestedCollectionItemID,
+                side: "requested",
+                quantity: 1,
+                estimatedValue: card.marketValue,
+                createdAt: nil
+            )
+        }
+
+        Task {
+            do {
+                let cardsToCache = offer.offeredCards + offer.requestedCards
+                for card in cardsToCache {
+                    try await repositories.cards.upsertSet(card.remoteSet)
+                    try await repositories.cards.upsertCard(card.remoteCard)
+                }
+                try await repositories.trades.upsertTradeOffer(remoteOffer)
+                try await repositories.trades.upsertTradeOfferItems(offeredItems + requestedItems)
+                await MainActor.run {
+                    if lastSyncError?.contains("Trade offer save failed") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = "Trade offer save failed: \(error.localizedDescription)"
+                }
+            }
+        }
     }
 }
 
@@ -600,9 +964,19 @@ private struct CloudVaultSnapshot: Codable {
     let collection: [RemoteCollectionItem]
     let wishlist: [RemoteWishlistItem]
     let friends: [RemoteFriendship]
+    let friendRequests: [RemoteFriendRequest]?
+    let friendProfiles: [RemoteProfile]?
+    let visibleFriendData: [RemoteFriendVisibleData]?
     let tradeOffers: [RemoteTradeOffer]
+    let tradeOfferItems: [RemoteTradeOfferItem]?
     let marketplaceListings: [RemoteMarketplaceListing]
     let events: [RemoteVaultEvent]
+}
+
+private struct RemoteFriendVisibleData: Codable {
+    let friendID: UUID
+    let collection: [RemoteCollectionItem]
+    let wishlist: [RemoteWishlistItem]
 }
 
 private enum CloudVaultCache {
@@ -636,6 +1010,35 @@ private extension RemoteCardSet {
     }
 }
 
+private extension Card {
+    var remoteSet: RemoteCardSet {
+        RemoteCardSet(
+            id: set.id,
+            name: set.name,
+            code: set.code,
+            releaseYear: set.releaseYear,
+            totalCards: set.totalCards
+        )
+    }
+
+    var remoteCard: RemoteCard {
+        RemoteCard(
+            id: id,
+            setID: set.id,
+            name: name,
+            number: number,
+            rarity: rarity.rawValue,
+            cardType: cardType.rawValue,
+            typeLine: typeLine,
+            power: power,
+            marketValue: marketValue,
+            accent: accent.rawValue,
+            imagePath: smallImageURL?.absoluteString,
+            artistName: artist
+        )
+    }
+}
+
 private extension RemoteCard {
     func localCard(set: CardSet) -> Card {
         Card(
@@ -649,7 +1052,9 @@ private extension RemoteCard {
             power: power,
             condition: .nearMint,
             marketValue: marketValue,
-            accent: CardAccent(rawValue: accent) ?? .aurora
+            accent: CardAccent(rawValue: accent) ?? .aurora,
+            artist: artistName,
+            smallImageURL: imagePath.flatMap(URL.init(string:))
         )
     }
 }
@@ -686,10 +1091,23 @@ private extension RemoteCollectionItem {
             condition: CardCondition(rawValue: condition) ?? .nearMint,
             variant: CardVariant(rawValue: variant) ?? .normal,
             isAvailableForTrade: isAvailableForTrade,
+            language: language,
+            gradedCompany: gradedCompany,
+            gradedScore: gradedScore,
+            visibility: CollectionVisibility(rawValue: visibility) ?? .private,
+            isAvailableForCredits: isAvailableForCredits,
+            askingCredits: askingCredits,
             isFavorite: isFavorite,
             acquiredAt: acquiredAt,
             notes: notes
         )
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -700,6 +1118,7 @@ private extension RemoteWishlistItem {
             id: id,
             card: card,
             priority: WishlistPriority(rawValue: priority) ?? .medium,
+            preferredCondition: CardCondition(rawValue: preferredCondition) ?? .nearMint,
             budget: budget,
             notes: notes,
             addedAt: addedAt
@@ -712,6 +1131,8 @@ private extension RemoteMarketplaceListing {
         guard let card else { return nil }
         return TradeListing(
             id: id,
+            ownerID: ownerID,
+            collectionItemID: collectionItemID,
             ownerName: sellerDisplayName ?? "Cloud Collector",
             ownerHandle: ownerID == currentUserID ? "@me" : "@collector",
             card: card,
@@ -730,13 +1151,28 @@ private extension RemoteMarketplaceListing {
 }
 
 private extension RemoteTradeOffer {
-    func localOffer(cards: [UUID: Card], currentUserID: UUID) -> TradeOffer {
+    func localOffer(
+        cards: [UUID: Card],
+        items: [RemoteTradeOfferItem],
+        profiles: [UUID: RemoteProfile],
+        currentUserID: UUID
+    ) -> TradeOffer {
+        let partnerID = senderID == currentUserID ? receiverID : senderID
+        let partner = profiles[partnerID]
+        let offeredFromItems = items
+            .filter { $0.side == "offered" }
+            .compactMap { cards[$0.cardID] }
+        let requestedFromItems = items
+            .filter { $0.side == "requested" }
+            .compactMap { cards[$0.cardID] }
         TradeOffer(
             id: id,
-            partnerName: senderID == currentUserID ? "Cloud Collector" : "Trade Partner",
-            partnerHandle: senderID == currentUserID ? "@sent" : "@received",
-            offeredCards: offeredCardIDs.compactMap { cards[$0] },
-            requestedCards: requestedCardIDs.compactMap { cards[$0] },
+            senderID: senderID,
+            receiverID: receiverID,
+            partnerName: partner?.displayName.nilIfBlank ?? (senderID == currentUserID ? "Cloud Collector" : "Trade Partner"),
+            partnerHandle: partner?.username.nilIfBlank.map { "@\($0)" } ?? (senderID == currentUserID ? "@sent" : "@received"),
+            offeredCards: offeredFromItems.isEmpty ? offeredCardIDs.compactMap { cards[$0] } : offeredFromItems,
+            requestedCards: requestedFromItems.isEmpty ? requestedCardIDs.compactMap { cards[$0] } : requestedFromItems,
             status: TradeStatus(rawValue: status) ?? .pending,
             direction: senderID == currentUserID ? .sent : .received,
             internalCredits: internalCredits,
@@ -767,21 +1203,60 @@ private extension RemoteVaultEvent {
 }
 
 private extension RemoteFriendship {
-    func localFriend(cards: [Card], currentUserID: UUID) -> Friend? {
+    func friendID(for currentUserID: UUID) -> UUID {
+        requesterID == currentUserID ? addresseeID : requesterID
+    }
+
+    func localFriend(
+        profile: RemoteProfile?,
+        visibleData: RemoteFriendVisibleData?,
+        cards: [Card],
+        cardByID: [UUID: Card],
+        currentUserID: UUID
+    ) -> Friend? {
         guard let favoriteCard = cards.first else { return nil }
-        let friendID = requesterID == currentUserID ? addresseeID : requesterID
+        let friendID = friendID(for: currentUserID)
+        let displayName = profile?.displayName.nilIfBlank ?? "Cloud Friend"
+        let handle = profile?.username.nilIfBlank.map { "@\($0)" } ?? "@\(friendID.uuidString.prefix(8))"
+        let visibleCollection = visibleData?.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) } ?? []
+        let visibleWishlist = visibleData?.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) } ?? []
         return Friend(
             id: friendID,
-            displayName: "Cloud Friend",
-            handle: "@\(friendID.uuidString.prefix(8))",
+            friendshipID: id,
+            displayName: displayName,
+            handle: handle,
             avatarSymbol: "person.2.fill",
-            collectorScore: 0,
-            favoriteCard: favoriteCard,
-            completionPercent: 0,
-            mutualTrades: 0,
+            collectorScore: profile?.collectorScore ?? 0,
+            favoriteCard: visibleCollection.first?.card ?? favoriteCard,
+            completionPercent: min(Double(visibleCollection.count) / 100.0, 1.0),
+            mutualTrades: profile?.completedTrades ?? 0,
             isOnline: false,
-            visibleCollection: [],
-            wishlist: []
+            collectionVisibility: BinderVisibility(rawValue: profile?.collectionVisibility ?? "friends") ?? .friends,
+            wishlistVisibility: BinderVisibility(rawValue: profile?.wishlistVisibility ?? "friends") ?? .friends,
+            visibleCollection: visibleCollection,
+            wishlist: visibleWishlist
+        )
+    }
+}
+
+private extension RemoteFriendRequest {
+    func otherUserID(for currentUserID: UUID) -> UUID {
+        requesterID == currentUserID ? addresseeID : requesterID
+    }
+
+    func localRequest(profile: RemoteProfile?, currentUserID: UUID, previewCard: Card?) -> FriendRequest {
+        let direction: FriendRequestDirection = requesterID == currentUserID ? .outgoing : .incoming
+        let fallbackID = otherUserID(for: currentUserID)
+        return FriendRequest(
+            id: id,
+            requesterID: requesterID,
+            addresseeID: addresseeID,
+            displayName: profile?.displayName.nilIfBlank ?? "Cloud Collector",
+            handleOrEmail: profile?.username.nilIfBlank.map { "@\($0)" } ?? "@\(fallbackID.uuidString.prefix(8))",
+            avatarSymbol: direction == .incoming ? "person.crop.circle.badge.plus" : "paperplane.fill",
+            direction: direction,
+            requestedAt: createdAt ?? .now,
+            previewCard: previewCard
         )
     }
 }

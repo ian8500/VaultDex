@@ -265,7 +265,7 @@ struct WishlistView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Find your next grail. Chase targets and price notes stay local for now.")
+                    Text(store.runtimeMode == .supabase ? "Find your next grail. Wants sync to Supabase when you are signed in." : "Find your next grail. Offline targets stay available locally.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -279,6 +279,8 @@ struct WishlistView: View {
                 MetricPill(title: "Target Total", value: viewModel.targetValue(in: store).compactVaultCurrency)
                 MetricPill(title: "High Priority", value: "\(viewModel.highPriorityItems(in: store).count)")
             }
+
+            wishlistSyncStatus
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -286,6 +288,24 @@ struct WishlistView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var wishlistSyncStatus: some View {
+        if store.lastSyncError?.contains("Wants") == true, let error = store.lastSyncError {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdCoral)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if store.runtimeMode == .supabase {
+            Label("Wants are syncing to Supabase", systemImage: "icloud.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdSky)
+        } else if store.runtimeMode == .offline {
+            Label("Showing offline cached wants", systemImage: "wifi.slash")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdGold)
+        }
     }
 
     @ViewBuilder
@@ -325,6 +345,8 @@ struct WishlistView: View {
                 )
             } else {
                 VStack(spacing: 12) {
+                    matchPlaceholders
+
                     ForEach(store.wishlistItems) { item in
                         NavigationLink {
                             CardDetailView(card: item.card)
@@ -335,6 +357,13 @@ struct WishlistView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var matchPlaceholders: some View {
+        HStack(spacing: 12) {
+            WishlistMatchCard(title: "Friend Matches", subtitle: "Cards friends may own", systemImage: "person.2.fill", tint: .vdSky)
+            WishlistMatchCard(title: "Market Matches", subtitle: "Saved listing alerts soon", systemImage: "storefront.fill", tint: .vdLeaf)
         }
     }
 }
@@ -372,7 +401,7 @@ struct FriendsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Requests, collections, wants, and local trade matches.")
+                    Text(store.runtimeMode == .supabase ? "Cloud friends, visible collections, wants, and trade matches." : "Offline friends, collections, wants, and local trade matches.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -396,6 +425,17 @@ struct FriendsView: View {
                 MetricPill(title: "Online", value: "\(viewModel.onlineFriends(in: store).count)")
                 MetricPill(title: "Requests", value: "\(store.friendRequests.count)")
             }
+
+            if let error = store.lastSyncError, error.contains("Friend") || error.contains("friend") {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdCoral)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if store.runtimeMode == .supabase {
+                Label("Friends sync through Supabase", systemImage: "icloud.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdSky)
+            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -407,7 +447,7 @@ struct FriendsView: View {
 
     private var addFriendCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Add Friend", subtitle: "Send a local request by username or email")
+            VaultSectionHeader(title: "Add Friend", subtitle: "Search by VaultDex username")
 
             HStack(spacing: 10) {
                 TextField("@username or email", text: $viewModel.addFriendText)
@@ -435,6 +475,52 @@ struct FriendsView: View {
                 .opacity(viewModel.addFriendText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
                 .accessibilityLabel("Send friend request")
             }
+
+            if store.isSearchingFriends {
+                Label("Searching collectors...", systemImage: "magnifyingglass")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            if !store.friendSearchResults.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(store.friendSearchResults) { profile in
+                        Button {
+                            viewModel.addFriendText = profile.username
+                            viewModel.addFriend(in: store)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .foregroundStyle(Color.vdGold)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(profile.displayName)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(Color.vdTextPrimary)
+                                    Text("@\(profile.username)")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.vdTextSecondary)
+                                }
+
+                                Spacer()
+
+                                Text("Request")
+                                    .font(.caption.weight(.black))
+                                    .foregroundStyle(Color.vdNavy)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.vdGold, in: Capsule())
+                            }
+                            .padding(10)
+                            .background(Color.vdPanelRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .padding(16)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -442,6 +528,9 @@ struct FriendsView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
+        .onChange(of: viewModel.addFriendText) {
+            viewModel.searchUsers(in: store)
+        }
     }
 
     private var requestList: some View {
@@ -1651,6 +1740,10 @@ private struct WishlistRow: View {
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(2)
 
+                Text("Preferred: \(item.preferredCondition.displayName)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdSky)
+
                 Text(item.notes)
                     .font(.subheadline)
                     .foregroundStyle(Color.vdTextSecondary)
@@ -1692,6 +1785,43 @@ private struct WishlistRow: View {
         case .medium: .vdViolet
         case .low: .vdTextSecondary
         }
+    }
+}
+
+private struct WishlistMatchCard: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.black))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text(subtitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(tint.opacity(0.24), lineWidth: 1)
+        )
     }
 }
 
