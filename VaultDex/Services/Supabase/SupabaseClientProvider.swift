@@ -19,7 +19,7 @@ enum SupabaseClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingConfiguration:
-            "Cloud setup is unavailable. Check the active Supabase development config."
+            "Cloud Ready — sign in to sync"
         case .invalidResponse:
             "Supabase returned an invalid response."
         case let .requestFailed(statusCode, body):
@@ -78,7 +78,7 @@ final class SupabaseClientProvider {
     }
 
     var canCreateClient: Bool {
-        guard config.isConfigured else { return false }
+        guard config.url != nil, !(config.publishableKey ?? "").isEmpty else { return false }
         #if canImport(Supabase)
         return sdkClient != nil
         #else

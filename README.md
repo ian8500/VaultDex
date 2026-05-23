@@ -4,10 +4,10 @@ VaultDex is a native SwiftUI iOS trading-card collection app. The app keeps loca
 
 ## Current Supabase Values
 
-The app is configured with the provided publishable client values:
+The app is configured directly in `VaultDex/Services/Supabase/SupabaseConfig.swift` with the provided publishable client values:
 
-- `SUPABASE_URL=https://serqknmuacwbdgdrwkrp.supabase.co`
-- `SUPABASE_PUBLISHABLE_KEY=sb_publishable_3ZCT0O7LEOOsErhHTHu3wA_4TEA9DRS`
+- URL: `https://serqknmuacwbdgdrwkrp.supabase.co`
+- Publishable key: `sb_publishable_3ZCT0O7LEOOsErhHTHu3wA_4TEA9DRS`
 
 This is a publishable key, not a service-role key. Never add a service-role key to the iOS app.
 
@@ -22,20 +22,17 @@ This is a publishable key, not a service-role key. Never add a service-role key 
 
 Collection, wishlist, trade, binder, and event data intentionally remain in local demo mode for now.
 
-## Xcode Environment Overrides
+## Local Development Config
 
-The app has built-in Supabase publishable values for the first proof step. You can override them in the VaultDex scheme:
+Local development uses the hardcoded publishable Supabase config in `VaultDex/Services/Supabase/SupabaseConfig.swift`. It does not require Xcode environment variables, `.env` files, `Secrets.plist`, or custom `Info.plist` keys.
 
-- `DEMO_MODE=true` forces local demo mode.
-- `DEMO_MODE=false` allows Supabase auth when configured.
-- `SUPABASE_URL` overrides the built-in project URL.
-- `SUPABASE_PUBLISHABLE_KEY` overrides the built-in publishable key.
+Move the publishable key and URL into secure build configuration before production.
 
 If Supabase is unavailable, missing, or errors, the app falls back to local demo data.
 
 ## If “No Such Module Supabase” Appears
 
-This project currently compiles without the Supabase Swift package by using a small REST auth fallback. If you add code that imports `Supabase` and Xcode shows `No such module Supabase`, do this manually:
+If Xcode shows `No such module Supabase`, do this manually:
 
 1. Open `VaultDex.xcodeproj` in Xcode.
 2. Select File > Add Package Dependencies.

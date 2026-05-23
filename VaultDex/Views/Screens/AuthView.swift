@@ -145,8 +145,8 @@ struct AuthView: View {
                 .font(.caption.weight(.black))
                 .foregroundStyle(Color.vdGold)
             SettingsDebugRow(title: "demoMode", value: authService.debugDemoModeValue)
-            SettingsDebugRow(title: "supabaseURL", value: authService.debugSupabaseURLValue)
-            SettingsDebugRow(title: "publishableKey", value: authService.debugPublishableKeyValue)
+            SettingsDebugRow(title: "URL configured", value: authService.isSupabaseURLConfigured ? "true" : "false")
+            SettingsDebugRow(title: "key configured", value: authService.isSupabaseKeyConfigured ? "true" : "false")
             SettingsDebugRow(title: "isConfigured", value: authService.debugIsConfiguredValue)
         }
         .padding(12)

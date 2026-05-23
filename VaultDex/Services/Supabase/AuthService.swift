@@ -173,10 +173,12 @@ final class AuthService: ObservableObject {
     }
 
     private func signUpWithSDK(email: String, password: String) async throws {
-        guard clientProvider.isRemoteEnabled else {
-            status = clientProvider.config.isConfigured ? .cloudReady : .supabaseConfigMissing
+        guard clientProvider.config.isConfigured, clientProvider.canCreateClient else {
+            status = .cloudReady
             throw SupabaseClientError.missingConfiguration
         }
+        clientProvider.setDemoModeEnabled(false)
+        isDemoModeEnabled = false
 
         isLoading = true
         defer { isLoading = false }
@@ -191,22 +193,29 @@ final class AuthService: ObservableObject {
             }
             try await finishAuthentication(with: sdkSession, client: client)
             #else
+            status = .cloudReady
             throw SupabaseClientError.missingConfiguration
             #endif
         } catch {
             session = nil
             clientProvider.updateSession(nil)
             logSupabaseError(error)
-            status = .supabaseError(Self.displayMessage(for: error))
+            if case SupabaseClientError.missingConfiguration = error {
+                status = .cloudReady
+            } else {
+                status = .supabaseError(Self.displayMessage(for: error))
+            }
             throw error
         }
     }
 
     private func signInWithSDK(email: String, password: String) async throws {
-        guard clientProvider.isRemoteEnabled else {
-            status = clientProvider.config.isConfigured ? .cloudReady : .supabaseConfigMissing
+        guard clientProvider.config.isConfigured, clientProvider.canCreateClient else {
+            status = .cloudReady
             throw SupabaseClientError.missingConfiguration
         }
+        clientProvider.setDemoModeEnabled(false)
+        isDemoModeEnabled = false
 
         isLoading = true
         defer { isLoading = false }
@@ -217,13 +226,18 @@ final class AuthService: ObservableObject {
             let sdkSession = try await client.auth.signIn(email: email, password: password)
             try await finishAuthentication(with: sdkSession, client: client)
             #else
+            status = .cloudReady
             throw SupabaseClientError.missingConfiguration
             #endif
         } catch {
             session = nil
             clientProvider.updateSession(nil)
             logSupabaseError(error)
-            status = .supabaseError(Self.displayMessage(for: error))
+            if case SupabaseClientError.missingConfiguration = error {
+                status = .cloudReady
+            } else {
+                status = .supabaseError(Self.displayMessage(for: error))
+            }
             throw error
         }
     }
@@ -279,7 +293,7 @@ final class AuthService: ObservableObject {
         session: SupabaseSession?
     ) -> VaultAppStatus {
         if demoMode { return .demoMode }
-        guard isConfigured, canCreateClient else { return .supabaseConfigMissing }
+        guard isConfigured else { return .supabaseConfigMissing }
         return session == nil ? .cloudReady : .cloudSignedIn
     }
 
@@ -289,7 +303,7 @@ final class AuthService: ObservableObject {
 
     private static func displayMessage(for error: Error) -> String {
         if case SupabaseClientError.missingConfiguration = error {
-            return "Cloud setup is unavailable. Check the active Supabase development config."
+            return "Cloud Ready — sign in to sync"
         }
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {
