@@ -205,7 +205,7 @@ struct ImportCollectionView: View {
             viewModel.importText = try String(contentsOf: url, encoding: .utf8)
             viewModel.parseImportText(in: store)
         } catch {
-            viewModel.errorMessage = "Could not read file: \(error.localizedDescription)"
+            viewModel.errorMessage = "Could not read that file. Please check the format and try again."
         }
     }
 

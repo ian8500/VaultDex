@@ -16,17 +16,11 @@ enum VaultDexLogger {
         #endif
     }
 
-    static func warning(_ message: String, error: Error? = nil) {
+    static func warning(_ message: String) {
         logger.warning("\(message, privacy: .public)")
-        if let error {
-            logger.warning("\(String(describing: error), privacy: .private)")
-        }
     }
 
-    static func error(_ message: String, error: Error? = nil) {
+    static func error(_ message: String) {
         logger.error("\(message, privacy: .public)")
-        if let error {
-            logger.error("\(String(describing: error), privacy: .private)")
-        }
     }
 }

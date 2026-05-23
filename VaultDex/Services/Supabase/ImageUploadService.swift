@@ -33,7 +33,7 @@ enum ImageUploadError: LocalizedError {
         case .compressionFailed:
             "VaultDex could not prepare that image for upload."
         case .missingSession:
-            "Sign in before uploading images to Supabase Storage."
+            "Sign in before uploading images."
         }
     }
 }

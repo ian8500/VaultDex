@@ -233,7 +233,7 @@ struct SocialProfileView: View {
                 }
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("Avatar upload failed: \(error.localizedDescription)")
+                    store.reportImagePickerError("Unable to upload that image right now. Please try again.")
                     selectedAvatarItem = nil
                 }
             }

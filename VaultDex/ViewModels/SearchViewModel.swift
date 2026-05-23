@@ -82,7 +82,7 @@ final class SearchViewModel: ObservableObject {
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
             apiCards = []
-            errorMessage = error.localizedDescription
+            errorMessage = "Unable to load cards right now. Please try again."
         }
     }
 
@@ -111,7 +111,7 @@ final class SearchViewModel: ObservableObject {
             canLoadMore = response.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Unable to load more cards right now. Please try again."
         }
     }
 
@@ -129,7 +129,7 @@ final class SearchViewModel: ObservableObject {
             }
         } catch {
             if errorMessage == nil {
-                errorMessage = error.localizedDescription
+                errorMessage = "Unable to load card sets right now. Please try again."
             }
         }
     }

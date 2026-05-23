@@ -124,6 +124,7 @@ final class AuthService: ObservableObject {
             status = isDemoModeEnabled ? .demoMode : .cloudReady
         } catch {
             status = .supabaseError(Self.accountMessage(for: error))
+            VaultDexLogger.error("Auth request failed")
             throw error
         }
     }
@@ -165,6 +166,7 @@ final class AuthService: ObservableObject {
                 status = .cloudReady
             } else {
                 status = .supabaseError(Self.signUpMessage(for: error))
+                VaultDexLogger.error("Auth request failed")
             }
             throw error
         }
@@ -199,6 +201,7 @@ final class AuthService: ObservableObject {
                 status = .cloudReady
             } else {
                 status = .supabaseError(Self.signInMessage(for: error))
+                VaultDexLogger.error("Auth request failed")
             }
             throw error
         }
@@ -259,19 +262,13 @@ final class AuthService: ObservableObject {
     }
 
     private static func signInMessage(for error: Error) -> String {
-        if transientNetworkCode(in: error) != nil {
-            return "Please check your connection and try again."
-        }
         if case SupabaseClientError.missingConfiguration = error {
             return "Cloud Ready — sign in to sync"
         }
-        return "Unable to sign in right now."
+        return "Unable to connect to VaultDex Cloud. Please try again."
     }
 
     private static func signUpMessage(for error: Error) -> String {
-        if transientNetworkCode(in: error) != nil {
-            return "Please check your connection and try again."
-        }
         if case SupabaseClientError.missingConfiguration = error {
             return "Cloud Ready — sign in to sync"
         }
@@ -279,14 +276,11 @@ final class AuthService: ObservableObject {
            let description = localizedError.errorDescription {
             return description
         }
-        return "Something went wrong creating your account."
+        return "Unable to connect to VaultDex Cloud. Please try again."
     }
 
     private static func accountMessage(for error: Error) -> String {
-        if transientNetworkCode(in: error) != nil {
-            return "Please check your connection and try again."
-        }
-        return "Unable to sign in right now."
+        "Unable to connect to VaultDex Cloud. Please try again."
     }
 
     private func runRetriableAuthRequest<T>(
@@ -300,9 +294,6 @@ final class AuthService: ObservableObject {
                 return try await operation()
             } catch {
                 guard Self.transientNetworkCode(in: error) != nil, attempt < maxRetries else {
-                    if Self.transientNetworkCode(in: error) != nil {
-                        VaultDexLogger.warning("Supabase auth request failed after retries.", error: error)
-                    }
                     throw error
                 }
 

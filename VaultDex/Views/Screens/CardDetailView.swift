@@ -495,7 +495,7 @@ struct CardDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("\(side.displayName) photo upload failed: \(error.localizedDescription)")
+                    store.reportImagePickerError("Unable to upload that image right now. Please try again.")
                     resetPhotoSelection(for: side)
                 }
             }

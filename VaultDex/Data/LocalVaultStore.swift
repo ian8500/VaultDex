@@ -59,6 +59,14 @@ final class LocalVaultStore: ObservableObject {
         runtimeMode == .demo
     }
 
+    private static let cloudConnectionMessage = "Unable to connect to VaultDex Cloud. Please try again."
+    private static let collectionSyncMessage = "Unable to sync your vault right now. Please try again."
+    private static let wantsSyncMessage = "Unable to sync your wants right now. Please try again."
+    private static let friendsSyncMessage = "Unable to sync friends right now. Please try again."
+    private static let tradeSyncMessage = "Unable to sync trades right now. Please try again."
+    private static let imageUploadMessage = "Unable to upload that image right now. Please try again."
+    private static let imageUploadSignInMessage = "Sign in before uploading images."
+
     func useDemoMode(repository: DemoVaultRepository = .shared) {
         runtimeMode = .demo
         lastSyncError = nil
@@ -87,7 +95,7 @@ final class LocalVaultStore: ObservableObject {
             runtimeMode = .supabase
             lastSyncError = nil
         } catch {
-            loadCachedOrDemo(reason: error.localizedDescription)
+            loadCachedOrDemo(reason: Self.cloudConnectionMessage)
         }
     }
 
@@ -269,7 +277,7 @@ final class LocalVaultStore: ObservableObject {
                     try await repositories.collection.deleteCollectionItem(id: removed.id)
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Collection delete failed: \(error.localizedDescription)"
+                        lastSyncError = Self.collectionSyncMessage
                     }
                 }
             }
@@ -287,7 +295,7 @@ final class LocalVaultStore: ObservableObject {
                         try await repositories.collection.deleteCollectionItem(id: removed.id)
                     } catch {
                         await MainActor.run {
-                            lastSyncError = "Collection delete failed: \(error.localizedDescription)"
+                            lastSyncError = Self.collectionSyncMessage
                         }
                     }
                 }
@@ -392,7 +400,7 @@ final class LocalVaultStore: ObservableObject {
                     }
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Wants delete failed: \(error.localizedDescription)"
+                        lastSyncError = Self.wantsSyncMessage
                     }
                 }
             }
@@ -438,7 +446,7 @@ final class LocalVaultStore: ObservableObject {
                     }
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Friend request failed: \(error.localizedDescription)"
+                        lastSyncError = Self.friendsSyncMessage
                     }
                 }
             }
@@ -480,7 +488,7 @@ final class LocalVaultStore: ObservableObject {
                 await MainActor.run {
                     friendSearchResults = []
                     isSearchingFriends = false
-                    lastSyncError = "Friend search failed: \(error.localizedDescription)"
+                    lastSyncError = Self.friendsSyncMessage
                 }
             }
         }
@@ -511,7 +519,7 @@ final class LocalVaultStore: ObservableObject {
                     }
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Friend request accept failed: \(error.localizedDescription)"
+                        lastSyncError = Self.friendsSyncMessage
                     }
                 }
             }
@@ -549,7 +557,7 @@ final class LocalVaultStore: ObservableObject {
                     try await repositories.friends.rejectFriendRequest(id: request.id)
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Friend request reject failed: \(error.localizedDescription)"
+                        lastSyncError = Self.friendsSyncMessage
                     }
                 }
             }
@@ -565,7 +573,7 @@ final class LocalVaultStore: ObservableObject {
                     try await repositories.friends.removeFriendship(id: friendshipID)
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Remove friend failed: \(error.localizedDescription)"
+                        lastSyncError = Self.friendsSyncMessage
                     }
                 }
             }
@@ -678,7 +686,7 @@ final class LocalVaultStore: ObservableObject {
                     }
                 } catch {
                     await MainActor.run {
-                        lastSyncError = "Trade offer update failed: \(error.localizedDescription)"
+                        lastSyncError = Self.tradeSyncMessage
                     }
                 }
             }
@@ -699,7 +707,7 @@ final class LocalVaultStore: ObservableObject {
 
     func uploadAvatarImageData(_ data: Data) {
         guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
-            lastSyncError = ImageUploadError.missingSession.localizedDescription
+            lastSyncError = Self.imageUploadSignInMessage
             return
         }
 
@@ -722,7 +730,7 @@ final class LocalVaultStore: ObservableObject {
                 await MainActor.run {
                     imageUploadMessage = nil
                     isUploadingAvatar = false
-                    lastSyncError = "Avatar upload failed: \(error.localizedDescription)"
+                    lastSyncError = Self.imageUploadMessage
                 }
             }
         }
@@ -730,7 +738,7 @@ final class LocalVaultStore: ObservableObject {
 
     func uploadCardPhotoImageData(_ data: Data, for item: CollectionItem, side: CardPhotoSide) {
         guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
-            lastSyncError = ImageUploadError.missingSession.localizedDescription
+            lastSyncError = Self.imageUploadSignInMessage
             return
         }
 
@@ -770,7 +778,7 @@ final class LocalVaultStore: ObservableObject {
                 await MainActor.run {
                     imageUploadMessage = nil
                     uploadingCardPhotoSide = nil
-                    lastSyncError = "\(side.displayName) photo upload failed: \(error.localizedDescription)"
+                    lastSyncError = Self.imageUploadMessage
                 }
             }
         }
@@ -941,7 +949,7 @@ final class LocalVaultStore: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    lastSyncError = "Collection save failed: \(error.localizedDescription)"
+                    lastSyncError = Self.collectionSyncMessage
                 }
             }
         }
@@ -971,7 +979,7 @@ final class LocalVaultStore: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    lastSyncError = "Wants save failed: \(error.localizedDescription)"
+                    lastSyncError = Self.wantsSyncMessage
                 }
             }
         }
@@ -1046,7 +1054,7 @@ final class LocalVaultStore: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    lastSyncError = "Trade offer save failed: \(error.localizedDescription)"
+                    lastSyncError = Self.tradeSyncMessage
                 }
             }
         }
@@ -1089,7 +1097,7 @@ private enum CloudVaultCache {
             let data = try JSONEncoder.supabase.encode(snapshot)
             try data.write(to: cacheURL, options: [.atomic])
         } catch {
-            assertionFailure("Failed to write cloud cache: \(error.localizedDescription)")
+            VaultDexLogger.warning("Cloud cache write failed")
         }
     }
 

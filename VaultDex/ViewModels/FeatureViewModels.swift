@@ -81,7 +81,7 @@ final class ImportCollectionViewModel: ObservableObject {
             errorMessage = nil
         } catch {
             resetRows()
-            errorMessage = error.localizedDescription
+            errorMessage = "Could not import that collection. Please check the format and try again."
         }
     }
 
