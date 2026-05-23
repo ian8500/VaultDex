@@ -73,14 +73,7 @@ struct ContentView: View {
                         TradeView()
                     }
                     .tabItem {
-                        Label("Trade", systemImage: "arrow.left.arrow.right")
-                    }
-
-                    NavigationStack {
-                        SocialProfileView()
-                    }
-                    .tabItem {
-                        Label("Profile", systemImage: "person.crop.circle")
+                        Label("Trade", systemImage: "arrow.left.arrow.right.circle.fill")
                     }
                 }
             }

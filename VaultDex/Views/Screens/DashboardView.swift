@@ -263,9 +263,6 @@ struct DashboardView: View {
                 DashboardQuickAction(title: "Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
                     WishlistView()
                 }
-                DashboardQuickAction(title: "Trade", subtitle: "Make offers", icon: "arrow.left.arrow.right", tint: .vdCoral) {
-                    TradeView()
-                }
             }
         }
     }
