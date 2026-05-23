@@ -194,7 +194,7 @@ final class AuthService: ObservableObject {
             try await finishAuthentication(with: sdkSession, client: client)
             #else
             status = .cloudReady
-            throw SupabaseClientError.missingConfiguration
+            throw SupabaseClientError.missingSupabasePackage
             #endif
         } catch {
             session = nil
@@ -227,7 +227,7 @@ final class AuthService: ObservableObject {
             try await finishAuthentication(with: sdkSession, client: client)
             #else
             status = .cloudReady
-            throw SupabaseClientError.missingConfiguration
+            throw SupabaseClientError.missingSupabasePackage
             #endif
         } catch {
             session = nil

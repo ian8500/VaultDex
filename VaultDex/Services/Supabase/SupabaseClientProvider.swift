@@ -13,6 +13,7 @@ enum SupabaseHTTPMethod: String {
 
 enum SupabaseClientError: LocalizedError {
     case missingConfiguration
+    case missingSupabasePackage
     case invalidResponse
     case requestFailed(Int, String)
 
@@ -20,6 +21,8 @@ enum SupabaseClientError: LocalizedError {
         switch self {
         case .missingConfiguration:
             "Cloud Ready — sign in to sync"
+        case .missingSupabasePackage:
+            "Supabase Swift package is not linked to the VaultDex app target."
         case .invalidResponse:
             "Supabase returned an invalid response."
         case let .requestFailed(statusCode, body):
@@ -67,10 +70,10 @@ final class SupabaseClientProvider {
     private var demoModeEnabled: Bool
 
     init(config: SupabaseConfig = .current, urlSession: URLSession = .shared) {
-        self.config = config
+        self.config = SupabaseConfig.current
         self.urlSession = urlSession
         self.session = SupabaseSessionStore.load()
-        self.demoModeEnabled = config.demoMode
+        self.demoModeEnabled = SupabaseConfig.current.demoMode
     }
 
     var isRemoteEnabled: Bool {

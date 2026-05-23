@@ -14,9 +14,10 @@ struct VaultDexApp: App {
 
     init() {
         let config = SupabaseConfig.current
-        print("Supabase URL configured: \(config.url != nil)")
-        print("Supabase key configured: \(!(config.publishableKey ?? "").isEmpty)")
-        print("Demo mode: \(config.demoMode)")
+        print("Supabase config URL present: \(config.url != nil)")
+        print("Supabase config key present: \(!(config.publishableKey ?? "").isEmpty)")
+        print("Supabase isConfigured: \(config.isConfigured)")
+        print("Supabase demoMode: \(config.demoMode)")
 
         let repositories = VaultRepositoryContainer.live(config: config)
         _store = StateObject(

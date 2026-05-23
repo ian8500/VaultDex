@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8B1000012FC1A10000D0C0DE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8B1000022FC1A10000D0C0DE /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		841967CD2FC090F30033B46B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -71,6 +75,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B1000012FC1A10000D0C0DE /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +143,7 @@
 			);
 			name = VaultDex;
 			packageProductDependencies = (
+				8B1000022FC1A10000D0C0DE /* Supabase */,
 			);
 			productName = VaultDex;
 			productReference = 841967BF2FC090F20033B46B /* VaultDex.app */;
@@ -604,6 +610,14 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8B1000022FC1A10000D0C0DE /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 848210192FC19D6F00928DDB /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 841967B72FC090F20033B46B /* Project object */;
 }
