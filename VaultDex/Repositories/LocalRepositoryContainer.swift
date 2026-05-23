@@ -7,7 +7,7 @@ enum VaultRuntimeMode: String, Equatable {
 
     var displayName: String {
         switch self {
-        case .demo: "Local Demo"
+        case .demo: "Demo"
         case .supabase: "Cloud"
         case .offline: "Offline Cache"
         }

@@ -458,6 +458,15 @@ struct SettingsView: View {
             Label(authService.status.title, systemImage: authService.status.systemImage)
                 .font(.caption.weight(.black))
                 .foregroundStyle(Color.vdTextSecondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                SettingsDebugRow(title: "Supabase URL configured", value: authService.isSupabaseURLConfigured ? "yes" : "no")
+                SettingsDebugRow(title: "Key configured", value: authService.isSupabaseKeyConfigured ? "yes" : "no")
+                SettingsDebugRow(title: "Session active", value: authService.isSessionActive ? "yes" : "no")
+                SettingsDebugRow(title: "Current mode", value: authService.currentModeDescription)
+            }
+            .padding(12)
+            .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -628,6 +637,23 @@ private struct SafetyToggleRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
+    }
+}
+
+private struct SettingsDebugRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdTextPrimary)
+        }
     }
 }
 

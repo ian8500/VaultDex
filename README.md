@@ -50,7 +50,7 @@ Do not add a service-role key. Use only the publishable key in the app.
 ## App Status Labels
 
 - `Demo Mode`: Local/offline data is active.
-- `Supabase Connected`: Email auth succeeded and a session exists.
-- `Supabase Missing Package`: The Swift package is not installed; the app still compiles and keeps demo mode.
-- `Supabase Error`: Auth or configuration failed; demo data remains available.
-
+- `Cloud Ready`: Supabase URL/key are configured and the app is ready for sign in.
+- `Cloud Sync Active`: Email auth succeeded and a session exists.
+- `Supabase Setup Needed`: Supabase URL or publishable key is missing.
+- `Supabase Error`: A real Supabase client/auth failure occurred.

@@ -11,8 +11,8 @@ enum VaultAppStatus: Equatable {
         switch self {
         case .demoMode: "Demo Mode"
         case .cloudReady: "Cloud Ready"
-        case .cloudSignedIn: "Cloud Signed In"
-        case .supabaseConfigMissing: "Supabase Config Missing"
+        case .cloudSignedIn: "Cloud Sync Active"
+        case .supabaseConfigMissing: "Supabase Setup Needed"
         case .supabaseError: "Supabase Error"
         }
     }
@@ -22,7 +22,7 @@ enum VaultAppStatus: Equatable {
         case .demoMode:
             "Using local demo data. Supabase auth is safely bypassed."
         case .cloudReady:
-            "Supabase URL and publishable key are configured. Sign in to sync."
+            "sign in to sync"
         case .cloudSignedIn:
             "Signed in and syncing with Supabase."
         case .supabaseConfigMissing:
@@ -71,6 +71,28 @@ final class AuthService: ObservableObject {
         !isDemoModeEnabled && session == nil
     }
 
+    var isSupabaseURLConfigured: Bool {
+        clientProvider.config.url != nil
+    }
+
+    var isSupabaseKeyConfigured: Bool {
+        !(clientProvider.config.publishableKey ?? "").isEmpty
+    }
+
+    var isSessionActive: Bool {
+        session != nil
+    }
+
+    var currentModeDescription: String {
+        switch status {
+        case .demoMode: "Demo"
+        case .cloudReady: "Cloud Ready"
+        case .cloudSignedIn: "Cloud Sync Active"
+        case .supabaseConfigMissing: "Supabase Setup Needed"
+        case .supabaseError: "Supabase Error"
+        }
+    }
+
     func setDemoModeEnabled(_ isEnabled: Bool) {
         UserDefaults.standard.set(isEnabled, forKey: "VaultDexDemoModeEnabled")
         isDemoModeEnabled = isEnabled
@@ -94,10 +116,16 @@ final class AuthService: ObservableObject {
     }
 
     func signOut() async throws {
+        guard session != nil else {
+            clientProvider.updateSession(nil)
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
+            return
+        }
+
         guard clientProvider.isRemoteEnabled else {
             session = nil
             clientProvider.updateSession(nil)
-            status = isDemoModeEnabled ? .demoMode : .supabaseConfigMissing
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
             return
         }
 

@@ -114,7 +114,7 @@ struct AuthView: View {
 
     private var sessionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VaultSectionHeader(title: "Connection Proof", subtitle: authService.status.message)
+            VaultSectionHeader(title: "Supabase Setup", subtitle: authService.status.message)
 
             if let session = authService.currentSession() {
                 Label(session.email ?? session.userID.uuidString, systemImage: "checkmark.seal.fill")
@@ -128,8 +128,8 @@ struct AuthView: View {
             } else {
                 EmptyStateView(
                     systemImage: "person.crop.circle.badge.questionmark",
-                    title: "No active Supabase session",
-                    message: "Sign in or sign up to test auth. If the Swift package is missing, follow the README steps."
+                    title: "Ready for sign in",
+                    message: "Supabase config is present. Sign in or sign up to start cloud sync."
                 )
             }
         }

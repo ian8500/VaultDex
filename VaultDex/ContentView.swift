@@ -128,10 +128,10 @@ private struct AppStatusBanner: View {
                 .background(tint, in: Circle())
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(status.title + " · " + runtimeMode.displayName)
+                Text(displayTitle)
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
-                Text(syncError ?? status.message)
+                Text(displayMessage)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.vdTextSecondary)
                     .lineLimit(1)
@@ -143,5 +143,23 @@ private struct AppStatusBanner: View {
         .padding(.vertical, 8)
         .background(Color.vdPanel.opacity(0.96))
         .overlay(Rectangle().fill(tint.opacity(0.32)).frame(height: 1), alignment: .bottom)
+    }
+
+    private var displayTitle: String {
+        switch status {
+        case .cloudReady:
+            "Cloud Ready - sign in to sync"
+        default:
+            status.title + " - " + runtimeMode.displayName
+        }
+    }
+
+    private var displayMessage: String {
+        switch status {
+        case .cloudReady, .demoMode, .supabaseConfigMissing:
+            status.message
+        default:
+            syncError ?? status.message
+        }
     }
 }
