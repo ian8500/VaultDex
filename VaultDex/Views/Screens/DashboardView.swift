@@ -51,10 +51,6 @@ struct DashboardView: View {
 
     private var isVaultEmpty: Bool {
         store.collectionItems.isEmpty
-            && store.wishlistItems.isEmpty
-            && store.tradeOffers.isEmpty
-            && store.tradeListings.isEmpty
-            && store.friends.isEmpty
     }
 
     var body: some View {
@@ -66,14 +62,14 @@ struct DashboardView: View {
                     if isLoading {
                         loadingState
                     } else {
-                        heroCard
+                        welcomeHeader
+                        vaultSummary
                         quickActions
                         if isVaultEmpty {
                             dashboardEmptyState
+                        } else {
+                            recentlyAddedSection
                         }
-                        featuredCards
-                        friendOpportunitiesSection
-                        safetyPanel
                     }
                 }
                 .padding(.horizontal, 20)
@@ -112,6 +108,70 @@ struct DashboardView: View {
         .background(Color.vdPanel.opacity(0.88), in: RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
         .padding(.top, 80)
+    }
+
+    private var welcomeHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VaultDexLogo(size: 58)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Welcome back")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+
+                Text(store.profile.displayName)
+                    .font(.system(.title2, design: .rounded, weight: .black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+
+            Spacer()
+
+            Label("Level \(collectorLevel)", systemImage: "bolt.fill")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdNavy)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.vdGold, in: Capsule())
+        }
+        .padding(.top, 4)
+    }
+
+    private var vaultSummary: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("My Vault")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text(store.totalCopiesOwned == 1 ? "1 card saved" : "\(store.totalCopiesOwned) cards saved")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 5) {
+                Text("Estimated Value")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                Text(store.estimatedCollectionValue.compactVaultCurrency)
+                    .font(.system(.title3, design: .rounded, weight: .black))
+                    .foregroundStyle(Color.vdGold)
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.82)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+        .shadow(color: Color.vdGold.opacity(0.10), radius: 16, x: 0, y: 8)
     }
 
     private var heroCard: some View {
@@ -194,10 +254,10 @@ struct DashboardView: View {
             VaultSectionHeader(title: "Quick Actions", subtitle: nil)
 
             LazyVGrid(columns: statColumns, spacing: 12) {
-                DashboardQuickAction(title: "Search", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
+                DashboardQuickAction(title: "Search Cards", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
                     SearchView()
                 }
-                DashboardQuickAction(title: "Add Card", subtitle: "Grow Vault", icon: "plus.circle.fill", tint: .vdGold) {
+                DashboardQuickAction(title: "Add to Vault", subtitle: "Start your collection", icon: "plus.circle.fill", tint: .vdGold) {
                     SearchView()
                 }
                 DashboardQuickAction(title: "Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
@@ -227,8 +287,20 @@ struct DashboardView: View {
         EmptyStateView(
             systemImage: "rectangle.stack.badge.plus",
             title: "Start building your vault",
-            message: "Search and add your first card."
+            message: "Search for a card and add it to My Vault."
         )
+    }
+
+    private var recentlyAddedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Recently Added", subtitle: nil)
+
+            VStack(spacing: 12) {
+                ForEach(store.recentlyAdded.prefix(3)) { item in
+                    FeaturedDashboardCard(label: "Added", item: item, accent: .vdSky)
+                }
+            }
+        }
     }
 
     private var featuredCards: some View {

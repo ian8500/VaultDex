@@ -25,8 +25,10 @@ struct AuthView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("VaultDex Sign In")
+        VStack(alignment: .leading, spacing: 12) {
+            VaultDexLogo(size: 72)
+
+            Text("Welcome to VaultDex")
                 .font(.system(.largeTitle, design: .rounded, weight: .black))
                 .foregroundStyle(Color.vdTextPrimary)
 

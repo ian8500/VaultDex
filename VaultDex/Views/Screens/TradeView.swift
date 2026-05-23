@@ -5,6 +5,7 @@ struct TradeView: View {
     @StateObject private var viewModel = TradeViewModel()
     @State private var listingCard: CollectionItem?
     @State private var offerListing: TradeListing?
+    @State private var selectedTab: TradeListTab = .active
 
     var body: some View {
         ZStack {
@@ -13,10 +14,9 @@ struct TradeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    listMyCardSection
-                    marketplaceSection
-                    receivedOffersSection
-                    sentOffersSection
+                    createTradeAction
+                    tradeTabs
+                    tradesSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -58,11 +58,11 @@ struct TradeView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Trade Hub")
+                    Text("Trade")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Trade safely with friends. Prototype trades only, with no real money or checkout.")
+                    Text("Trades I’m involved in.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -80,13 +80,6 @@ struct TradeView: View {
                     )
                     .shadow(color: Color.vdGold.opacity(0.26), radius: 14, x: 0, y: 6)
             }
-
-            if let error = store.lastSyncError, error.contains("Trade") || error.contains("trade") {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdCoral)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(18)
         .background(
@@ -102,6 +95,123 @@ struct TradeView: View {
                 .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
         )
         .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
+    }
+
+    @ViewBuilder
+    private var createTradeAction: some View {
+        if let firstTradeableCard = store.tradeableCollectionItems.first {
+            PrimaryButton(title: "Create Trade", systemImage: "plus.circle.fill") {
+                viewModel.listingAsk = ""
+                viewModel.listingUsesSafeTrade = true
+                listingCard = firstTradeableCard
+            }
+        } else {
+            NavigationLink {
+                SearchView()
+            } label: {
+                Label("Create Trade", systemImage: "plus.circle.fill")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: Color.vdGold.opacity(0.22), radius: 16, x: 0, y: 8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var tradeTabs: some View {
+        Picker("Trades", selection: $selectedTab) {
+            ForEach(TradeListTab.allCases) { tab in
+                Text(tab.title).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var tradesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Trades I’m involved in", subtitle: nil)
+
+            let offers = selectedTab == .active ? activeOffers : completedOffers
+            if offers.isEmpty {
+                tradeEmptyState
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(offers) { offer in
+                        TradeOfferRow(offer: offer) { status in
+                            store.updateTradeOfferStatus(offer, status: status)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var activeOffers: [TradeOffer] {
+        store.tradeOffers.filter { offer in
+            offer.status == .pending || offer.status == .accepted || offer.status == .disputed
+        }
+    }
+
+    private var completedOffers: [TradeOffer] {
+        store.tradeOffers.filter { offer in
+            offer.status == .completed || offer.status == .rejected || offer.status == .canceled
+        }
+    }
+
+    private var tradeEmptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.left.arrow.right.circle.fill")
+                .font(.system(size: 38, weight: .bold))
+                .foregroundStyle(Color.vdGold)
+                .frame(width: 72, height: 72)
+                .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 24))
+
+            VStack(spacing: 6) {
+                Text("No trades yet")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("Add cards to your vault and connect with collectors to start trading.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 10) {
+                NavigationLink {
+                    SearchView()
+                } label: {
+                    Label("Find cards", systemImage: "magnifyingglass")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    InviteFriendsView()
+                } label: {
+                    Label("Invite a friend", systemImage: "person.badge.plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdGold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.vdPanelRaised.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.20), lineWidth: 1))
     }
 
     private var listMyCardSection: some View {
@@ -265,6 +375,20 @@ struct TradeView: View {
             Text(value)
                 .font(.headline)
                 .foregroundStyle(Color.vdGold)
+        }
+    }
+}
+
+private enum TradeListTab: String, CaseIterable, Identifiable {
+    case active
+    case completed
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .active: "Active"
+        case .completed: "Completed"
         }
     }
 }

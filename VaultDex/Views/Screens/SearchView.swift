@@ -3,6 +3,7 @@ import SwiftUI
 struct SearchView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = SearchViewModel()
+    @State private var showFilters = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -15,13 +16,22 @@ struct SearchView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    VaultSectionHeader(title: "Find Cards", subtitle: "Search by name, set, type or rarity.")
+                    VaultSectionHeader(title: "Find cards", subtitle: nil)
                     searchField
-                    typeFilters
-                    rarityFilters
-                    setFilters
-                    sortControls
-                    resultsSummary
+                    filterButton
+
+                    if showFilters {
+                        VStack(alignment: .leading, spacing: 12) {
+                            typeFilters
+                            rarityFilters
+                            setFilters
+                            sortControls
+                        }
+                        .padding(14)
+                        .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
 
                     if viewModel.isLoading && viewModel.filteredCards(in: store).isEmpty {
                         loadingState
@@ -124,6 +134,31 @@ struct SearchView: View {
         )
     }
 
+    private var filterButton: some View {
+        HStack {
+            Button {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
+                    showFilters.toggle()
+                }
+            } label: {
+                Label(showFilters ? "Hide filters" : "Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .background(Color.vdGold.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().stroke(Color.vdGold.opacity(0.26), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text(summaryText)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+        }
+    }
+
     private var sortControls: some View {
         HStack(spacing: 10) {
             Label("Sort", systemImage: "arrow.up.arrow.down")
@@ -165,7 +200,7 @@ struct SearchView: View {
     private var summaryText: String {
         let count = viewModel.filteredCards(in: store).count
         if let total = viewModel.totalResults, !viewModel.isShowingFallback {
-            return "\(count) of \(total) live cards"
+            return "\(count) of \(total)"
         }
         return "\(count) cards"
     }

@@ -509,15 +509,21 @@ struct SettingsView: View {
     }
 
     private var settingsHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Profile Settings", systemImage: "gearshape.fill")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Color.vdTextPrimary)
+        HStack(spacing: 14) {
+            VaultDexLogo(size: 48)
 
-            Text("Privacy, safety and profile preferences.")
-                .font(.subheadline)
-                .foregroundStyle(Color.vdTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Collector Profile")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("Privacy, safety and profile preferences.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -531,20 +537,19 @@ struct SettingsView: View {
         DisclosureGroup(isExpanded: $showDeveloperSection) {
             VStack(alignment: .leading, spacing: 12) {
                 SafetyToggleRow(
-                    title: "Demo Mode",
-                    subtitle: authService.isDemoModeEnabled ? "Local fallback is on." : "Cloud mode is on.",
+                    title: "Offline testing",
+                    subtitle: authService.isDemoModeEnabled ? "On" : "Off",
                     isOn: Binding(
                         get: { authService.isDemoModeEnabled },
                         set: { authService.setDemoModeEnabled($0) }
                     )
                 )
 
-                DeveloperStatusRow(title: "Cloud mode", value: authService.status.title)
-                DeveloperStatusRow(title: "Supabase config", value: authService.isCloudConfigured ? "Configured" : "Missing")
-                DeveloperStatusRow(title: "Client", value: authService.canCreateCloudClient ? "Ready" : "Unavailable")
+                DeveloperStatusRow(title: "Account", value: authService.status.title)
+                DeveloperStatusRow(title: "Connection", value: authService.canCreateCloudClient ? "Ready" : "Needs setup")
                 DeveloperStatusRow(title: "Session", value: authService.currentSession() == nil ? "Signed out" : "Signed in")
 
-                SecondaryButton(title: "Test Connection", systemImage: "network") {
+                SecondaryButton(title: "Refresh Data", systemImage: "arrow.clockwise") {
                     Task {
                         await store.loadCloudDataIfPossible(session: authService.currentSession())
                     }

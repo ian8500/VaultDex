@@ -3,6 +3,7 @@ import SwiftUI
 struct VaultView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = VaultViewModel()
+    @State private var sortOption: VaultSortOption = .value
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -16,8 +17,7 @@ struct VaultView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     summary
-                    primaryActions
-                    favorites
+                    vaultActions
                     collectionGrid
                 }
                 .padding(.horizontal, 20)
@@ -27,6 +27,39 @@ struct VaultView: View {
         }
         .navigationTitle("Vault")
         .navigationBarTitleDisplayMode(.large)
+    }
+
+    private var vaultActions: some View {
+        HStack(spacing: 12) {
+            NavigationLink {
+                SearchView()
+            } label: {
+                Label("Add card", systemImage: "plus.circle.fill")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Picker("Sort", selection: $sortOption) {
+                    ForEach(VaultSortOption.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+                    .frame(width: 54, height: 50)
+                    .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+            }
+            .menuStyle(.button)
+            .accessibilityLabel("Sort and filter")
+        }
     }
 
     private var summary: some View {
@@ -155,7 +188,7 @@ struct VaultView: View {
                 )
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(viewModel.sortedItems(in: store)) { item in
+                    ForEach(sortedItems) { item in
                         NavigationLink {
                             CardDetailView(card: item.card)
                         } label: {
@@ -172,6 +205,33 @@ struct VaultView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var sortedItems: [CollectionItem] {
+        switch sortOption {
+        case .value:
+            return viewModel.sortedItems(in: store)
+        case .name:
+            return store.collectionItems.sorted { $0.card.name.localizedCaseInsensitiveCompare($1.card.name) == .orderedAscending }
+        case .newest:
+            return store.collectionItems.sorted { $0.acquiredAt > $1.acquiredAt }
+        }
+    }
+}
+
+private enum VaultSortOption: String, CaseIterable, Identifiable {
+    case value
+    case name
+    case newest
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .value: "Value"
+        case .name: "Name"
+        case .newest: "Newest"
         }
     }
 }
