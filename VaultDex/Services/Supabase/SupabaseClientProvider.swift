@@ -38,6 +38,20 @@ struct SupabaseSession: Equatable {
 
 extension SupabaseSession: Codable {}
 
+#if canImport(Supabase)
+extension SupabaseSession {
+    init(_ session: Session) {
+        self.init(
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            userID: session.user.id,
+            email: session.user.email,
+            expiresAt: Date(timeIntervalSince1970: session.expiresAt)
+        )
+    }
+}
+#endif
+
 final class SupabaseClientProvider {
     static var isSupabaseSwiftPackageAvailable: Bool {
         #if canImport(Supabase)
@@ -74,6 +88,11 @@ final class SupabaseClientProvider {
     var sdkClient: SupabaseClient? {
         guard let url = config.url, let key = config.publishableKey else { return nil }
         return SupabaseClient(supabaseURL: url, supabaseKey: key)
+    }
+
+    func requireSDKClient() throws -> SupabaseClient {
+        guard let sdkClient else { throw SupabaseClientError.missingConfiguration }
+        return sdkClient
     }
     #endif
 
@@ -112,25 +131,6 @@ final class SupabaseClientProvider {
         if let prefer {
             request.setValue(prefer, forHTTPHeaderField: "Prefer")
         }
-        return request
-    }
-
-    func authRequest(path: String, body: Data? = nil, queryItems: [URLQueryItem] = []) throws -> URLRequest {
-        guard let baseURL = config.url, let anonKey = config.anonKey, isRemoteEnabled else {
-            throw SupabaseClientError.missingConfiguration
-        }
-
-        var components = URLComponents(url: baseURL.appending(path: "auth/v1/\(path)"), resolvingAgainstBaseURL: false)
-        components?.queryItems = queryItems.isEmpty ? nil : queryItems
-        guard let url = components?.url else { throw SupabaseClientError.invalidResponse }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = body
-        request.setValue(anonKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
     }
 

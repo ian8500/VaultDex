@@ -53,68 +53,34 @@ final class SupabaseAuthRepository: AuthRepository {
     }
 
     func signUp(email: String, password: String) async throws -> SupabaseSession {
-        let payload = AuthPayload(email: email, password: password)
-        let request = try client.authRequest(path: "signup", body: JSONEncoder.supabase.encode(payload))
-        let response = try await client.send(request, decode: AuthResponse.self)
-        let session = try response.session()
+        #if canImport(Supabase)
+        let response = try await client.requireSDKClient().auth.signUp(email: email, password: password)
+        guard let sdkSession = response.session else {
+            throw SupabaseAuthFlowError.emailConfirmationRequired
+        }
+        let session = SupabaseSession(sdkSession)
         client.updateSession(session)
         return session
+        #else
+        throw SupabaseClientError.missingConfiguration
+        #endif
     }
 
     func signIn(email: String, password: String) async throws -> SupabaseSession {
-        let payload = AuthPayload(email: email, password: password)
-        let request = try client.authRequest(
-            path: "token",
-            body: JSONEncoder.supabase.encode(payload),
-            queryItems: [URLQueryItem(name: "grant_type", value: "password")]
-        )
-        let response = try await client.send(request, decode: AuthResponse.self)
-        let session = try response.session()
+        #if canImport(Supabase)
+        let session = SupabaseSession(try await client.requireSDKClient().auth.signIn(email: email, password: password))
         client.updateSession(session)
         return session
+        #else
+        throw SupabaseClientError.missingConfiguration
+        #endif
     }
 
     func signOut() async throws {
-        let request = try client.authRequest(path: "logout")
-        try await client.send(request)
+        #if canImport(Supabase)
+        try await client.requireSDKClient().auth.signOut()
+        #endif
         client.updateSession(nil)
-    }
-
-    private struct AuthPayload: Codable {
-        let email: String
-        let password: String
-    }
-
-    private struct AuthResponse: Codable {
-        let accessToken: String?
-        let refreshToken: String?
-        let expiresIn: Int?
-        let user: AuthUser?
-
-        enum CodingKeys: String, CodingKey {
-            case accessToken = "access_token"
-            case refreshToken = "refresh_token"
-            case expiresIn = "expires_in"
-            case user
-        }
-
-        func session() throws -> SupabaseSession {
-            guard let accessToken, let userID = user?.id else {
-                throw SupabaseClientError.invalidResponse
-            }
-            return SupabaseSession(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                userID: userID,
-                email: user?.email,
-                expiresAt: expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
-            )
-        }
-    }
-
-    private struct AuthUser: Codable {
-        let id: UUID
-        let email: String?
     }
 }
 

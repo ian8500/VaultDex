@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(Supabase)
+import Supabase
+#endif
+
 enum VaultAppStatus: Equatable {
     case demoMode
     case cloudReady
@@ -108,11 +112,11 @@ final class AuthService: ObservableObject {
     }
 
     func signUp(email: String, password: String) async throws {
-        try await authenticate(path: "signup", email: email, password: password, grantType: nil)
+        try await signUpWithSDK(email: email, password: password)
     }
 
     func signIn(email: String, password: String) async throws {
-        try await authenticate(path: "token", email: email, password: password, grantType: "password")
+        try await signInWithSDK(email: email, password: password)
     }
 
     func signOut() async throws {
@@ -133,13 +137,16 @@ final class AuthService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let request = try clientProvider.authRequest(path: "logout")
-            try await clientProvider.send(request)
+            #if canImport(Supabase)
+            let client = try clientProvider.requireSDKClient()
+            try await client.auth.signOut()
+            #endif
             session = nil
             clientProvider.updateSession(nil)
             status = isDemoModeEnabled ? .demoMode : .cloudReady
         } catch {
-            status = .supabaseError(error.localizedDescription)
+            logSupabaseError(error)
+            status = .supabaseError(Self.displayMessage(for: error))
             throw error
         }
     }
@@ -148,9 +155,9 @@ final class AuthService: ObservableObject {
         session
     }
 
-    private func authenticate(path: String, email: String, password: String, grantType: String?) async throws {
+    private func signUpWithSDK(email: String, password: String) async throws {
         guard clientProvider.isRemoteEnabled else {
-            status = .demoMode
+            status = clientProvider.config.isConfigured ? .cloudReady : .supabaseConfigMissing
             throw SupabaseClientError.missingConfiguration
         }
 
@@ -158,24 +165,64 @@ final class AuthService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let payload = AuthPayload(email: email, password: password)
-            let queryItems = grantType.map { [URLQueryItem(name: "grant_type", value: $0)] } ?? []
-            let request = try clientProvider.authRequest(path: path, body: JSONEncoder.supabase.encode(payload), queryItems: queryItems)
-            let response = try await clientProvider.send(request, decode: AuthResponse.self)
-            let newSession = try response.session()
-            session = newSession
-            clientProvider.updateSession(newSession)
-            try await upsertProfile(for: newSession)
-            status = .cloudSignedIn
+            #if canImport(Supabase)
+            let client = try clientProvider.requireSDKClient()
+            let response = try await client.auth.signUp(email: email, password: password)
+            guard let sdkSession = response.session else {
+                status = .cloudReady
+                throw SupabaseAuthFlowError.emailConfirmationRequired
+            }
+            try await finishAuthentication(with: sdkSession, client: client)
+            #else
+            throw SupabaseClientError.missingConfiguration
+            #endif
         } catch {
             session = nil
             clientProvider.updateSession(nil)
-            status = .supabaseError(error.localizedDescription)
+            logSupabaseError(error)
+            status = .supabaseError(Self.displayMessage(for: error))
             throw error
         }
     }
 
-    private func upsertProfile(for session: SupabaseSession) async throws {
+    private func signInWithSDK(email: String, password: String) async throws {
+        guard clientProvider.isRemoteEnabled else {
+            status = clientProvider.config.isConfigured ? .cloudReady : .supabaseConfigMissing
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            #if canImport(Supabase)
+            let client = try clientProvider.requireSDKClient()
+            let sdkSession = try await client.auth.signIn(email: email, password: password)
+            try await finishAuthentication(with: sdkSession, client: client)
+            #else
+            throw SupabaseClientError.missingConfiguration
+            #endif
+        } catch {
+            session = nil
+            clientProvider.updateSession(nil)
+            logSupabaseError(error)
+            status = .supabaseError(Self.displayMessage(for: error))
+            throw error
+        }
+    }
+
+    #if canImport(Supabase)
+    private func finishAuthentication(with sdkSession: Session, client: SupabaseClient) async throws {
+        let newSession = SupabaseSession(sdkSession)
+        session = newSession
+        clientProvider.updateSession(newSession)
+        try await upsertProfile(for: newSession, client: client)
+        status = .cloudSignedIn
+    }
+    #endif
+
+    #if canImport(Supabase)
+    private func upsertProfile(for session: SupabaseSession, client: SupabaseClient) async throws {
         let fallbackUsername = session.email?
             .components(separatedBy: "@")
             .first?
@@ -189,51 +236,12 @@ final class AuthService: ObservableObject {
             username: username,
             displayName: session.email ?? "VaultDex Collector"
         )
-        let request = try clientProvider.restRequest(
-            table: "profiles",
-            method: .post,
-            body: JSONEncoder.supabase.encode(profile),
-            prefer: "resolution=merge-duplicates"
-        )
-        try await clientProvider.send(request)
+        try await client
+            .from("profiles")
+            .upsert(profile, onConflict: "id")
+            .execute()
     }
-
-    private struct AuthPayload: Codable {
-        let email: String
-        let password: String
-    }
-
-    private struct AuthResponse: Codable {
-        let accessToken: String?
-        let refreshToken: String?
-        let expiresIn: Int?
-        let user: AuthUser?
-
-        enum CodingKeys: String, CodingKey {
-            case accessToken = "access_token"
-            case refreshToken = "refresh_token"
-            case expiresIn = "expires_in"
-            case user
-        }
-
-        func session() throws -> SupabaseSession {
-            guard let accessToken, let userID = user?.id else {
-                throw SupabaseClientError.invalidResponse
-            }
-            return SupabaseSession(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                userID: userID,
-                email: user?.email,
-                expiresAt: expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
-            )
-        }
-    }
-
-    private struct AuthUser: Codable {
-        let id: UUID
-        let email: String?
-    }
+    #endif
 
     private struct ProfilePayload: Codable {
         let id: UUID
@@ -256,5 +264,28 @@ final class AuthService: ObservableObject {
         if demoMode { return .demoMode }
         guard isConfigured, canCreateClient else { return .supabaseConfigMissing }
         return session == nil ? .cloudReady : .cloudSignedIn
+    }
+
+    private func logSupabaseError(_ error: Error) {
+        print("VaultDex Supabase auth error: \(String(reflecting: error))")
+    }
+
+    private static func displayMessage(for error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription {
+            return description
+        }
+        return error.localizedDescription
+    }
+}
+
+enum SupabaseAuthFlowError: LocalizedError {
+    case emailConfirmationRequired
+
+    var errorDescription: String? {
+        switch self {
+        case .emailConfirmationRequired:
+            "Sign up succeeded. Check your email to confirm your account, then sign in."
+        }
     }
 }
