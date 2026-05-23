@@ -182,7 +182,7 @@ final class SupabaseWishlistRepository: SupabaseTableRepository, WishlistReposit
 final class SupabaseFriendsRepository: SupabaseTableRepository, FriendsRepository {
     func fetchFriends(userID: UUID) async throws -> [RemoteFriendship] {
         try await fetchRows(from: "friendships", queryItems: [
-            URLQueryItem(name: "or", value: "(requester_id.eq.\(userID.uuidString),addressee_id.eq.\(userID.uuidString))"),
+            URLQueryItem(name: "or", value: "(user_a_id.eq.\(userID.uuidString),user_b_id.eq.\(userID.uuidString))"),
             URLQueryItem(name: "order", value: "updated_at.desc")
         ])
     }
@@ -218,9 +218,9 @@ final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
     func fetchTradeListings(userID: UUID?) async throws -> [RemoteTradeListing] {
         var queryItems = [URLQueryItem(name: "order", value: "listed_at.desc")]
         if let userID {
-            queryItems.append(URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"))
+            queryItems.append(URLQueryItem(name: "owner_id", value: "eq.\(userID.uuidString)"))
         }
-        return try await fetchRows(from: "trade_listings", queryItems: queryItems)
+        return try await fetchRows(from: "marketplace_listings", queryItems: queryItems)
     }
 
     func fetchTradeOffers(userID: UUID) async throws -> [RemoteTradeOffer] {
@@ -231,7 +231,7 @@ final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
     }
 
     func upsertTradeListing(_ listing: RemoteTradeListing) async throws {
-        try await upsert(listing, into: "trade_listings")
+        try await upsert(listing, into: "marketplace_listings")
     }
 
     func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws {
@@ -247,7 +247,7 @@ final class SupabaseMarketplaceRepository: SupabaseTableRepository, MarketplaceR
     func fetchMarketplaceListings(search: String?) async throws -> [RemoteMarketplaceListing] {
         var queryItems = [URLQueryItem(name: "order", value: "estimated_value.desc")]
         if let search, !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            queryItems.append(URLQueryItem(name: "card_name", value: "ilike.*\(search)*"))
+            queryItems.append(URLQueryItem(name: "title", value: "ilike.*\(search)*"))
         }
         return try await fetchRows(from: "marketplace_listings", queryItems: queryItems)
     }
@@ -255,50 +255,51 @@ final class SupabaseMarketplaceRepository: SupabaseTableRepository, MarketplaceR
     func saveListing(userID: UUID, listingID: UUID) async throws {
         let data = try JSONSerialization.data(withJSONObject: [
             "user_id": userID.uuidString,
-            "trade_listing_id": listingID.uuidString
+            "marketplace_listing_id": listingID.uuidString
         ])
-        let request = try client.restRequest(table: "saved_marketplace_listings", method: .post, body: data, prefer: "resolution=ignore-duplicates")
+        let request = try client.restRequest(table: "marketplace_listings", method: .patch, queryItems: [URLQueryItem(name: "id", value: "eq.\(listingID.uuidString)")], body: data)
         try await client.send(request)
     }
 
     func reportListing(userID: UUID, listingID: UUID, reason: String) async throws {
         let data = try JSONSerialization.data(withJSONObject: [
             "reporter_id": userID.uuidString,
-            "trade_listing_id": listingID.uuidString,
-            "reason": reason
+            "marketplace_listing_id": listingID.uuidString,
+            "reason": reason,
+            "details": "Reported from iOS app"
         ])
-        let request = try client.restRequest(table: "listing_reports", method: .post, body: data)
+        let request = try client.restRequest(table: "safety_reports", method: .post, body: data)
         try await client.send(request)
     }
 }
 
 final class SupabaseEventsRepository: SupabaseTableRepository, EventsRepository {
     func fetchEvents(userID: UUID) async throws -> [RemoteVaultEvent] {
-        try await fetchRows(from: "events", queryItems: [
-            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+        try await fetchRows(from: "app_events", queryItems: [
+            URLQueryItem(name: "or", value: "(owner_id.eq.\(userID.uuidString),visibility.eq.public)"),
             URLQueryItem(name: "order", value: "event_date.asc")
         ])
     }
 
     func upsertEvent(_ event: RemoteVaultEvent) async throws {
-        try await upsert(event, into: "events")
+        try await upsert(event, into: "app_events")
     }
 
     func deleteEvent(id: UUID) async throws {
-        try await delete(from: "events", id: id)
+        try await delete(from: "app_events", id: id)
     }
 }
 
 final class SupabaseReputationRepository: SupabaseTableRepository, ReputationRepository {
     func fetchReputation(profileID: UUID) async throws -> RemoteReputation? {
-        try await fetchRows(from: "reputation", queryItems: [
+        try await fetchRows(from: "reputation_events", queryItems: [
             URLQueryItem(name: "profile_id", value: "eq.\(profileID.uuidString)"),
             URLQueryItem(name: "limit", value: "1")
         ]).first
     }
 
     func upsertReputation(_ reputation: RemoteReputation) async throws {
-        try await upsert(reputation, into: "reputation")
+        try await upsert(reputation, into: "reputation_events")
     }
 }
 
@@ -323,4 +324,3 @@ final class SupabaseStorageRepository: VaultStorageRepository {
         return "card-photos/\(path)"
     }
 }
-

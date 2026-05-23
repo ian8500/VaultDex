@@ -4,7 +4,7 @@ struct AuthView: View {
     @EnvironmentObject private var authService: AuthService
     @State private var email = ""
     @State private var password = ""
-    @State private var lastMessage = "Supabase auth is optional. Demo mode remains available."
+    @State private var lastMessage = "Demo Mode is off by default. Sign in to load your cloud vault."
     @State private var showProfile = false
 
     var body: some View {
@@ -14,6 +14,7 @@ struct AuthView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+                    dataModeCard
                     authCard
                     sessionCard
                     NavigationLink("Open Collector Profile", destination: SocialProfileView())
@@ -43,7 +44,7 @@ struct AuthView: View {
                 .font(.system(.largeTitle, design: .rounded, weight: .black))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Use email auth to prove the Supabase connection. Collection and trading data stay in local demo mode for now.")
+            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings from Supabase. Demo mode remains available in Settings.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
         }
@@ -89,6 +90,28 @@ struct AuthView: View {
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.26), lineWidth: 1))
     }
 
+    private var dataModeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { authService.isDemoModeEnabled },
+                set: { authService.setDemoModeEnabled($0) }
+            )) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Demo Mode")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Text(authService.isDemoModeEnabled ? "Local demo data is active." : "Cloud mode is active. Sign in to sync.")
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+            }
+            .tint(Color.vdGold)
+        }
+        .padding(18)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.22), lineWidth: 1))
+    }
+
     private var sessionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             VaultSectionHeader(title: "Connection Proof", subtitle: authService.status.message)
@@ -121,7 +144,8 @@ struct AuthView: View {
     private var statusTint: Color {
         switch authService.status {
         case .demoMode: .vdSky
-        case .supabaseConnected: .vdLeaf
+        case .cloudMode: .vdLeaf
+        case .offlineMode: .vdGold
         case .supabaseMissingPackage: .vdGold
         case .supabaseError: .vdCoral
         }
@@ -148,4 +172,3 @@ private extension View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdGold.opacity(0.25), lineWidth: 1))
     }
 }
-

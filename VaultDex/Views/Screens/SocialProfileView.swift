@@ -395,6 +395,7 @@ private struct ProfileTextField: View {
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var authService: AuthService
     @State private var profileVisibility = BinderVisibility.friends
     @State private var collectionVisibility = BinderVisibility.friends
     @State private var allowFriendTradeRequests = true
@@ -408,6 +409,7 @@ struct SettingsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     settingsHeader
+                    dataModeControls
                     privacyControls
                     tradeControls
                     legalLinks
@@ -427,7 +429,7 @@ struct SettingsView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Local controls for privacy, visibility, and future marketplace behaviour.")
+            Text("Cloud-first controls for data mode, privacy, visibility, and marketplace behaviour.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -438,6 +440,25 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    private var dataModeControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Data Mode", subtitle: "Cloud mode is the default. Demo mode is only a fallback.")
+
+            SafetyToggleRow(
+                title: "Demo Mode",
+                subtitle: authService.isDemoModeEnabled ? "Using bundled local demo data." : "Using Supabase cloud data when signed in.",
+                isOn: Binding(
+                    get: { authService.isDemoModeEnabled },
+                    set: { authService.setDemoModeEnabled($0) }
+                )
+            )
+
+            Label(authService.status.title, systemImage: authService.status.systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdTextSecondary)
+        }
     }
 
     private var privacyControls: some View {

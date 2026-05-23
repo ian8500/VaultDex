@@ -133,6 +133,8 @@ create table if not exists public.trade_offers (
   id uuid primary key default gen_random_uuid(),
   sender_id uuid not null references public.profiles(id) on delete cascade,
   receiver_id uuid not null references public.profiles(id) on delete cascade,
+  offered_card_ids uuid[] not null default '{}',
+  requested_card_ids uuid[] not null default '{}',
   message text not null default '',
   internal_credits integer not null default 0 check (internal_credits >= 0),
   status text not null default 'pending',
@@ -144,6 +146,9 @@ create table if not exists public.trade_offers (
   updated_at timestamptz not null default now(),
   check (sender_id <> receiver_id)
 );
+
+alter table public.trade_offers add column if not exists offered_card_ids uuid[] not null default '{}';
+alter table public.trade_offers add column if not exists requested_card_ids uuid[] not null default '{}';
 
 create table if not exists public.trade_offer_items (
   id uuid primary key default gen_random_uuid(),
@@ -180,6 +185,9 @@ create table if not exists public.marketplace_listings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.marketplace_listings alter column title set default 'Cloud trade listing';
+alter table public.marketplace_listings alter column rarity set default 'rare';
 
 create table if not exists public.reputation_events (
   id uuid primary key default gen_random_uuid(),

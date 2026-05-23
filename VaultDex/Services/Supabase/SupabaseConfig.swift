@@ -22,7 +22,7 @@ struct SupabaseConfig: Equatable {
 
     static var current: SupabaseConfig {
         SupabaseConfig(
-            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: false),
+            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: UserDefaults.standard.bool(forKey: "VaultDexDemoModeEnabled")),
             url: Self.urlValue(named: "SUPABASE_URL") ?? URL(string: bundledURLString),
             publishableKey: Self.stringValue(named: "SUPABASE_PUBLISHABLE_KEY")
                 ?? Self.stringValue(named: "SUPABASE_ANON_KEY")

@@ -10,6 +10,7 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var authService: AuthService
+    @EnvironmentObject private var store: LocalVaultStore
 
     init() {
         let appearance = UITabBarAppearance()
@@ -34,42 +35,48 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppStatusBanner(status: authService.status)
+            AppStatusBanner(status: authService.status, runtimeMode: store.runtimeMode, syncError: store.lastSyncError)
 
-            TabView {
-                NavigationStack {
-                    DashboardView()
-                }
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
-
-                NavigationStack {
-                    SearchView()
-                }
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-
-                NavigationStack {
-                    VaultView()
-                }
-                .tabItem {
-                    Label("My Vault", systemImage: "lock.shield")
-                }
-
-                NavigationStack {
-                    TradeView()
-                }
-                .tabItem {
-                    Label("Trade Hub", systemImage: "arrow.left.arrow.right")
-                }
-
+            if authService.shouldShowLogin {
                 NavigationStack {
                     AuthView()
                 }
-                .tabItem {
-                    Label("Account", systemImage: "person.crop.circle")
+            } else {
+                TabView {
+                    NavigationStack {
+                        DashboardView()
+                    }
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+
+                    NavigationStack {
+                        SearchView()
+                    }
+                    .tabItem {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+
+                    NavigationStack {
+                        VaultView()
+                    }
+                    .tabItem {
+                        Label("My Vault", systemImage: "lock.shield")
+                    }
+
+                    NavigationStack {
+                        TradeView()
+                    }
+                    .tabItem {
+                        Label("Trade Hub", systemImage: "arrow.left.arrow.right")
+                    }
+
+                    NavigationStack {
+                        AuthView()
+                    }
+                    .tabItem {
+                        Label("Account", systemImage: "person.crop.circle")
+                    }
                 }
             }
         }
@@ -77,16 +84,36 @@ struct ContentView: View {
         .background(AppBackground())
         .toolbarBackground(Color.vdPanel.opacity(0.95), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .task {
+            await refreshDataMode()
+        }
+        .onChange(of: authService.session) { _, _ in
+            Task { await refreshDataMode() }
+        }
+        .onChange(of: authService.isDemoModeEnabled) { _, _ in
+            Task { await refreshDataMode() }
+        }
+    }
+
+    private func refreshDataMode() async {
+        if authService.isDemoModeEnabled {
+            store.useDemoMode()
+        } else {
+            await store.loadCloudDataIfPossible(session: authService.currentSession())
+        }
     }
 }
 
 private struct AppStatusBanner: View {
     let status: VaultAppStatus
+    let runtimeMode: VaultRuntimeMode
+    let syncError: String?
 
     private var tint: Color {
         switch status {
         case .demoMode: .vdSky
-        case .supabaseConnected: .vdLeaf
+        case .cloudMode: .vdLeaf
+        case .offlineMode: .vdGold
         case .supabaseMissingPackage: .vdGold
         case .supabaseError: .vdCoral
         }
@@ -101,10 +128,10 @@ private struct AppStatusBanner: View {
                 .background(tint, in: Circle())
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(status.title)
+                Text(status.title + " · " + runtimeMode.displayName)
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
-                Text(status.message)
+                Text(syncError ?? status.message)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.vdTextSecondary)
                     .lineLimit(1)

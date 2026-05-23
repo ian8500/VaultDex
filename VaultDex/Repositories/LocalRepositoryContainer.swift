@@ -3,11 +3,13 @@ import Foundation
 enum VaultRuntimeMode: String, Equatable {
     case demo
     case supabase
+    case offline
 
     var displayName: String {
         switch self {
         case .demo: "Local Demo"
-        case .supabase: "Supabase"
+        case .supabase: "Cloud"
+        case .offline: "Offline Cache"
         }
     }
 }
@@ -19,4 +21,3 @@ struct LocalRepositoryContainer {
         LocalRepositoryContainer(demoRepository: repository)
     }
 }
-

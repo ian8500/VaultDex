@@ -4,12 +4,14 @@ import Foundation
 final class LocalVaultStore: ObservableObject {
     let repositories: VaultRepositoryContainer
     let localRepositories: LocalRepositoryContainer
-    let runtimeMode: VaultRuntimeMode
-    let sets: [CardSet]
-    let cards: [Card]
     let importPreviewItems: [ImportPreviewItem]
     let inviteContacts: [InviteContact]
 
+    @Published private(set) var runtimeMode: VaultRuntimeMode
+    @Published private(set) var isLoadingCloudData = false
+    @Published private(set) var lastSyncError: String?
+    @Published var sets: [CardSet]
+    @Published var cards: [Card]
     @Published var profile: UserProfile
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
@@ -28,7 +30,7 @@ final class LocalVaultStore: ObservableObject {
     ) {
         self.repositories = repositories
         self.localRepositories = localRepositories
-        runtimeMode = repositories.config.shouldUseRemote && SupabaseClientProvider.isSupabaseSwiftPackageAvailable ? .supabase : .demo
+        runtimeMode = repositories.clientProvider.isRemoteEnabled && SupabaseClientProvider.isSupabaseSwiftPackageAvailable ? .offline : .demo
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
@@ -48,6 +50,91 @@ final class LocalVaultStore: ObservableObject {
 
     var isDemoMode: Bool {
         runtimeMode == .demo
+    }
+
+    func useDemoMode(repository: DemoVaultRepository = .shared) {
+        runtimeMode = .demo
+        lastSyncError = nil
+        resetDemoUserState(repository: repository)
+    }
+
+    func loadCloudDataIfPossible(session: SupabaseSession?) async {
+        guard repositories.config.isConfigured, SupabaseClientProvider.isSupabaseSwiftPackageAvailable else {
+            loadCachedOrDemo(reason: "Supabase is unavailable on this build.")
+            return
+        }
+
+        guard let session else {
+            loadCachedOrDemo(reason: "No active Supabase session.")
+            return
+        }
+
+        isLoadingCloudData = true
+        defer { isLoadingCloudData = false }
+
+        do {
+            let snapshot = try await fetchCloudSnapshot(userID: session.userID)
+            apply(snapshot: snapshot, userID: session.userID)
+            CloudVaultCache.save(snapshot)
+            runtimeMode = .supabase
+            lastSyncError = nil
+        } catch {
+            loadCachedOrDemo(reason: error.localizedDescription)
+        }
+    }
+
+    private func loadCachedOrDemo(reason: String) {
+        if let snapshot = CloudVaultCache.load(), let userID = repositories.clientProvider.currentSession?.userID {
+            apply(snapshot: snapshot, userID: userID)
+            runtimeMode = .offline
+        } else {
+            runtimeMode = .demo
+        }
+        lastSyncError = reason
+    }
+
+    private func fetchCloudSnapshot(userID: UUID) async throws -> CloudVaultSnapshot {
+        async let remoteProfile = repositories.profiles.fetchCurrentProfile(userID: userID)
+        async let remoteSets = repositories.cards.fetchSets()
+        async let remoteCards = repositories.cards.fetchCards(search: nil)
+        async let remoteCollection = repositories.collection.fetchCollection(userID: userID)
+        async let remoteWishlist = repositories.wishlist.fetchWishlist(userID: userID)
+        async let remoteFriends = repositories.friends.fetchFriends(userID: userID)
+        async let remoteOffers = repositories.trades.fetchTradeOffers(userID: userID)
+        async let remoteListings = repositories.marketplace.fetchMarketplaceListings(search: nil)
+        async let remoteEvents = repositories.events.fetchEvents(userID: userID)
+
+        return try await CloudVaultSnapshot(
+            profile: remoteProfile,
+            sets: remoteSets,
+            cards: remoteCards,
+            collection: remoteCollection,
+            wishlist: remoteWishlist,
+            friends: remoteFriends,
+            tradeOffers: remoteOffers,
+            marketplaceListings: remoteListings,
+            events: remoteEvents
+        )
+    }
+
+    private func apply(snapshot: CloudVaultSnapshot, userID: UUID) {
+        let mappedSets = snapshot.sets.map(\.localSet)
+        let setByID = Dictionary(uniqueKeysWithValues: mappedSets.map { ($0.id, $0) })
+        let fallbackSet = mappedSets.first ?? DemoVaultRepository.shared.sets[0]
+        let mappedCards = snapshot.cards.map { $0.localCard(set: setByID[$0.setID] ?? fallbackSet) }
+        let cardByID = Dictionary(uniqueKeysWithValues: mappedCards.map { ($0.id, $0) })
+
+        sets = mappedSets.isEmpty ? DemoVaultRepository.shared.sets : mappedSets
+        cards = mappedCards.isEmpty ? DemoVaultRepository.shared.cards : mappedCards
+        profile = snapshot.profile?.localProfile(favoriteSet: sets.first ?? fallbackSet) ?? profile
+        collectionItems = snapshot.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
+        wishlistItems = snapshot.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
+        tradeListings = snapshot.marketplaceListings.compactMap { $0.localListing(card: cardByID[$0.cardID], currentUserID: userID) }
+        tradeOffers = snapshot.tradeOffers.map { $0.localOffer(cards: cardByID, currentUserID: userID) }
+        events = snapshot.events.compactMap { $0.localEvent(featuredSet: sets.first ?? fallbackSet) }
+        friends = snapshot.friends.compactMap { $0.localFriend(cards: cards, currentUserID: userID) }
+        friendRequests = []
+        friendWants = []
     }
 
     var totalCopiesOwned: Int {
@@ -103,21 +190,26 @@ final class LocalVaultStore: ObservableObject {
             collectionItems[index].condition = condition ?? collectionItems[index].condition
             collectionItems[index].variant = variant
             collectionItems[index].acquiredAt = .now
+            syncCollectionItem(collectionItems[index])
         } else {
-            collectionItems.append(
-                CollectionItem(
-                    card: card,
-                    quantity: safeQuantity,
-                    condition: condition ?? card.condition,
-                    variant: variant,
-                    acquiredAt: .now
-                )
+            let item = CollectionItem(
+                card: card,
+                quantity: safeQuantity,
+                condition: condition ?? card.condition,
+                variant: variant,
+                acquiredAt: .now
             )
+            collectionItems.append(item)
+            syncCollectionItem(item)
         }
     }
 
     func removeCard(_ card: Card) {
+        let removed = collectionItems.first { $0.card.id == card.id }
         collectionItems.removeAll { $0.card.id == card.id }
+        if let removed, runtimeMode == .supabase {
+            Task { try? await repositories.collection.deleteCollectionItem(id: removed.id) }
+        }
     }
 
     func updateQuantity(for card: Card, quantity: Int) {
@@ -127,22 +219,26 @@ final class LocalVaultStore: ObservableObject {
             collectionItems.remove(at: index)
         } else {
             collectionItems[index].quantity = quantity
+            syncCollectionItem(collectionItems[index])
         }
     }
 
     func updateCondition(for card: Card, condition: CardCondition) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].condition = condition
+        syncCollectionItem(collectionItems[index])
     }
 
     func updateVariant(for card: Card, variant: CardVariant) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].variant = variant
+        syncCollectionItem(collectionItems[index])
     }
 
     func updateTradeAvailability(for card: Card, isAvailable: Bool) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].isAvailableForTrade = isAvailable
+        syncCollectionItem(collectionItems[index])
     }
 
     func addToWishlist(
@@ -155,15 +251,16 @@ final class LocalVaultStore: ObservableObject {
             wishlistItems[index].priority = priority
             wishlistItems[index].budget = budget ?? wishlistItems[index].budget
             wishlistItems[index].notes = notes
+            syncWishlistItem(wishlistItems[index])
         } else {
-            wishlistItems.append(
-                WishlistItem(
-                    card: card,
-                    priority: priority,
-                    budget: budget ?? card.marketValue,
-                    notes: notes
-                )
+            let item = WishlistItem(
+                card: card,
+                priority: priority,
+                budget: budget ?? card.marketValue,
+                notes: notes
             )
+            wishlistItems.append(item)
+            syncWishlistItem(item)
         }
     }
 
@@ -177,10 +274,15 @@ final class LocalVaultStore: ObservableObject {
         wishlistItems[index].priority = priority
         wishlistItems[index].budget = max(budget, 0)
         wishlistItems[index].notes = notes
+        syncWishlistItem(wishlistItems[index])
     }
 
     func removeFromWishlist(_ card: Card) {
+        let removed = wishlistItems.first { $0.card.id == card.id }
         wishlistItems.removeAll { $0.card.id == card.id }
+        if let removed, runtimeMode == .supabase {
+            Task { try? await repositories.wishlist.deleteWishlistItem(id: removed.id) }
+        }
     }
 
     func sendFriendRequest(to handleOrEmail: String) {
@@ -330,6 +432,7 @@ final class LocalVaultStore: ObservableObject {
 
     func updateProfile(_ updatedProfile: UserProfile) {
         profile = updatedProfile
+        syncProfile(updatedProfile)
     }
 
     func resetDemoUserState(repository: DemoVaultRepository = .shared) {
@@ -435,5 +538,249 @@ final class LocalVaultStore: ObservableObject {
 
     static func emptyBinderSlots() -> [BinderSlot] {
         (1...9).map { BinderSlot(index: $0, card: nil) }
+    }
+
+    private func syncProfile(_ profile: UserProfile) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
+        let remoteProfile = RemoteProfile(
+            id: userID,
+            username: profile.handle.replacingOccurrences(of: "@", with: ""),
+            displayName: profile.displayName,
+            location: profile.location,
+            bio: profile.bio,
+            collectorType: profile.collectorType,
+            avatarPath: nil,
+            reputationScore: profile.reputationScore,
+            trustBadges: profile.trustBadges,
+            completedTrades: profile.completedTrades,
+            collectorScore: profile.collectorScore,
+            createdAt: nil,
+            updatedAt: nil
+        )
+        Task { try? await repositories.profiles.upsertProfile(remoteProfile) }
+    }
+
+    private func syncCollectionItem(_ item: CollectionItem) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
+        let remoteItem = RemoteCollectionItem(
+            id: item.id,
+            userID: userID,
+            cardID: item.card.id,
+            quantity: item.quantity,
+            condition: item.condition.rawValue,
+            variant: item.variant.rawValue,
+            isAvailableForTrade: item.isAvailableForTrade,
+            isFavorite: item.isFavorite,
+            acquiredAt: item.acquiredAt,
+            notes: item.notes
+        )
+        Task { try? await repositories.collection.upsertCollectionItem(remoteItem) }
+    }
+
+    private func syncWishlistItem(_ item: WishlistItem) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
+        let remoteItem = RemoteWishlistItem(
+            id: item.id,
+            userID: userID,
+            cardID: item.card.id,
+            priority: item.priority.rawValue,
+            budget: item.budget,
+            notes: item.notes,
+            addedAt: item.addedAt
+        )
+        Task { try? await repositories.wishlist.upsertWishlistItem(remoteItem) }
+    }
+}
+
+private struct CloudVaultSnapshot: Codable {
+    let profile: RemoteProfile?
+    let sets: [RemoteCardSet]
+    let cards: [RemoteCard]
+    let collection: [RemoteCollectionItem]
+    let wishlist: [RemoteWishlistItem]
+    let friends: [RemoteFriendship]
+    let tradeOffers: [RemoteTradeOffer]
+    let marketplaceListings: [RemoteMarketplaceListing]
+    let events: [RemoteVaultEvent]
+}
+
+private enum CloudVaultCache {
+    private static let fileName = "vaultdex-cloud-cache.json"
+
+    static func load() -> CloudVaultSnapshot? {
+        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+        return try? JSONDecoder.supabase.decode(CloudVaultSnapshot.self, from: data)
+    }
+
+    static func save(_ snapshot: CloudVaultSnapshot) {
+        do {
+            try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let data = try JSONEncoder.supabase.encode(snapshot)
+            try data.write(to: cacheURL, options: [.atomic])
+        } catch {
+            assertionFailure("Failed to write cloud cache: \(error.localizedDescription)")
+        }
+    }
+
+    private static var cacheURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "VaultDex")
+            .appending(path: fileName)
+    }
+}
+
+private extension RemoteCardSet {
+    var localSet: CardSet {
+        CardSet(id: id, name: name, code: code, releaseYear: releaseYear, totalCards: totalCards)
+    }
+}
+
+private extension RemoteCard {
+    func localCard(set: CardSet) -> Card {
+        Card(
+            id: id,
+            name: name,
+            set: set,
+            number: number,
+            rarity: CardRarity(rawValue: rarity) ?? .common,
+            cardType: CardType(rawValue: cardType) ?? .colorless,
+            typeLine: typeLine,
+            power: power,
+            condition: .nearMint,
+            marketValue: marketValue,
+            accent: CardAccent(rawValue: accent) ?? .aurora
+        )
+    }
+}
+
+private extension RemoteProfile {
+    func localProfile(favoriteSet: CardSet) -> UserProfile {
+        UserProfile(
+            id: id,
+            displayName: displayName,
+            handle: "@\(username)",
+            location: location ?? "Cloud Vault",
+            bio: bio ?? "Synced VaultDex collector profile.",
+            collectorType: collectorType ?? "Cloud Collector",
+            avatarSymbol: "person.crop.circle.fill",
+            reputationScore: reputationScore,
+            trustBadges: trustBadges.isEmpty ? ["Cloud Synced"] : trustBadges,
+            completedTrades: completedTrades,
+            collectorScore: collectorScore,
+            favoriteSet: favoriteSet,
+            joinedDate: createdAt ?? .now,
+            followers: 0,
+            following: 0
+        )
+    }
+}
+
+private extension RemoteCollectionItem {
+    func localItem(card: Card?) -> CollectionItem? {
+        guard let card else { return nil }
+        return CollectionItem(
+            id: id,
+            card: card,
+            quantity: quantity,
+            condition: CardCondition(rawValue: condition) ?? .nearMint,
+            variant: CardVariant(rawValue: variant) ?? .normal,
+            isAvailableForTrade: isAvailableForTrade,
+            isFavorite: isFavorite,
+            acquiredAt: acquiredAt,
+            notes: notes
+        )
+    }
+}
+
+private extension RemoteWishlistItem {
+    func localItem(card: Card?) -> WishlistItem? {
+        guard let card else { return nil }
+        return WishlistItem(
+            id: id,
+            card: card,
+            priority: WishlistPriority(rawValue: priority) ?? .medium,
+            budget: budget,
+            notes: notes,
+            addedAt: addedAt
+        )
+    }
+}
+
+private extension RemoteMarketplaceListing {
+    func localListing(card: Card?, currentUserID: UUID) -> TradeListing? {
+        guard let card else { return nil }
+        return TradeListing(
+            id: id,
+            ownerName: sellerDisplayName ?? "Cloud Collector",
+            ownerHandle: ownerID == currentUserID ? "@me" : "@collector",
+            card: card,
+            condition: CardCondition(rawValue: condition) ?? .nearMint,
+            variant: CardVariant(rawValue: variant ?? "normal") ?? .normal,
+            askingFor: askingFor ?? "Open to fair offers",
+            listedAt: listedAt ?? .now,
+            locationLabel: locationLabel ?? "Cloud listing",
+            sellerReputation: sellerReputation,
+            isFeatured: rarity == "mythic" || rarity == "legendary",
+            isSaved: isSaved ?? false,
+            isMine: ownerID == currentUserID,
+            usesSafeTrade: usesSafeTrade ?? false
+        )
+    }
+}
+
+private extension RemoteTradeOffer {
+    func localOffer(cards: [UUID: Card], currentUserID: UUID) -> TradeOffer {
+        TradeOffer(
+            id: id,
+            partnerName: senderID == currentUserID ? "Cloud Collector" : "Trade Partner",
+            partnerHandle: senderID == currentUserID ? "@sent" : "@received",
+            offeredCards: offeredCardIDs.compactMap { cards[$0] },
+            requestedCards: requestedCardIDs.compactMap { cards[$0] },
+            status: TradeStatus(rawValue: status) ?? .pending,
+            direction: senderID == currentUserID ? .sent : .received,
+            internalCredits: internalCredits,
+            createdAt: createdAt ?? .now,
+            expiresInDays: 7,
+            note: message,
+            usesSafeTrade: usesSafeTrade
+        )
+    }
+}
+
+private extension RemoteVaultEvent {
+    func localEvent(featuredSet: CardSet) -> VaultEvent {
+        VaultEvent(
+            id: id,
+            title: title,
+            venue: location,
+            date: eventDate,
+            kind: VaultEventKind(rawValue: "tradeNight") ?? .community,
+            prize: "Community event",
+            attendingFriends: 0,
+            featuredSet: featuredSet,
+            emojiMarker: emojiMarker,
+            notes: notes,
+            visibility: BinderVisibility(rawValue: visibility) ?? .public
+        )
+    }
+}
+
+private extension RemoteFriendship {
+    func localFriend(cards: [Card], currentUserID: UUID) -> Friend? {
+        guard let favoriteCard = cards.first else { return nil }
+        let friendID = requesterID == currentUserID ? addresseeID : requesterID
+        return Friend(
+            id: friendID,
+            displayName: "Cloud Friend",
+            handle: "@\(friendID.uuidString.prefix(8))",
+            avatarSymbol: "person.2.fill",
+            collectorScore: 0,
+            favoriteCard: favoriteCard,
+            completionPercent: 0,
+            mutualTrades: 0,
+            isOnline: false,
+            visibleCollection: [],
+            wishlist: []
+        )
     }
 }

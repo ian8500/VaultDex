@@ -36,6 +36,8 @@ struct SupabaseSession: Equatable {
     let expiresAt: Date?
 }
 
+extension SupabaseSession: Codable {}
+
 final class SupabaseClientProvider {
     static var isSupabaseSwiftPackageAvailable: Bool {
         #if canImport(Supabase)
@@ -52,10 +54,11 @@ final class SupabaseClientProvider {
     init(config: SupabaseConfig = .current, urlSession: URLSession = .shared) {
         self.config = config
         self.urlSession = urlSession
+        self.session = SupabaseSessionStore.load()
     }
 
     var isRemoteEnabled: Bool {
-        config.shouldUseRemote
+        config.isConfigured && !UserDefaults.standard.bool(forKey: "VaultDexDemoModeEnabled")
     }
 
     var currentSession: SupabaseSession? {
@@ -64,6 +67,7 @@ final class SupabaseClientProvider {
 
     func updateSession(_ session: SupabaseSession?) {
         self.session = session
+        SupabaseSessionStore.save(session)
     }
 
     func restRequest(
@@ -73,7 +77,7 @@ final class SupabaseClientProvider {
         body: Data? = nil,
         prefer: String? = nil
     ) throws -> URLRequest {
-        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+        guard let baseURL = config.url, let anonKey = config.anonKey, isRemoteEnabled else {
             throw SupabaseClientError.missingConfiguration
         }
 
@@ -96,7 +100,7 @@ final class SupabaseClientProvider {
     }
 
     func authRequest(path: String, body: Data? = nil, queryItems: [URLQueryItem] = []) throws -> URLRequest {
-        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+        guard let baseURL = config.url, let anonKey = config.anonKey, isRemoteEnabled else {
             throw SupabaseClientError.missingConfiguration
         }
 
@@ -115,7 +119,7 @@ final class SupabaseClientProvider {
     }
 
     func storageRequest(bucket: String, path: String, method: SupabaseHTTPMethod, contentType: String? = nil, body: Data? = nil) throws -> URLRequest {
-        guard let baseURL = config.url, let anonKey = config.anonKey, config.shouldUseRemote else {
+        guard let baseURL = config.url, let anonKey = config.anonKey, isRemoteEnabled else {
             throw SupabaseClientError.missingConfiguration
         }
 
@@ -148,6 +152,26 @@ final class SupabaseClientProvider {
 
         guard 200..<300 ~= httpResponse.statusCode else {
             throw SupabaseClientError.requestFailed(httpResponse.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+    }
+}
+
+enum SupabaseSessionStore {
+    private static let key = "VaultDexSupabaseSession"
+
+    static func load() -> SupabaseSession? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(SupabaseSession.self, from: data)
+    }
+
+    static func save(_ session: SupabaseSession?) {
+        guard let session else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+
+        if let data = try? JSONEncoder().encode(session) {
+            UserDefaults.standard.set(data, forKey: key)
         }
     }
 }
