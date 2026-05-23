@@ -7,6 +7,7 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
     var location: String?
     var bio: String?
     var collectorType: String?
+    var avatarURL: String?
     var avatarPath: String?
     var reputationScore: Int
     var trustBadges: [String]
@@ -25,6 +26,7 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
         case location
         case bio
         case collectorType = "collector_type"
+        case avatarURL = "avatar_url"
         case avatarPath = "avatar_path"
         case reputationScore = "reputation_score"
         case trustBadges = "trust_badges"
@@ -92,6 +94,8 @@ struct RemoteCollectionItem: Codable, Identifiable, Hashable {
     var isAvailableForTrade: Bool
     var isAvailableForCredits: Bool
     var askingCredits: Int?
+    var frontPhotoURL: String?
+    var backPhotoURL: String?
     var isFavorite: Bool
     var acquiredAt: Date
 
@@ -104,6 +108,8 @@ struct RemoteCollectionItem: Codable, Identifiable, Hashable {
         case isAvailableForTrade = "available_for_trade"
         case isAvailableForCredits = "available_for_credits"
         case askingCredits = "asking_credits"
+        case frontPhotoURL = "front_photo_url"
+        case backPhotoURL = "back_photo_url"
         case isFavorite = "is_favorite"
         case acquiredAt = "acquired_at"
     }

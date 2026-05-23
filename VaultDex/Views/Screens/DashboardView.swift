@@ -308,7 +308,7 @@ struct DashboardView: View {
             }
 
             VStack(spacing: 10) {
-                SafetyReminderRow(icon: "person.crop.circle.badge.checkmark", title: "Parent approval placeholder", message: "Require a trusted grown-up review before young collectors trade.")
+                SafetyReminderRow(icon: "person.crop.circle.badge.checkmark", title: "Parent approval", message: "Require a trusted grown-up review before young collectors trade.")
                 SafetyReminderRow(icon: "hand.raised.fill", title: "Report/block reminders", message: "Keep report and block controls visible on listings and profiles.")
                 SafetyReminderRow(icon: "checkmark.seal.fill", title: "Value and condition check", message: "Review condition, variant, credits, and fairness before accepting.")
             }

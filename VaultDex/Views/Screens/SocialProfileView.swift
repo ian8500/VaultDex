@@ -1,10 +1,12 @@
 import SwiftUI
+import PhotosUI
 
 struct SocialProfileView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @State private var draft = ProfileDraft()
     @State private var hasLoadedDraft = false
     @State private var didSaveProfile = false
+    @State private var selectedAvatarItem: PhotosPickerItem?
 
     var body: some View {
         ZStack {
@@ -53,6 +55,27 @@ struct SocialProfileView: View {
                             .stroke(Color.white.opacity(0.48), lineWidth: 1)
                     )
                     .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
+                    .overlay {
+                        if let avatarURL = store.profile.avatarURL {
+                            AsyncImage(url: avatarURL) { phase in
+                                switch phase {
+                                case let .success(image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                case .failure:
+                                    Image(systemName: store.profile.avatarSymbol)
+                                        .font(.system(size: 32, weight: .black))
+                                        .foregroundStyle(Color.vdNavy)
+                                default:
+                                    ProgressView()
+                                        .tint(Color.vdNavy)
+                                }
+                            }
+                            .frame(width: 78, height: 78)
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                        }
+                    }
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(store.profile.displayName)
@@ -99,6 +122,14 @@ struct SocialProfileView: View {
                 didSaveProfile = true
             }
 
+            avatarUploadButton
+
+            if let message = store.imageUploadMessage, store.isUploadingAvatar || message.contains("Avatar") {
+                Label(message, systemImage: store.isUploadingAvatar ? "icloud.and.arrow.up.fill" : "checkmark.icloud.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald)
+            }
+
             if didSaveProfile {
                 Label("Changes saved locally", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
@@ -120,6 +151,33 @@ struct SocialProfileView: View {
                 .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
         )
         .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
+    }
+
+    private var avatarUploadButton: some View {
+        let isUploading = store.isUploadingAvatar
+
+        return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+            HStack(spacing: 10) {
+                if isUploading {
+                    ProgressView()
+                        .tint(Color.vdNavy)
+                } else {
+                    Image(systemName: "photo.badge.arrow.down.fill")
+                        .font(.headline.weight(.bold))
+                }
+
+                Text(isUploading ? "Uploading Avatar..." : "Upload Avatar Photo")
+                    .font(.headline.weight(.bold))
+            }
+            .foregroundStyle(Color.vdNavy)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 8))
+        }
+        .disabled(isUploading)
+        .onChange(of: selectedAvatarItem) { _, newItem in
+            loadAvatar(from: newItem)
+        }
     }
 
     private var profileEditor: some View {
@@ -151,10 +209,34 @@ struct SocialProfileView: View {
                 }
             }
 
-            Text("Avatar upload is represented by the symbol field for now. A photo picker can attach to this same profile field when storage is added.")
+            Text("Avatar photos upload to Supabase Storage and save to the profile avatar URL. The symbol remains as a fallback.")
                 .font(.caption)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func loadAvatar(from item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    await MainActor.run {
+                        store.reportImagePickerError("Avatar upload failed: VaultDex could not read the selected photo.")
+                        selectedAvatarItem = nil
+                    }
+                    return
+                }
+                await MainActor.run {
+                    store.uploadAvatarImageData(data)
+                    selectedAvatarItem = nil
+                }
+            } catch {
+                await MainActor.run {
+                    store.reportImagePickerError("Avatar upload failed: \(error.localizedDescription)")
+                    selectedAvatarItem = nil
+                }
+            }
         }
     }
 
@@ -172,7 +254,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Friends",
-                subtitle: "\(store.friends.count) demo collectors connected",
+                subtitle: "\(store.friends.count) collectors connected",
                 systemImage: "person.2.fill",
                 tint: .vdEmerald
             ) {
@@ -190,7 +272,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Invite Friends",
-                subtitle: "Share a local demo invite code",
+                subtitle: "Share your invite message",
                 systemImage: "paperplane.fill",
                 tint: .vdViolet
             ) {
@@ -199,7 +281,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Settings",
-                subtitle: "Privacy controls and local demo preferences",
+                subtitle: "Privacy controls and local preferences",
                 systemImage: "gearshape.fill",
                 tint: .vdGold
             ) {
@@ -217,7 +299,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Danger Zone",
-                subtitle: "Delete account and reset local demo user state",
+                subtitle: "Delete account and reset local test state",
                 systemImage: "person.crop.circle.badge.xmark",
                 tint: .vdCoral
             ) {
@@ -354,6 +436,7 @@ private struct ProfileDraft {
             bio: bio.trimmingCharacters(in: .whitespacesAndNewlines),
             collectorType: collectorType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.collectorType : collectorType,
             avatarSymbol: avatarSymbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.avatarSymbol : avatarSymbol,
+            avatarURL: profile.avatarURL,
             reputationScore: profile.reputationScore,
             trustBadges: profile.trustBadges,
             completedTrades: profile.completedTrades,
@@ -448,7 +531,7 @@ struct SettingsView: View {
 
             SafetyToggleRow(
                 title: "Demo Mode",
-                subtitle: authService.isDemoModeEnabled ? "Using bundled local demo data." : "Using Supabase cloud data when signed in.",
+                subtitle: authService.isDemoModeEnabled ? "Using local fallback mode." : "Using Supabase cloud data when signed in.",
                 isOn: Binding(
                     get: { authService.isDemoModeEnabled },
                     set: { authService.setDemoModeEnabled($0) }
@@ -496,18 +579,18 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Trading Preferences", subtitle: "Prototype toggles for future safety rules")
 
-            SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send local demo trade offers.", isOn: $allowFriendTradeRequests)
+            SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send trade offers.", isOn: $allowFriendTradeRequests)
             SafetyToggleRow(title: "Show wants badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
-            SafetyToggleRow(title: "Safe trade for high value", subtitle: "Prefer intermediary flow placeholders for expensive cards.", isOn: $requireSafeTradeForHighValue)
+            SafetyToggleRow(title: "Safe trade for high value", subtitle: "Prefer an intermediary flow for expensive cards.", isOn: $requireSafeTradeForHighValue)
         }
     }
 
     private var legalLinks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Legal", subtitle: "Placeholders until production policies are connected")
+            VaultSectionHeader(title: "Legal", subtitle: "Policies to review before launch")
 
-            PlaceholderLinkRow(title: "Terms placeholder", systemImage: "doc.text.fill")
-            PlaceholderLinkRow(title: "Privacy policy placeholder", systemImage: "hand.raised.fill")
+            PlaceholderLinkRow(title: "Terms", systemImage: "doc.text.fill")
+            PlaceholderLinkRow(title: "Privacy policy", systemImage: "hand.raised.fill")
         }
     }
 }
@@ -544,7 +627,7 @@ struct SafetyCentreView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("VaultDex is currently local/offline. These safety flows are placeholders for future moderation, reporting, and privacy systems.")
+            Text("Safety flows are ready for moderation, reporting, and privacy systems.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -573,16 +656,16 @@ struct SafetyCentreView: View {
 
             SafetyInfoRow(systemImage: "star.leadinghalf.filled", title: "Check reputation", message: "Prefer traders with strong reputation scores, completed trades, and trust badges.")
             SafetyInfoRow(systemImage: "camera.macro", title: "Ask for clear photos", message: "For physical cards, verify card condition, language, variant, and authenticity before meeting or shipping.")
-            SafetyInfoRow(systemImage: "arrow.triangle.2.circlepath", title: "Use safe trade options", message: "For expensive trades, use an intermediary or in-person venue placeholder once supported.")
+            SafetyInfoRow(systemImage: "arrow.triangle.2.circlepath", title: "Use safe trade options", message: "For expensive trades, use an intermediary or trusted in-person venue once supported.")
         }
     }
 
     private var reportBlockTools: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Report & Block", subtitle: "Offline placeholders for moderation")
+            VaultSectionHeader(title: "Report & Block", subtitle: "Moderation actions")
 
-            ProfileTextField(title: "Report user placeholder", text: $reportText, systemImage: "flag.fill")
-            ProfileTextField(title: "Block user placeholder", text: $blockText, systemImage: "nosign")
+            ProfileTextField(title: "Report user", text: $reportText, systemImage: "flag.fill")
+            ProfileTextField(title: "Block user", text: $blockText, systemImage: "nosign")
 
             HStack(spacing: 10) {
                 PrimaryButton(title: "Report", systemImage: "flag.fill") {}
@@ -596,8 +679,8 @@ struct SafetyCentreView: View {
             VaultSectionHeader(title: "Privacy & Policies", subtitle: "Production copy will live here later")
 
             PlaceholderLinkRow(title: "Privacy controls", systemImage: "hand.raised.fill")
-            PlaceholderLinkRow(title: "Terms placeholder", systemImage: "doc.text.fill")
-            PlaceholderLinkRow(title: "Privacy policy placeholder", systemImage: "lock.doc.fill")
+            PlaceholderLinkRow(title: "Terms", systemImage: "doc.text.fill")
+            PlaceholderLinkRow(title: "Privacy policy", systemImage: "lock.doc.fill")
         }
     }
 

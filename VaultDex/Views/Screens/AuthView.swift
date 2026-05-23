@@ -4,7 +4,7 @@ struct AuthView: View {
     @EnvironmentObject private var authService: AuthService
     @State private var email = ""
     @State private var password = ""
-    @State private var lastMessage = "Demo Mode is off by default. Sign in to load your cloud vault."
+    @State private var lastMessage = "Cloud mode is ready. Sign in to load your vault."
     @State private var showProfile = false
 
     var body: some View {
@@ -44,7 +44,7 @@ struct AuthView: View {
                 .font(.system(.largeTitle, design: .rounded, weight: .black))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings from Supabase. Demo mode remains available in Settings.")
+            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings from Supabase. Local fallback mode remains available in Settings.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
         }
@@ -100,7 +100,7 @@ struct AuthView: View {
                     Text("Demo Mode")
                         .font(.headline.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
-                    Text(authService.isDemoModeEnabled ? "Local demo data is active." : "Cloud mode is active. Sign in to sync.")
+                    Text(authService.isDemoModeEnabled ? "Local fallback mode is active." : "Cloud mode is active. Sign in to sync.")
                         .font(.caption)
                         .foregroundStyle(Color.vdTextSecondary)
                 }

@@ -24,7 +24,7 @@ enum VaultAppStatus: Equatable {
     var message: String {
         switch self {
         case .demoMode:
-            "Using local demo data. Supabase auth is safely bypassed."
+            "Using local fallback mode. Supabase auth is safely bypassed."
         case .cloudReady:
             "sign in to sync"
         case .cloudSignedIn:

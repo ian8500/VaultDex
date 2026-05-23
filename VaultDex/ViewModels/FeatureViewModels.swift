@@ -1,5 +1,7 @@
 import Foundation
 
+private let vaultDexFallbackSet = CardSet(name: "VaultDex", code: "VDX", releaseYear: 2026, totalCards: 0)
+
 struct ParsedImportRow: Identifiable, Hashable {
     let id = UUID()
     let rowNumber: Int
@@ -50,13 +52,9 @@ final class ImportCollectionViewModel: ObservableObject {
         !matchedRows.isEmpty
     }
 
-    func loadSampleCSV() {
+    func loadCSVTemplate() {
         importText = """
         Name,Set,Number,Quantity,Condition,Variant,Language
-        Astra Prime,Nebula Crown,001,1,Mint,Full Art,English
-        Prism Courier,NBC,121,4,Near Mint,Normal,English
-        Frostbound Crown,Radiant Archive,166,1,Mint,Secret Rare,Japanese
-        Unknown Prototype,Nebula Crown,999,2,Played,Holo,English
         """
     }
 
@@ -653,7 +651,6 @@ struct EventDraft {
     var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && featuredSet != nil
     }
 
     func makeEvent() -> VaultEvent {
@@ -665,7 +662,7 @@ struct EventDraft {
             kind: kind,
             prize: prize.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Collector meetup" : prize,
             attendingFriends: max(attendingFriends, 0),
-            featuredSet: featuredSet ?? DemoVaultRepository.shared.sets[0],
+            featuredSet: featuredSet ?? vaultDexFallbackSet,
             emojiMarker: emojiMarker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "📅" : emojiMarker,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             visibility: visibility
@@ -699,7 +696,7 @@ final class AccountDeletionViewModel: ObservableObject {
         "Delete collection data",
         "Delete wishlist data",
         "Delete binder pages",
-        "Delete profile and reset local demo state"
+        "Delete profile and reset local test state"
     ]
 
     var canRequestDeletion: Bool {

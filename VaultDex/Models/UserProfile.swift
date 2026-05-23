@@ -8,6 +8,7 @@ struct UserProfile: Identifiable, Hashable {
     var bio: String
     var collectorType: String
     var avatarSymbol: String
+    var avatarURL: URL?
     var reputationScore: Int
     var trustBadges: [String]
     var completedTrades: Int
@@ -25,6 +26,7 @@ struct UserProfile: Identifiable, Hashable {
         bio: String,
         collectorType: String = "Premium Collector",
         avatarSymbol: String,
+        avatarURL: URL? = nil,
         reputationScore: Int = 98,
         trustBadges: [String] = ["Verified Collector", "Safe Trader"],
         completedTrades: Int = 24,
@@ -41,6 +43,7 @@ struct UserProfile: Identifiable, Hashable {
         self.bio = bio
         self.collectorType = collectorType
         self.avatarSymbol = avatarSymbol
+        self.avatarURL = avatarURL
         self.reputationScore = reputationScore
         self.trustBadges = trustBadges
         self.completedTrades = completedTrades

@@ -15,6 +15,80 @@ alter table public.credit_ledger enable row level security;
 alter table public.app_events enable row level security;
 alter table public.safety_reports enable row level security;
 
+drop policy if exists "public read avatar storage" on storage.objects;
+create policy "public read avatar storage"
+on storage.objects
+for select
+using (bucket_id = 'avatars');
+
+drop policy if exists "users upload own avatars" on storage.objects;
+create policy "users upload own avatars"
+on storage.objects
+for insert
+with check (
+  bucket_id = 'avatars'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "users update own avatars" on storage.objects;
+create policy "users update own avatars"
+on storage.objects
+for update
+using (
+  bucket_id = 'avatars'
+  and auth.uid()::text = (storage.foldername(name))[1]
+)
+with check (
+  bucket_id = 'avatars'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "users delete own avatars" on storage.objects;
+create policy "users delete own avatars"
+on storage.objects
+for delete
+using (
+  bucket_id = 'avatars'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "public read card photo storage" on storage.objects;
+create policy "public read card photo storage"
+on storage.objects
+for select
+using (bucket_id = 'card-photos');
+
+drop policy if exists "users upload own card photos" on storage.objects;
+create policy "users upload own card photos"
+on storage.objects
+for insert
+with check (
+  bucket_id = 'card-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "users update own card photos" on storage.objects;
+create policy "users update own card photos"
+on storage.objects
+for update
+using (
+  bucket_id = 'card-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+)
+with check (
+  bucket_id = 'card-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "users delete own card photos" on storage.objects;
+create policy "users delete own card photos"
+on storage.objects
+for delete
+using (
+  bucket_id = 'card-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
 drop policy if exists "profiles are readable by signed in users" on public.profiles;
 drop policy if exists "profiles are publicly readable when visible" on public.profiles;
 create policy "profiles are publicly readable when visible"
@@ -65,6 +139,13 @@ to authenticated
 using (true)
 with check (true);
 
+drop policy if exists "clients cannot delete card sets" on public.card_sets;
+create policy "clients cannot delete card sets"
+on public.card_sets
+for delete
+to authenticated
+using (false);
+
 drop policy if exists "cards are readable" on public.cards;
 create policy "cards are readable"
 on public.cards
@@ -85,6 +166,13 @@ for update
 to authenticated
 using (is_active = true)
 with check (is_active = true);
+
+drop policy if exists "clients cannot delete cards" on public.cards;
+create policy "clients cannot delete cards"
+on public.cards
+for delete
+to authenticated
+using (false);
 
 drop policy if exists "users read own collection and tradeable public items" on public.collection_items;
 create policy "users read own collection and tradeable public items"
@@ -230,8 +318,10 @@ with check (
     select 1
     from public.friend_requests r
     where r.status = 'accepted'
-      and r.requester_id = friendships.user_a_id
-      and r.addressee_id = friendships.user_b_id
+      and (
+        (r.requester_id = friendships.user_a_id and r.addressee_id = friendships.user_b_id)
+        or (r.requester_id = friendships.user_b_id and r.addressee_id = friendships.user_a_id)
+      )
   )
 );
 
@@ -255,7 +345,22 @@ create policy "read own or public binder pages"
 on public.binder_pages
 for select
 to authenticated
-using (user_id = auth.uid() or visibility = 'public');
+using (
+  user_id = auth.uid()
+  or visibility = 'public'
+  or (
+    visibility = 'friends'
+    and exists (
+      select 1
+      from public.friendships f
+      where f.status = 'active'
+        and (
+          (f.user_a_id = auth.uid() and f.user_b_id = binder_pages.user_id)
+          or (f.user_b_id = auth.uid() and f.user_a_id = binder_pages.user_id)
+        )
+    )
+  )
+);
 
 drop policy if exists "users insert own binder pages" on public.binder_pages;
 create policy "users insert own binder pages"
@@ -288,7 +393,22 @@ using (
   exists (
     select 1 from public.binder_pages
     where binder_pages.id = binder_slots.page_id
-      and (binder_pages.user_id = auth.uid() or binder_pages.visibility = 'public')
+      and (
+        binder_pages.user_id = auth.uid()
+        or binder_pages.visibility = 'public'
+        or (
+          binder_pages.visibility = 'friends'
+          and exists (
+            select 1
+            from public.friendships f
+            where f.status = 'active'
+              and (
+                (f.user_a_id = auth.uid() and f.user_b_id = binder_pages.user_id)
+                or (f.user_b_id = auth.uid() and f.user_a_id = binder_pages.user_id)
+              )
+          )
+        )
+      )
   )
 );
 
@@ -467,6 +587,21 @@ for insert
 to authenticated
 with check (actor_id = auth.uid());
 
+drop policy if exists "users update reputation events they authored" on public.reputation_events;
+create policy "users update reputation events they authored"
+on public.reputation_events
+for update
+to authenticated
+using (actor_id = auth.uid())
+with check (actor_id = auth.uid());
+
+drop policy if exists "users delete reputation events they authored" on public.reputation_events;
+create policy "users delete reputation events they authored"
+on public.reputation_events
+for delete
+to authenticated
+using (actor_id = auth.uid());
+
 drop policy if exists "users read own credit ledger" on public.credit_ledger;
 create policy "users read own credit ledger"
 on public.credit_ledger
@@ -481,11 +616,42 @@ for insert
 to authenticated
 with check (user_id = auth.uid());
 
+drop policy if exists "users update own credit ledger entries" on public.credit_ledger;
+create policy "users update own credit ledger entries"
+on public.credit_ledger
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists "users delete own credit ledger entries" on public.credit_ledger;
+create policy "users delete own credit ledger entries"
+on public.credit_ledger
+for delete
+to authenticated
+using (user_id = auth.uid());
+
 drop policy if exists "public or owned events are readable" on public.app_events;
 create policy "public or owned events are readable"
 on public.app_events
 for select
-using (visibility = 'public' or owner_id = auth.uid());
+using (
+  visibility = 'public'
+  or owner_id = auth.uid()
+  or (
+    visibility = 'friends'
+    and exists (
+      select 1
+      from public.friendships f
+      where f.status = 'active'
+        and owner_id is not null
+        and (
+          (f.user_a_id = auth.uid() and f.user_b_id = app_events.owner_id)
+          or (f.user_b_id = auth.uid() and f.user_a_id = app_events.owner_id)
+        )
+    )
+  )
+);
 
 drop policy if exists "users insert own events" on public.app_events;
 create policy "users insert own events"
@@ -522,3 +688,18 @@ on public.safety_reports
 for insert
 to authenticated
 with check (reporter_id = auth.uid());
+
+drop policy if exists "users update own open safety reports" on public.safety_reports;
+create policy "users update own open safety reports"
+on public.safety_reports
+for update
+to authenticated
+using (reporter_id = auth.uid())
+with check (reporter_id = auth.uid());
+
+drop policy if exists "users delete own open safety reports" on public.safety_reports;
+create policy "users delete own open safety reports"
+on public.safety_reports
+for delete
+to authenticated
+using (reporter_id = auth.uid() and status = 'open');

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct CardDetailView: View {
     @EnvironmentObject private var store: LocalVaultStore
@@ -20,6 +21,8 @@ struct CardDetailView: View {
     @State private var wishlistPreferredCondition = CardCondition.nearMint
     @State private var wishlistBudget: Double
     @State private var wishlistNotes = ""
+    @State private var selectedFrontPhotoItem: PhotosPickerItem?
+    @State private var selectedBackPhotoItem: PhotosPickerItem?
 
     init(card: Card) {
         self.card = card
@@ -330,6 +333,7 @@ struct CardDetailView: View {
             editableTextField(title: "Grading Company", text: $gradedCompany, prompt: "Optional")
             editableTextField(title: "Graded Score", text: $gradedScore, prompt: "Optional")
             editableTextEditor(title: "Notes", text: $collectionNotes, prompt: "Storage, trade notes, provenance")
+            cardPhotoUploader
 
             if let error = store.lastSyncError, error.contains("Collection") {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -367,6 +371,144 @@ struct CardDetailView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var cardPhotoUploader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(
+                title: "Owned Card Photos",
+                subtitle: "Front and back photos are private user uploads, separate from API artwork"
+            )
+
+            if let ownedItem {
+                HStack(spacing: 12) {
+                    cardPhotoPicker(
+                        title: "Front",
+                        side: .front,
+                        url: ownedItem.frontPhotoURL,
+                        selection: $selectedFrontPhotoItem
+                    )
+                    cardPhotoPicker(
+                        title: "Back",
+                        side: .back,
+                        url: ownedItem.backPhotoURL,
+                        selection: $selectedBackPhotoItem
+                    )
+                }
+
+                if let message = store.imageUploadMessage, store.uploadingCardPhotoSide != nil || message.contains("photo") {
+                    Label(message, systemImage: store.uploadingCardPhotoSide == nil ? "checkmark.icloud.fill" : "icloud.and.arrow.up.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(store.uploadingCardPhotoSide == nil ? Color.vdEmerald : Color.vdGold)
+                }
+            } else {
+                Label("Add this card to My Vault before uploading front or back photos.", systemImage: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.vdPanelRaised.opacity(0.74), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private func cardPhotoPicker(
+        title: String,
+        side: CardPhotoSide,
+        url: URL?,
+        selection: Binding<PhotosPickerItem?>
+    ) -> some View {
+        let activeUploadSide = store.uploadingCardPhotoSide
+        let isUploading = activeUploadSide == side
+
+        return PhotosPicker(selection: selection, matching: .images) {
+            VStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.vdPanelRaised.opacity(0.82))
+
+                    if let url {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case let .success(image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            case .failure:
+                                Image(systemName: "photo.fill")
+                                    .foregroundStyle(Color.vdTextSecondary)
+                            default:
+                                ProgressView()
+                                    .tint(Color.vdGold)
+                            }
+                        }
+                    } else {
+                        Image(systemName: side == .front ? "rectangle.portrait.fill" : "rectangle.portrait.rotate.fill")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color.vdGold)
+                    }
+                }
+                .frame(height: 128)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.vdGold.opacity(url == nil ? 0.24 : 0.46), lineWidth: 1)
+                )
+
+                HStack(spacing: 6) {
+                    if isUploading {
+                        ProgressView()
+                            .tint(Color.vdGold)
+                    } else {
+                        Image(systemName: "photo.badge.plus")
+                    }
+                    Text(title)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdTextPrimary)
+            }
+        }
+        .disabled(activeUploadSide != nil)
+        .onChange(of: selection.wrappedValue) { _, newItem in
+            loadCardPhoto(from: newItem, side: side)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func loadCardPhoto(from item: PhotosPickerItem?, side: CardPhotoSide) {
+        guard let item, let ownedItem else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    await MainActor.run {
+                        store.reportImagePickerError("\(side.displayName) photo upload failed: VaultDex could not read the selected photo.")
+                        resetPhotoSelection(for: side)
+                    }
+                    return
+                }
+                await MainActor.run {
+                    store.uploadCardPhotoImageData(data, for: ownedItem, side: side)
+                    resetPhotoSelection(for: side)
+                }
+            } catch {
+                await MainActor.run {
+                    store.reportImagePickerError("\(side.displayName) photo upload failed: \(error.localizedDescription)")
+                    resetPhotoSelection(for: side)
+                }
+            }
+        }
+    }
+
+    private func resetPhotoSelection(for side: CardPhotoSide) {
+        switch side {
+        case .front:
+            selectedFrontPhotoItem = nil
+        case .back:
+            selectedBackPhotoItem = nil
+        }
     }
 
     private var wishlistEditor: some View {

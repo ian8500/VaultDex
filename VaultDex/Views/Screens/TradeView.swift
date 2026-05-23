@@ -170,7 +170,7 @@ struct TradeView: View {
 
     private var marketplaceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Card Market", subtitle: "Browse friends and public demo listings")
+            VaultSectionHeader(title: "Card Market", subtitle: "Browse friend and public listings")
             filters
 
             let listings = viewModel.filteredListings(in: store)
@@ -299,7 +299,7 @@ private struct ListCardSheet: View {
                         .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
 
-                    Toggle("Intermediary safe trade placeholder", isOn: $viewModel.listingUsesSafeTrade)
+                    Toggle("Safe trade review", isOn: $viewModel.listingUsesSafeTrade)
                         .tint(Color.vdGold)
                         .foregroundStyle(Color.vdTextPrimary)
 
@@ -432,7 +432,7 @@ private struct TradeOfferComposer: View {
                 .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
 
-            Toggle("Intermediary safe trade placeholder", isOn: $viewModel.offerUsesSafeTrade)
+            Toggle("Safe trade review", isOn: $viewModel.offerUsesSafeTrade)
                 .tint(Color.vdGold)
                 .foregroundStyle(Color.vdTextPrimary)
         }
@@ -521,7 +521,7 @@ private struct TradeListingRow: View {
                     miniButton(title: listing.isSaved ? "Saved" : "Save", systemImage: listing.isSaved ? "bookmark.fill" : "bookmark", tint: .vdGold, action: onSaveOrRemove)
                     miniButton(title: "Offer", systemImage: "arrow.left.arrow.right", tint: .vdEmerald, action: onOffer)
                     miniButton(title: "Report", systemImage: "exclamationmark.bubble", tint: .vdCoral) {
-                        reportMessage = "Report listing placeholder recorded locally."
+                        reportMessage = "Report listing flow will be available when moderation is enabled."
                     }
                 }
             }
@@ -645,7 +645,7 @@ private struct TradeOfferRow: View {
                 }
 
                 actionButton("Dispute", "exclamationmark.triangle.fill", .vdGold) {
-                    disputeMessage = "Dispute placeholder saved. Backend moderation can attach evidence and notes here later."
+                    disputeMessage = "Dispute flow will be available when moderation is enabled."
                     onStatus(.disputed)
                 }
             }

@@ -370,16 +370,16 @@ final class SupabaseStorageRepository: VaultStorageRepository {
     }
 
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String {
-        let path = "\(userID.uuidString)/avatar-\(UUID().uuidString)"
+        let path = "\(userID.uuidString)/avatar-\(UUID().uuidString).jpg"
         let request = try client.storageRequest(bucket: "avatars", path: path, method: .post, contentType: contentType, body: data)
         try await client.send(request)
-        return "avatars/\(path)"
+        return try client.publicStorageURL(bucket: "avatars", path: path).absoluteString
     }
 
-    func uploadCardPhoto(userID: UUID, cardID: UUID, data: Data, contentType: String) async throws -> String {
-        let path = "\(userID.uuidString)/\(cardID.uuidString)-\(UUID().uuidString)"
+    func uploadCardPhoto(userID: UUID, collectionItemID: UUID, side: CardPhotoSide, data: Data, contentType: String) async throws -> String {
+        let path = "\(userID.uuidString)/collection/\(collectionItemID.uuidString)-\(side.rawValue)-\(UUID().uuidString).jpg"
         let request = try client.storageRequest(bucket: "card-photos", path: path, method: .post, contentType: contentType, body: data)
         try await client.send(request)
-        return "card-photos/\(path)"
+        return try client.publicStorageURL(bucket: "card-photos", path: path).absoluteString
     }
 }

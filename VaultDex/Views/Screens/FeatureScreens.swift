@@ -64,9 +64,8 @@ struct ImportCollectionView: View {
             }
 
             HStack(spacing: 10) {
-                compactAction(title: "Sample", systemImage: "doc.text.fill", tint: .vdViolet) {
-                    viewModel.loadSampleCSV()
-                    viewModel.parseImportText(in: store)
+                compactAction(title: "Template", systemImage: "doc.text.fill", tint: .vdViolet) {
+                    viewModel.loadCSVTemplate()
                 }
 
                 compactAction(title: "Upload CSV", systemImage: "folder.fill", tint: .vdEmerald) {
@@ -1113,7 +1112,7 @@ struct CompletionTrackerView: View {
 
     private var setRows: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Set Completion", subtitle: "Owned unique cards in the demo catalog")
+            VaultSectionHeader(title: "Set Completion", subtitle: "Owned unique cards in your catalogue")
 
             VStack(spacing: 12) {
                 ForEach(viewModel.setProgress(in: store)) { progress in
@@ -1134,7 +1133,7 @@ struct CompletionTrackerView: View {
                 EmptyStateView(
                     systemImage: "line.3.horizontal.decrease.circle.fill",
                     title: "No matching entries",
-                    message: "Loosen the filters to see more of the local card catalogue."
+                    message: "Loosen the filters to see more of your card catalogue."
                 )
             } else {
                 LazyVStack(spacing: 12) {
@@ -1236,7 +1235,7 @@ struct EventsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Track local demo tournaments, trade nights, and community goals.")
+                    Text("Track trade nights, release events, and community goals.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1424,7 +1423,7 @@ struct InviteFriendsView: View {
                         .stroke(Color.vdGold.opacity(0.3), lineWidth: 1)
                 )
 
-            PrimaryButton(title: "Send Demo Invites", systemImage: "paperplane.fill") {}
+            PrimaryButton(title: "Send Invites", systemImage: "paperplane.fill") {}
 
             HStack(spacing: 10) {
                 ShareLink(item: viewModel.inviteMessage) {
@@ -1480,7 +1479,7 @@ struct AccountDeletionView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = AccountDeletionViewModel()
     @State private var isDeleteConfirmationPresented = false
-    @State private var didResetDemoState = false
+    @State private var didResetLocalState = false
 
     var body: some View {
         ZStack {
@@ -1500,19 +1499,19 @@ struct AccountDeletionView: View {
         .navigationTitle("Delete Account")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "Delete local demo account data?",
+            "Delete local test account data?",
             isPresented: $isDeleteConfirmationPresented,
             titleVisibility: .visible
         ) {
-            Button("Delete and Reset Demo User State", role: .destructive) {
+            Button("Delete and Reset Local State", role: .destructive) {
                 store.resetDemoUserState()
                 viewModel.confirmationText = ""
-                didResetDemoState = true
+                didResetLocalState = true
             }
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes collection, wants, binder, trade, and profile data in local mode, then restores the bundled demo state.")
+            Text("This deletes collection, wants, binder, trade, and profile data in local mode, then returns VaultDex to an empty local state.")
         }
     }
 
@@ -1526,7 +1525,7 @@ struct AccountDeletionView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Deleting an account removes collection, wants, binder, trade, and profile data. In local mode this resets VaultDex back to the bundled demo user state.")
+            Text("Deleting an account removes collection, wants, binder, trade, and profile data. In local mode this resets VaultDex back to an empty local state.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1553,7 +1552,7 @@ struct AccountDeletionView: View {
 
     private var confirmation: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Type DELETE to enable the demo request.")
+            Text("Type DELETE to confirm.")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.vdTextPrimary)
 
@@ -1573,8 +1572,8 @@ struct AccountDeletionView: View {
             }
                 .disabled(!viewModel.canRequestDeletion)
 
-            if didResetDemoState {
-                Label("Local demo user state reset", systemImage: "checkmark.circle.fill")
+            if didResetLocalState {
+                Label("Local test state reset", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdEmerald)
             }
@@ -1976,7 +1975,7 @@ private struct FriendProfileView: View {
 
     private var safetyActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Friend Controls", subtitle: "Local placeholders for future trust and safety")
+            VaultSectionHeader(title: "Friend Controls", subtitle: "Trust and safety actions")
 
             PrimaryButton(title: "Remove Friend", systemImage: "person.fill.xmark") {
                 isRemoveConfirmationPresented = true
@@ -1984,10 +1983,10 @@ private struct FriendProfileView: View {
 
             HStack(spacing: 10) {
                 PlaceholderActionButton(title: "Block", systemImage: "hand.raised.fill", tint: .vdCoral) {
-                    actionMessage = "Block placeholder saved for backend moderation."
+                    actionMessage = "Block flow will be available when moderation is enabled."
                 }
                 PlaceholderActionButton(title: "Report", systemImage: "exclamationmark.bubble.fill", tint: .vdGold) {
-                    actionMessage = "Report placeholder saved for backend moderation."
+                    actionMessage = "Report flow will be available when moderation is enabled."
                 }
             }
 

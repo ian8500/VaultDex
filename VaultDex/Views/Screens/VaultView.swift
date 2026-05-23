@@ -98,7 +98,7 @@ struct VaultView: View {
 
             FeatureLinkCard(
                 title: "Import Collection",
-                subtitle: "\(viewModel.binderFilledSlots(in: store))/\(viewModel.binderTotalSlots(in: store)) binder slots filled; scan demo cards next",
+                subtitle: "\(viewModel.binderFilledSlots(in: store))/\(viewModel.binderTotalSlots(in: store)) binder slots filled; import or add cards next",
                 systemImage: "square.and.arrow.down.on.square.fill",
                 tint: .vdEmerald
             ) {
@@ -125,7 +125,7 @@ struct VaultView: View {
 
             FeatureLinkCard(
                 title: "Completion Tracker",
-                subtitle: "Track set-by-set demo completion",
+                subtitle: "Track set-by-set completion",
                 systemImage: "checklist.checked",
                 tint: .vdCoral
             ) {
@@ -140,7 +140,7 @@ struct VaultView: View {
 
         if !favoriteItems.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Favorites", subtitle: "Pinned cards in your demo vault")
+                VaultSectionHeader(title: "Favorites", subtitle: "Pinned cards from your vault")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -176,7 +176,7 @@ struct VaultView: View {
                 EmptyStateView(
                     systemImage: "rectangle.stack.badge.plus",
                     title: "My Vault is empty",
-                    message: "Demo cards will appear here once added."
+                    message: "Search for cards or import a collection file to start tracking your vault."
                 )
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {

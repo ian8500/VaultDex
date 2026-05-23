@@ -156,7 +156,14 @@ final class SupabaseClientProvider {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue(contentType ?? "application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert")
         return request
+    }
+
+    func publicStorageURL(bucket: String, path: String) throws -> URL {
+        guard let baseURL = config.url else { throw SupabaseClientError.missingConfiguration }
+        let cleanPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return baseURL.appending(path: "storage/v1/object/public/\(bucket)/\(cleanPath)")
     }
 
     func send<T: Decodable>(_ request: URLRequest, decode type: T.Type = T.self) async throws -> T {

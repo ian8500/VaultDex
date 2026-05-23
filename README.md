@@ -1,6 +1,6 @@
 # VaultDex
 
-VaultDex is a native SwiftUI iOS trading-card collection app. The app keeps local demo mode available and only uses Supabase for the first auth/profile connection proof.
+VaultDex is a native SwiftUI iOS trading-card collection app. Cloud mode is the default, with local fallback mode still available for development and offline testing.
 
 ## Current Supabase Values
 
@@ -16,11 +16,10 @@ This is a publishable key, not a service-role key. Never add a service-role key 
 1. In Supabase, open SQL Editor.
 2. Run `VaultDex/Resources/Supabase/schema.sql`.
 3. Run `VaultDex/Resources/Supabase/policies.sql`.
-4. In Authentication > Providers, enable Email.
-5. Build and run VaultDex.
-6. Open the Account tab and use Sign Up or Sign In.
-
-Collection, wishlist, trade, binder, and event data intentionally remain in local demo mode for now.
+4. Optionally run `VaultDex/Resources/Supabase/seed.sql`; it intentionally inserts no demo user data.
+5. In Authentication > Providers, enable Email.
+6. Build and run VaultDex.
+7. Open the Account tab and use Sign Up or Sign In.
 
 ## Local Development Config
 
@@ -28,7 +27,7 @@ Local development uses the hardcoded publishable Supabase config in `VaultDex/Se
 
 Move the publishable key and URL into secure build configuration before production.
 
-If Supabase is unavailable, missing, or errors, the app falls back to local demo data.
+If Supabase is unavailable, missing, or errors, the app falls back to an empty local state with polished onboarding empty states.
 
 ## If “No Such Module Supabase” Appears
 
@@ -46,7 +45,7 @@ Do not add a service-role key. Use only the publishable key in the app.
 
 ## App Status Labels
 
-- `Demo Mode`: Local/offline data is active.
+- `Demo Mode`: Local/offline fallback mode is active.
 - `Cloud Ready`: Supabase URL/key are configured and the app is ready for sign in.
 - `Cloud Sync Active`: Email auth succeeded and a session exists.
 - `Supabase Setup Needed`: Supabase URL or publishable key is missing.

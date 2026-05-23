@@ -12,6 +12,7 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists location text;
 alter table public.profiles add column if not exists bio text;
 alter table public.profiles add column if not exists collector_type text;
+alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles add column if not exists avatar_path text;
 alter table public.profiles add column if not exists reputation_score integer not null default 0;
 alter table public.profiles add column if not exists trust_badges text[] not null default '{}';
@@ -21,6 +22,8 @@ alter table public.profiles add column if not exists profile_visibility text not
 alter table public.profiles add column if not exists collection_visibility text not null default 'friends';
 alter table public.profiles add column if not exists wishlist_visibility text not null default 'friends';
 alter table public.profiles add column if not exists allow_friend_trade_requests boolean not null default true;
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
+alter table public.profiles add column if not exists updated_at timestamptz not null default now();
 
 create table if not exists public.card_sets (
   id uuid primary key default gen_random_uuid(),
@@ -96,6 +99,19 @@ alter table public.collection_items add column if not exists visibility text not
 alter table public.collection_items add column if not exists available_for_trade boolean not null default false;
 alter table public.collection_items add column if not exists available_for_credits boolean not null default false;
 alter table public.collection_items add column if not exists asking_credits integer;
+alter table public.collection_items add column if not exists front_photo_url text;
+alter table public.collection_items add column if not exists back_photo_url text;
+alter table public.collection_items add column if not exists created_at timestamptz not null default now();
+alter table public.collection_items add column if not exists updated_at timestamptz not null default now();
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
+  ('card-photos', 'card-photos', true, 10485760, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
 
 do $$
 begin
@@ -127,6 +143,8 @@ alter table public.wishlist_items add column if not exists preferred_condition t
 alter table public.wishlist_items add column if not exists max_trade_value numeric(10, 2) not null default 0;
 alter table public.wishlist_items add column if not exists notes text not null default '';
 alter table public.wishlist_items add column if not exists added_at timestamptz not null default now();
+alter table public.wishlist_items add column if not exists created_at timestamptz not null default now();
+alter table public.wishlist_items add column if not exists updated_at timestamptz not null default now();
 
 do $$
 begin
@@ -300,25 +318,96 @@ create table if not exists public.safety_reports (
   updated_at timestamptz not null default now()
 );
 
+alter table public.card_sets add column if not exists created_at timestamptz not null default now();
+alter table public.card_sets add column if not exists updated_at timestamptz not null default now();
+alter table public.cards add column if not exists created_at timestamptz not null default now();
+alter table public.cards add column if not exists updated_at timestamptz not null default now();
+alter table public.friend_requests add column if not exists created_at timestamptz not null default now();
+alter table public.friend_requests add column if not exists updated_at timestamptz not null default now();
+alter table public.friendships add column if not exists created_at timestamptz not null default now();
+alter table public.friendships add column if not exists updated_at timestamptz not null default now();
+alter table public.binder_pages add column if not exists created_at timestamptz not null default now();
+alter table public.binder_pages add column if not exists updated_at timestamptz not null default now();
+alter table public.binder_slots add column if not exists created_at timestamptz not null default now();
+alter table public.binder_slots add column if not exists updated_at timestamptz not null default now();
+alter table public.trade_offers add column if not exists created_at timestamptz not null default now();
+alter table public.trade_offers add column if not exists updated_at timestamptz not null default now();
+alter table public.trade_offer_items add column if not exists created_at timestamptz not null default now();
+alter table public.trade_offer_items add column if not exists updated_at timestamptz not null default now();
+alter table public.marketplace_listings add column if not exists created_at timestamptz not null default now();
+alter table public.marketplace_listings add column if not exists updated_at timestamptz not null default now();
+alter table public.reputation_events add column if not exists created_at timestamptz not null default now();
+alter table public.reputation_events add column if not exists updated_at timestamptz not null default now();
+alter table public.credit_ledger add column if not exists created_at timestamptz not null default now();
+alter table public.credit_ledger add column if not exists updated_at timestamptz not null default now();
+alter table public.app_events add column if not exists created_at timestamptz not null default now();
+alter table public.app_events add column if not exists updated_at timestamptz not null default now();
+alter table public.safety_reports add column if not exists created_at timestamptz not null default now();
+alter table public.safety_reports add column if not exists updated_at timestamptz not null default now();
+
+create index if not exists profiles_username_idx on public.profiles(username);
+create index if not exists profiles_created_at_idx on public.profiles(created_at);
+create index if not exists card_sets_created_at_idx on public.card_sets(created_at);
 create index if not exists cards_set_id_idx on public.cards(set_id);
 create index if not exists cards_name_idx on public.cards using gin (to_tsvector('english', name));
+create index if not exists cards_card_type_idx on public.cards(card_type);
+create index if not exists cards_rarity_idx on public.cards(rarity);
+create index if not exists cards_created_at_idx on public.cards(created_at);
 create index if not exists collection_items_owner_id_idx on public.collection_items(owner_id);
 create index if not exists collection_items_card_id_idx on public.collection_items(card_id);
+create index if not exists collection_items_owner_card_idx on public.collection_items(owner_id, card_id);
+create index if not exists collection_items_created_at_idx on public.collection_items(created_at);
+create index if not exists collection_items_updated_at_idx on public.collection_items(updated_at);
 create index if not exists wishlist_items_user_id_idx on public.wishlist_items(user_id);
 create index if not exists wishlist_items_card_id_idx on public.wishlist_items(card_id);
+create index if not exists wishlist_items_user_card_idx on public.wishlist_items(user_id, card_id);
+create index if not exists wishlist_items_created_at_idx on public.wishlist_items(created_at);
 create index if not exists friend_requests_requester_idx on public.friend_requests(requester_id);
 create index if not exists friend_requests_addressee_idx on public.friend_requests(addressee_id);
+create index if not exists friend_requests_status_idx on public.friend_requests(status);
+create index if not exists friend_requests_created_at_idx on public.friend_requests(created_at);
 create index if not exists friendships_user_a_idx on public.friendships(user_a_id);
 create index if not exists friendships_user_b_idx on public.friendships(user_b_id);
+create index if not exists friendships_status_idx on public.friendships(status);
+create index if not exists friendships_created_at_idx on public.friendships(created_at);
 create index if not exists binder_pages_user_id_idx on public.binder_pages(user_id);
+create index if not exists binder_pages_visibility_idx on public.binder_pages(visibility);
+create index if not exists binder_pages_created_at_idx on public.binder_pages(created_at);
 create index if not exists binder_slots_page_id_idx on public.binder_slots(page_id);
+create index if not exists binder_slots_card_id_idx on public.binder_slots(card_id);
+create index if not exists binder_slots_collection_item_id_idx on public.binder_slots(collection_item_id);
+create index if not exists binder_slots_created_at_idx on public.binder_slots(created_at);
 create index if not exists trade_offers_sender_idx on public.trade_offers(sender_id);
 create index if not exists trade_offers_receiver_idx on public.trade_offers(receiver_id);
+create index if not exists trade_offers_status_idx on public.trade_offers(status);
+create index if not exists trade_offers_created_at_idx on public.trade_offers(created_at);
 create index if not exists trade_offer_items_offer_idx on public.trade_offer_items(trade_offer_id);
+create index if not exists trade_offer_items_owner_idx on public.trade_offer_items(owner_id);
+create index if not exists trade_offer_items_card_idx on public.trade_offer_items(card_id);
+create index if not exists trade_offer_items_side_idx on public.trade_offer_items(side);
+create index if not exists trade_offer_items_created_at_idx on public.trade_offer_items(created_at);
 create index if not exists marketplace_listings_card_idx on public.marketplace_listings(card_id);
 create index if not exists marketplace_listings_owner_idx on public.marketplace_listings(owner_id);
+create index if not exists marketplace_listings_collection_item_idx on public.marketplace_listings(collection_item_id);
+create index if not exists marketplace_listings_status_idx on public.marketplace_listings(status);
+create index if not exists marketplace_listings_created_at_idx on public.marketplace_listings(created_at);
+create index if not exists reputation_events_profile_idx on public.reputation_events(profile_id);
+create index if not exists reputation_events_actor_idx on public.reputation_events(actor_id);
+create index if not exists reputation_events_trade_offer_idx on public.reputation_events(trade_offer_id);
+create index if not exists reputation_events_created_at_idx on public.reputation_events(created_at);
+create index if not exists credit_ledger_user_idx on public.credit_ledger(user_id);
+create index if not exists credit_ledger_trade_offer_idx on public.credit_ledger(trade_offer_id);
+create index if not exists credit_ledger_created_at_idx on public.credit_ledger(created_at);
 create index if not exists app_events_date_idx on public.app_events(event_date);
+create index if not exists app_events_owner_idx on public.app_events(owner_id);
+create index if not exists app_events_visibility_idx on public.app_events(visibility);
+create index if not exists app_events_created_at_idx on public.app_events(created_at);
 create index if not exists safety_reports_reporter_idx on public.safety_reports(reporter_id);
+create index if not exists safety_reports_reported_profile_idx on public.safety_reports(reported_profile_id);
+create index if not exists safety_reports_marketplace_listing_idx on public.safety_reports(marketplace_listing_id);
+create index if not exists safety_reports_trade_offer_idx on public.safety_reports(trade_offer_id);
+create index if not exists safety_reports_status_idx on public.safety_reports(status);
+create index if not exists safety_reports_created_at_idx on public.safety_reports(created_at);
 
 alter table public.profiles enable row level security;
 alter table public.card_sets enable row level security;

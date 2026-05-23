@@ -232,6 +232,8 @@ struct CollectionItem: Identifiable, Hashable {
     var isFavorite: Bool
     var acquiredAt: Date
     var notes: String?
+    var frontPhotoURL: URL?
+    var backPhotoURL: URL?
 
     init(
         id: UUID = UUID(),
@@ -248,7 +250,9 @@ struct CollectionItem: Identifiable, Hashable {
         askingCredits: Int? = nil,
         isFavorite: Bool = false,
         acquiredAt: Date = .now,
-        notes: String? = nil
+        notes: String? = nil,
+        frontPhotoURL: URL? = nil,
+        backPhotoURL: URL? = nil
     ) {
         self.id = id
         self.card = card
@@ -265,5 +269,7 @@ struct CollectionItem: Identifiable, Hashable {
         self.isFavorite = isFavorite
         self.acquiredAt = acquiredAt
         self.notes = notes
+        self.frontPhotoURL = frontPhotoURL
+        self.backPhotoURL = backPhotoURL
     }
 }

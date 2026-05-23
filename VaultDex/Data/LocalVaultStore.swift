@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class LocalVaultStore: ObservableObject {
+    private static let fallbackSet = CardSet(name: "VaultDex", code: "VDX", releaseYear: 2026, totalCards: 0)
+
     let repositories: VaultRepositoryContainer
     let localRepositories: LocalRepositoryContainer
     let importPreviewItems: [ImportPreviewItem]
@@ -9,6 +11,9 @@ final class LocalVaultStore: ObservableObject {
 
     @Published private(set) var runtimeMode: VaultRuntimeMode
     @Published private(set) var isLoadingCloudData = false
+    @Published private(set) var imageUploadMessage: String?
+    @Published private(set) var isUploadingAvatar = false
+    @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
     @Published private(set) var lastSyncError: String?
     @Published var sets: [CardSet]
     @Published var cards: [Card]
@@ -150,12 +155,12 @@ final class LocalVaultStore: ObservableObject {
     private func apply(snapshot: CloudVaultSnapshot, userID: UUID) {
         let mappedSets = snapshot.sets.map(\.localSet)
         let setByID = Dictionary(uniqueKeysWithValues: mappedSets.map { ($0.id, $0) })
-        let fallbackSet = mappedSets.first ?? DemoVaultRepository.shared.sets[0]
+        let fallbackSet = mappedSets.first ?? Self.fallbackSet
         let mappedCards = snapshot.cards.map { $0.localCard(set: setByID[$0.setID] ?? fallbackSet) }
         let cardByID = Dictionary(uniqueKeysWithValues: mappedCards.map { ($0.id, $0) })
 
-        sets = mappedSets.isEmpty ? DemoVaultRepository.shared.sets : mappedSets
-        cards = mappedCards.isEmpty ? DemoVaultRepository.shared.cards : mappedCards
+        sets = mappedSets
+        cards = mappedCards
         profile = snapshot.profile?.localProfile(favoriteSet: sets.first ?? fallbackSet) ?? profile
         collectionItems = snapshot.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
         wishlistItems = snapshot.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
@@ -685,7 +690,95 @@ final class LocalVaultStore: ObservableObject {
         syncProfile(updatedProfile)
     }
 
+    func reportImagePickerError(_ message: String) {
+        imageUploadMessage = nil
+        isUploadingAvatar = false
+        uploadingCardPhotoSide = nil
+        lastSyncError = message
+    }
+
+    func uploadAvatarImageData(_ data: Data) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
+            lastSyncError = ImageUploadError.missingSession.localizedDescription
+            return
+        }
+
+        isUploadingAvatar = true
+        imageUploadMessage = "Preparing avatar..."
+        Task {
+            do {
+                let service = ImageUploadService(storage: repositories.storage)
+                let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
+                await MainActor.run {
+                    profile.avatarURL = URL(string: urlString)
+                    imageUploadMessage = "Avatar uploaded"
+                    isUploadingAvatar = false
+                    syncProfile(profile)
+                    if lastSyncError?.contains("upload") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    imageUploadMessage = nil
+                    isUploadingAvatar = false
+                    lastSyncError = "Avatar upload failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    func uploadCardPhotoImageData(_ data: Data, for item: CollectionItem, side: CardPhotoSide) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
+            lastSyncError = ImageUploadError.missingSession.localizedDescription
+            return
+        }
+
+        uploadingCardPhotoSide = side
+        imageUploadMessage = "Preparing \(side.displayName.lowercased()) photo..."
+        Task {
+            do {
+                let service = ImageUploadService(storage: repositories.storage)
+                let urlString = try await service.uploadCardPhoto(
+                    userID: userID,
+                    collectionItemID: item.id,
+                    side: side,
+                    imageData: data
+                )
+                await MainActor.run {
+                    guard let index = collectionItems.firstIndex(where: { $0.id == item.id }) else {
+                        imageUploadMessage = nil
+                        uploadingCardPhotoSide = nil
+                        lastSyncError = "\(side.displayName) photo upload failed: collection item was not found."
+                        return
+                    }
+                    let url = URL(string: urlString)
+                    switch side {
+                    case .front:
+                        collectionItems[index].frontPhotoURL = url
+                    case .back:
+                        collectionItems[index].backPhotoURL = url
+                    }
+                    imageUploadMessage = "\(side.displayName) photo uploaded"
+                    uploadingCardPhotoSide = nil
+                    syncCollectionItem(collectionItems[index])
+                    if lastSyncError?.contains("upload") == true || lastSyncError?.contains("Collection save failed") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    imageUploadMessage = nil
+                    uploadingCardPhotoSide = nil
+                    lastSyncError = "\(side.displayName) photo upload failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     func resetDemoUserState(repository: DemoVaultRepository = .shared) {
+        sets = repository.sets
+        cards = repository.cards
         profile = repository.profile
         collectionItems = repository.collectionItems
         wishlistItems = repository.wishlistItems
@@ -799,6 +892,7 @@ final class LocalVaultStore: ObservableObject {
             location: profile.location,
             bio: profile.bio,
             collectorType: profile.collectorType,
+            avatarURL: profile.avatarURL?.absoluteString,
             avatarPath: nil,
             reputationScore: profile.reputationScore,
             trustBadges: profile.trustBadges,
@@ -830,6 +924,8 @@ final class LocalVaultStore: ObservableObject {
             isAvailableForTrade: item.isAvailableForTrade,
             isAvailableForCredits: item.isAvailableForCredits,
             askingCredits: item.askingCredits,
+            frontPhotoURL: item.frontPhotoURL?.absoluteString,
+            backPhotoURL: item.backPhotoURL?.absoluteString,
             isFavorite: item.isFavorite,
             acquiredAt: item.acquiredAt
         )
@@ -1069,6 +1165,7 @@ private extension RemoteProfile {
             bio: bio ?? "Synced VaultDex collector profile.",
             collectorType: collectorType ?? "Cloud Collector",
             avatarSymbol: "person.crop.circle.fill",
+            avatarURL: avatarURL.flatMap(URL.init(string:)),
             reputationScore: reputationScore,
             trustBadges: trustBadges.isEmpty ? ["Cloud Synced"] : trustBadges,
             completedTrades: completedTrades,
@@ -1099,7 +1196,9 @@ private extension RemoteCollectionItem {
             askingCredits: askingCredits,
             isFavorite: isFavorite,
             acquiredAt: acquiredAt,
-            notes: notes
+            notes: notes,
+            frontPhotoURL: frontPhotoURL.flatMap(URL.init(string:)),
+            backPhotoURL: backPhotoURL.flatMap(URL.init(string:))
         )
     }
 }
@@ -1165,7 +1264,7 @@ private extension RemoteTradeOffer {
         let requestedFromItems = items
             .filter { $0.side == "requested" }
             .compactMap { cards[$0.cardID] }
-        TradeOffer(
+        return TradeOffer(
             id: id,
             senderID: senderID,
             receiverID: receiverID,
