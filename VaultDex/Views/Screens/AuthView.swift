@@ -138,15 +138,15 @@ struct AuthView: View {
     }
 
     private var canSubmit: Bool {
-        email.contains("@") && password.count >= 6
+        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
     }
 
     private var statusTint: Color {
         switch authService.status {
         case .demoMode: .vdSky
-        case .cloudMode: .vdLeaf
-        case .offlineMode: .vdGold
-        case .supabaseMissingPackage: .vdGold
+        case .cloudReady: .vdGold
+        case .cloudSignedIn: .vdLeaf
+        case .supabaseConfigMissing: .vdGold
         case .supabaseError: .vdCoral
         }
     }

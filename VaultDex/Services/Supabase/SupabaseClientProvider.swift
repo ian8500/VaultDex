@@ -61,6 +61,22 @@ final class SupabaseClientProvider {
         config.isConfigured && !UserDefaults.standard.bool(forKey: "VaultDexDemoModeEnabled")
     }
 
+    var canCreateClient: Bool {
+        guard config.isConfigured else { return false }
+        #if canImport(Supabase)
+        return sdkClient != nil
+        #else
+        return true
+        #endif
+    }
+
+    #if canImport(Supabase)
+    var sdkClient: SupabaseClient? {
+        guard let url = config.url, let key = config.publishableKey else { return nil }
+        return SupabaseClient(supabaseURL: url, supabaseKey: key)
+    }
+    #endif
+
     var currentSession: SupabaseSession? {
         session
     }

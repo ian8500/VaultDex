@@ -30,7 +30,7 @@ final class LocalVaultStore: ObservableObject {
     ) {
         self.repositories = repositories
         self.localRepositories = localRepositories
-        runtimeMode = repositories.clientProvider.isRemoteEnabled && SupabaseClientProvider.isSupabaseSwiftPackageAvailable ? .offline : .demo
+        runtimeMode = repositories.clientProvider.isRemoteEnabled ? .supabase : .demo
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
@@ -59,13 +59,14 @@ final class LocalVaultStore: ObservableObject {
     }
 
     func loadCloudDataIfPossible(session: SupabaseSession?) async {
-        guard repositories.config.isConfigured, SupabaseClientProvider.isSupabaseSwiftPackageAvailable else {
+        guard repositories.config.isConfigured, repositories.clientProvider.canCreateClient else {
             loadCachedOrDemo(reason: "Supabase is unavailable on this build.")
             return
         }
 
         guard let session else {
-            loadCachedOrDemo(reason: "No active Supabase session.")
+            runtimeMode = .supabase
+            lastSyncError = nil
             return
         }
 

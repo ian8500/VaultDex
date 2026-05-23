@@ -2,17 +2,17 @@ import Foundation
 
 enum VaultAppStatus: Equatable {
     case demoMode
-    case cloudMode
-    case offlineMode(String)
-    case supabaseMissingPackage
+    case cloudReady
+    case cloudSignedIn
+    case supabaseConfigMissing
     case supabaseError(String)
 
     var title: String {
         switch self {
         case .demoMode: "Demo Mode"
-        case .cloudMode: "Cloud Mode"
-        case .offlineMode: "Offline Mode"
-        case .supabaseMissingPackage: "Supabase Missing Package"
+        case .cloudReady: "Cloud Ready"
+        case .cloudSignedIn: "Cloud Signed In"
+        case .supabaseConfigMissing: "Supabase Config Missing"
         case .supabaseError: "Supabase Error"
         }
     }
@@ -21,12 +21,12 @@ enum VaultAppStatus: Equatable {
         switch self {
         case .demoMode:
             "Using local demo data. Supabase auth is safely bypassed."
-        case .cloudMode:
+        case .cloudReady:
+            "Supabase URL and publishable key are configured. Sign in to sync."
+        case .cloudSignedIn:
             "Signed in and syncing with Supabase."
-        case let .offlineMode(message):
-            message
-        case .supabaseMissingPackage:
-            "The Swift package is not installed. REST auth fallback is available for this proof step."
+        case .supabaseConfigMissing:
+            "Supabase URL or publishable key is missing."
         case let .supabaseError(message):
             message
         }
@@ -35,9 +35,9 @@ enum VaultAppStatus: Equatable {
     var systemImage: String {
         switch self {
         case .demoMode: "iphone"
-        case .cloudMode: "checkmark.icloud.fill"
-        case .offlineMode: "wifi.slash"
-        case .supabaseMissingPackage: "shippingbox.fill"
+        case .cloudReady: "icloud"
+        case .cloudSignedIn: "checkmark.icloud.fill"
+        case .supabaseConfigMissing: "exclamationmark.icloud.fill"
         case .supabaseError: "exclamationmark.triangle.fill"
         }
     }
@@ -59,17 +59,12 @@ final class AuthService: ObservableObject {
         self.isDemoModeEnabled = initialDemoMode
         self.session = initialSession
 
-        if initialDemoMode {
-            status = .demoMode
-        } else if !clientProvider.config.isConfigured {
-            status = .offlineMode("Supabase is not configured. Using cached/demo data.")
-        } else if initialSession != nil {
-            status = .cloudMode
-        } else if SupabaseClientProvider.isSupabaseSwiftPackageAvailable {
-            status = .offlineMode("Sign in to load your cloud vault.")
-        } else {
-            status = .supabaseMissingPackage
-        }
+        status = Self.status(
+            demoMode: initialDemoMode,
+            isConfigured: clientProvider.config.isConfigured,
+            canCreateClient: clientProvider.canCreateClient,
+            session: initialSession
+        )
     }
 
     var shouldShowLogin: Bool {
@@ -82,11 +77,11 @@ final class AuthService: ObservableObject {
         if isEnabled {
             status = .demoMode
         } else if session != nil {
-            status = .cloudMode
-        } else if SupabaseClientProvider.isSupabaseSwiftPackageAvailable {
-            status = .offlineMode("Demo Mode is off. Sign in to sync with Supabase.")
+            status = .cloudSignedIn
+        } else if clientProvider.config.isConfigured && clientProvider.canCreateClient {
+            status = .cloudReady
         } else {
-            status = .supabaseMissingPackage
+            status = .supabaseConfigMissing
         }
     }
 
@@ -102,7 +97,7 @@ final class AuthService: ObservableObject {
         guard clientProvider.isRemoteEnabled else {
             session = nil
             clientProvider.updateSession(nil)
-            status = .demoMode
+            status = isDemoModeEnabled ? .demoMode : .supabaseConfigMissing
             return
         }
 
@@ -114,7 +109,7 @@ final class AuthService: ObservableObject {
             try await clientProvider.send(request)
             session = nil
             clientProvider.updateSession(nil)
-            status = isDemoModeEnabled ? .demoMode : .offlineMode("Signed out. Sign in to load your cloud vault.")
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
         } catch {
             status = .supabaseError(error.localizedDescription)
             throw error
@@ -143,7 +138,7 @@ final class AuthService: ObservableObject {
             session = newSession
             clientProvider.updateSession(newSession)
             try await upsertProfile(for: newSession)
-            status = .cloudMode
+            status = .cloudSignedIn
         } catch {
             session = nil
             clientProvider.updateSession(nil)
@@ -222,5 +217,16 @@ final class AuthService: ObservableObject {
             case username
             case displayName = "display_name"
         }
+    }
+
+    private static func status(
+        demoMode: Bool,
+        isConfigured: Bool,
+        canCreateClient: Bool,
+        session: SupabaseSession?
+    ) -> VaultAppStatus {
+        if demoMode { return .demoMode }
+        guard isConfigured, canCreateClient else { return .supabaseConfigMissing }
+        return session == nil ? .cloudReady : .cloudSignedIn
     }
 }

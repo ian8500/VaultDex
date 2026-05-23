@@ -112,9 +112,9 @@ private struct AppStatusBanner: View {
     private var tint: Color {
         switch status {
         case .demoMode: .vdSky
-        case .cloudMode: .vdLeaf
-        case .offlineMode: .vdGold
-        case .supabaseMissingPackage: .vdGold
+        case .cloudReady: .vdGold
+        case .cloudSignedIn: .vdLeaf
+        case .supabaseConfigMissing: .vdGold
         case .supabaseError: .vdCoral
         }
     }
