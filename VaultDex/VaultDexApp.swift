@@ -13,7 +13,12 @@ struct VaultDexApp: App {
     @StateObject private var authService: AuthService
 
     init() {
-        let repositories = VaultRepositoryContainer.live(config: .current)
+        let config = SupabaseConfig.current
+        print("Supabase URL configured: \(config.url != nil)")
+        print("Supabase key configured: \(!(config.publishableKey ?? "").isEmpty)")
+        print("Demo mode: \(config.demoMode)")
+
+        let repositories = VaultRepositoryContainer.live(config: config)
         _store = StateObject(
             wrappedValue: LocalVaultStore(
                 repositories: repositories,

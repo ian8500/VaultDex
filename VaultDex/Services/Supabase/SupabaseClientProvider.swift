@@ -64,15 +64,17 @@ final class SupabaseClientProvider {
     let config: SupabaseConfig
     private let urlSession: URLSession
     private var session: SupabaseSession?
+    private var demoModeEnabled: Bool
 
     init(config: SupabaseConfig = .current, urlSession: URLSession = .shared) {
         self.config = config
         self.urlSession = urlSession
         self.session = SupabaseSessionStore.load()
+        self.demoModeEnabled = config.demoMode
     }
 
     var isRemoteEnabled: Bool {
-        config.isConfigured && !UserDefaults.standard.bool(forKey: "VaultDexDemoModeEnabled")
+        config.isConfigured && !demoModeEnabled
     }
 
     var canCreateClient: Bool {
@@ -103,6 +105,10 @@ final class SupabaseClientProvider {
     func updateSession(_ session: SupabaseSession?) {
         self.session = session
         SupabaseSessionStore.save(session)
+    }
+
+    func setDemoModeEnabled(_ isEnabled: Bool) {
+        demoModeEnabled = isEnabled
     }
 
     func restRequest(

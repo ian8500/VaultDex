@@ -1,9 +1,6 @@
 import Foundation
 
 struct SupabaseConfig: Equatable {
-    static let bundledURLString = "https://serqknmuacwbdgdrwkrp.supabase.co"
-    static let bundledPublishableKey = "sb_publishable_3ZCT0O7LEOOsErhHTHu3wA_4TEA9DRS"
-
     let demoMode: Bool
     let url: URL?
     let publishableKey: String?
@@ -22,11 +19,11 @@ struct SupabaseConfig: Equatable {
 
     static var current: SupabaseConfig {
         SupabaseConfig(
-            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: UserDefaults.standard.bool(forKey: "VaultDexDemoModeEnabled")),
-            url: Self.urlValue(named: "SUPABASE_URL") ?? URL(string: bundledURLString),
+            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: SupabaseDevConfig.demoMode),
+            url: Self.urlValue(named: "SUPABASE_URL") ?? SupabaseDevConfig.url,
             publishableKey: Self.stringValue(named: "SUPABASE_PUBLISHABLE_KEY")
                 ?? Self.stringValue(named: "SUPABASE_ANON_KEY")
-                ?? bundledPublishableKey
+                ?? SupabaseDevConfig.publishableKey
         )
     }
 

@@ -99,6 +99,7 @@ final class AuthService: ObservableObject {
 
     func setDemoModeEnabled(_ isEnabled: Bool) {
         UserDefaults.standard.set(isEnabled, forKey: "VaultDexDemoModeEnabled")
+        clientProvider.setDemoModeEnabled(isEnabled)
         isDemoModeEnabled = isEnabled
         if isEnabled {
             status = .demoMode
@@ -271,6 +272,9 @@ final class AuthService: ObservableObject {
     }
 
     private static func displayMessage(for error: Error) -> String {
+        if case SupabaseClientError.missingConfiguration = error {
+            return "Supabase development config is missing or demo mode is enabled."
+        }
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {
             return description
