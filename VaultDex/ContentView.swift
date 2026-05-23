@@ -11,6 +11,7 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var store: LocalVaultStore
+    @State private var hasResolvedAuthenticatedLaunch = false
 
     init() {
         let appearance = UITabBarAppearance()
@@ -39,43 +40,14 @@ struct ContentView: View {
                 NavigationStack {
                     AuthView()
                 }
-            } else {
-                TabView {
-                    NavigationStack {
-                        DashboardView()
-                    }
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-
-                    NavigationStack {
-                        SearchView()
-                    }
-                    .tabItem {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-
-                    NavigationStack {
-                        VaultView()
-                    }
-                    .tabItem {
-                        Label("Vault", systemImage: "lock.shield")
-                    }
-
-                    NavigationStack {
-                        FriendsView()
-                    }
-                    .tabItem {
-                        Label("Friends", systemImage: "person.2.fill")
-                    }
-
-                    NavigationStack {
-                        TradeView()
-                    }
-                    .tabItem {
-                        Label("Trade", systemImage: "arrow.left.arrow.right.circle.fill")
-                    }
+            } else if !hasResolvedAuthenticatedLaunch || store.isLoadingCloudData {
+                AuthenticatedLoadingView()
+            } else if needsProfileSetup {
+                NavigationStack {
+                    ProfileSetupView()
                 }
+            } else {
+                mainTabs
             }
         }
         .tint(Color.vdGold)
@@ -93,11 +65,90 @@ struct ContentView: View {
         }
     }
 
+    private var mainTabs: some View {
+        TabView {
+            NavigationStack {
+                DashboardView()
+            }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
+
+            NavigationStack {
+                SearchView()
+            }
+            .tabItem {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+
+            NavigationStack {
+                VaultView()
+            }
+            .tabItem {
+                Label("Vault", systemImage: "lock.shield")
+            }
+
+            NavigationStack {
+                FriendsView()
+            }
+            .tabItem {
+                Label("Friends", systemImage: "person.2.fill")
+            }
+
+            NavigationStack {
+                TradeView()
+            }
+            .tabItem {
+                Label("Trade", systemImage: "arrow.left.arrow.right.circle.fill")
+            }
+        }
+    }
+
+    private var needsProfileSetup: Bool {
+        let username = store.profile.handle
+            .replacingOccurrences(of: "@", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = store.profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return username.isEmpty || displayName.isEmpty
+    }
+
     private func refreshDataMode() async {
+        guard authService.currentSession() != nil else {
+            hasResolvedAuthenticatedLaunch = false
+            store.clearSignedOutState()
+            return
+        }
+
+        hasResolvedAuthenticatedLaunch = false
+
         if authService.isDemoModeEnabled {
             store.useDemoMode()
         } else {
             await store.loadCloudDataIfPossible(session: authService.currentSession())
+        }
+
+        hasResolvedAuthenticatedLaunch = true
+    }
+}
+
+private struct AuthenticatedLoadingView: View {
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(spacing: 16) {
+                VaultDexLogo(size: 70)
+
+                ProgressView()
+                    .tint(Color.vdGold)
+
+                Text("Preparing your vault")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+            }
+            .padding(28)
+            .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
         }
     }
 }

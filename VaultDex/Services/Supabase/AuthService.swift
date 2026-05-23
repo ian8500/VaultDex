@@ -71,7 +71,7 @@ final class AuthService: ObservableObject {
     }
 
     var shouldShowLogin: Bool {
-        !isDemoModeEnabled && session == nil
+        session == nil
     }
 
     var isCloudConfigured: Bool {

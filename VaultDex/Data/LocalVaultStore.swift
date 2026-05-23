@@ -73,6 +73,39 @@ final class LocalVaultStore: ObservableObject {
         resetDemoUserState(repository: repository)
     }
 
+    func clearSignedOutState() {
+        runtimeMode = .supabase
+        lastSyncError = nil
+        imageUploadMessage = nil
+        sets = []
+        cards = []
+        collectionItems = []
+        wishlistItems = []
+        binderPages = []
+        friends = []
+        friendRequests = []
+        friendWants = []
+        tradeListings = []
+        tradeOffers = []
+        events = []
+        profile = UserProfile(
+            displayName: "",
+            handle: "",
+            location: "",
+            bio: "",
+            collectorType: "",
+            avatarSymbol: "person.crop.circle.fill",
+            reputationScore: 0,
+            trustBadges: [],
+            completedTrades: 0,
+            collectorScore: 0,
+            favoriteSet: Self.fallbackSet,
+            joinedDate: .now,
+            followers: 0,
+            following: 0
+        )
+    }
+
     func loadCloudDataIfPossible(session: SupabaseSession?) async {
         guard repositories.config.isConfigured, repositories.clientProvider.canCreateClient else {
             loadCachedOrDemo(reason: "Supabase is unavailable on this build.")
@@ -102,6 +135,9 @@ final class LocalVaultStore: ObservableObject {
     private func loadCachedOrDemo(reason: String) {
         if let snapshot = CloudVaultCache.load(), let userID = repositories.clientProvider.currentSession?.userID {
             apply(snapshot: snapshot, userID: userID)
+            runtimeMode = .offline
+        } else if repositories.clientProvider.currentSession != nil {
+            clearSignedOutState()
             runtimeMode = .offline
         } else {
             runtimeMode = .demo

@@ -5,7 +5,6 @@ struct AuthView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var lastMessage = ""
-    @State private var showProfile = false
 
     var body: some View {
         ZStack {
@@ -57,10 +56,22 @@ struct AuthView: View {
                 }
                 .disabled(!canSubmit || authService.isLoading)
 
-                SecondaryButton(title: "Sign Up", systemImage: "person.badge.plus") {
+                SecondaryButton(title: "Create Account", systemImage: "person.badge.plus") {
                     Task { await runAuthAction { try await authService.signUp(email: email, password: password) } }
                 }
                 .disabled(!canSubmit || authService.isLoading)
+            }
+
+            if authService.isLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(Color.vdGold)
+
+                    Text("Working on it...")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !lastMessage.isEmpty {

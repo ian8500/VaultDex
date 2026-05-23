@@ -2,11 +2,15 @@ import SwiftUI
 import PhotosUI
 
 struct SocialProfileView: View {
+    @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var store: LocalVaultStore
     @State private var draft = ProfileDraft()
     @State private var hasLoadedDraft = false
     @State private var didSaveProfile = false
     @State private var selectedAvatarItem: PhotosPickerItem?
+    @State private var profileMessage = ""
+    @State private var usernameError = ""
+    @State private var showLogoutConfirmation = false
 
     var body: some View {
         ZStack {
@@ -17,9 +21,7 @@ struct SocialProfileView: View {
                     profileHeader
                     profileEditor
                     socialStats
-                    socialTools
-                    setProgress
-                    showcase
+                    logoutSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -32,6 +34,17 @@ struct SocialProfileView: View {
             guard !hasLoadedDraft else { return }
             draft = ProfileDraft(profile: store.profile)
             hasLoadedDraft = true
+        }
+        .confirmationDialog("Log out of VaultDex?", isPresented: $showLogoutConfirmation, titleVisibility: .visible) {
+            Button("Log Out", role: .destructive) {
+                Task {
+                    try? await authService.signOut()
+                    store.clearSignedOutState()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You can sign back in at any time.")
         }
     }
 
@@ -106,20 +119,29 @@ struct SocialProfileView: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(store.profile.trustBadges.prefix(3), id: \.self) { badge in
-                    Label(badge, systemImage: "checkmark.seal.fill")
+                if store.profile.trustBadges.isEmpty {
+                    Label("New collector", systemImage: "sparkles")
                         .font(.caption.weight(.black))
                         .foregroundStyle(Color.vdNavy)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(Color.vdLeaf.opacity(0.92), in: Capsule())
+                        .background(Color.vdGold.opacity(0.92), in: Capsule())
                         .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
+                } else {
+                    ForEach(store.profile.trustBadges.prefix(3), id: \.self) { badge in
+                        Label(badge, systemImage: "checkmark.seal.fill")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(Color.vdNavy)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(Color.vdLeaf.opacity(0.92), in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
+                    }
                 }
             }
 
             PrimaryButton(title: "Save Profile Changes", systemImage: "checkmark.seal.fill") {
-                store.updateProfile(draft.makeProfile(from: store.profile))
-                didSaveProfile = true
+                saveProfile()
             }
 
             avatarUploadButton
@@ -131,10 +153,17 @@ struct SocialProfileView: View {
             }
 
             if didSaveProfile {
-                Label("Changes saved", systemImage: "checkmark.circle.fill")
+                Label(profileMessage.isEmpty ? "Changes saved" : profileMessage, systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdEmerald)
                     .transition(.opacity)
+            }
+
+            if !usernameError.isEmpty {
+                Label(usernameError, systemImage: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdCoral)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(18)
@@ -189,7 +218,7 @@ struct SocialProfileView: View {
                 ProfileTextField(title: "Username", text: $draft.handle, systemImage: "at")
                 ProfileTextField(title: "Display name", text: $draft.displayName, systemImage: "person.text.rectangle")
                 ProfileTextField(title: "Location", text: $draft.location, systemImage: "location.fill")
-                ProfileTextField(title: "Collector type", text: $draft.collectorType, systemImage: "crown.fill")
+                collectorTypePicker
 
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Bio", systemImage: "text.alignleft")
@@ -213,6 +242,29 @@ struct SocialProfileView: View {
                 .font(.caption)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var collectorTypePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Collector type", systemImage: "crown.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+
+            Picker("Collector type", selection: $draft.collectorType) {
+                ForEach(ProfileDraft.collectorTypes, id: \.self) { type in
+                    Text(type.capitalized).tag(type)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Color.vdGold)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
+            )
         }
     }
 
@@ -245,6 +297,38 @@ struct SocialProfileView: View {
             ProfileStatTile(title: "Reputation", value: "\(store.profile.reputationScore)", systemImage: "shield.checkered", tint: .vdGold)
             ProfileStatTile(title: "Trades", value: "\(store.profile.completedTrades)", systemImage: "arrow.left.arrow.right", tint: .vdEmerald)
             ProfileStatTile(title: "Mythics", value: "\(mythicCount)", systemImage: "sparkles", tint: .vdCoral)
+        }
+    }
+
+    private var logoutSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Account", subtitle: "Manage your VaultDex access.")
+
+            SecondaryButton(title: "Log Out", systemImage: "rectangle.portrait.and.arrow.right") {
+                showLogoutConfirmation = true
+            }
+        }
+    }
+
+    private func saveProfile() {
+        usernameError = ""
+        didSaveProfile = false
+
+        guard let validatedDraft = draft.validated() else {
+            usernameError = "Username must use lowercase letters, numbers or underscores."
+            return
+        }
+
+        guard !validatedDraft.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            usernameError = "Display name cannot be empty."
+            return
+        }
+
+        draft = validatedDraft
+        store.updateProfile(validatedDraft.makeProfile(from: store.profile))
+        profileMessage = "Profile saved"
+        withAnimation(.easeInOut(duration: 0.2)) {
+            didSaveProfile = true
         }
     }
 
@@ -408,12 +492,117 @@ struct SocialProfileView: View {
     }
 }
 
+struct ProfileSetupView: View {
+    @EnvironmentObject private var store: LocalVaultStore
+    @State private var draft = ProfileDraft()
+    @State private var message = ""
+    @State private var didLoadDraft = false
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VaultDexLogo(size: 72)
+
+                        Text("Set up your profile")
+                            .font(.system(.largeTitle, design: .rounded, weight: .black))
+                            .foregroundStyle(Color.vdTextPrimary)
+
+                        Text("Choose how other collectors will see you.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.vdTextSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        ProfileTextField(title: "Username", text: $draft.handle, systemImage: "at")
+                        ProfileTextField(title: "Display name", text: $draft.displayName, systemImage: "person.text.rectangle")
+                        ProfileTextField(title: "Location", text: $draft.location, systemImage: "location.fill")
+
+                        Picker("Collector type", selection: $draft.collectorType) {
+                            ForEach(ProfileDraft.collectorTypes, id: \.self) { type in
+                                Text(type.capitalized).tag(type)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.vdGold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Bio", systemImage: "text.alignleft")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+
+                            TextEditor(text: $draft.bio)
+                                .frame(minHeight: 90)
+                                .scrollContentBackground(.hidden)
+                                .padding(10)
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+                        }
+
+                        PrimaryButton(title: "Save Profile", systemImage: "checkmark.seal.fill") {
+                            saveProfile()
+                        }
+
+                        if !message.isEmpty {
+                            Label(message, systemImage: "exclamationmark.circle.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdCoral)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(18)
+                    .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 22))
+                    .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+                }
+                .padding(20)
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .onAppear {
+            guard !didLoadDraft else { return }
+            draft = ProfileDraft(profile: store.profile)
+            didLoadDraft = true
+        }
+    }
+
+    private func saveProfile() {
+        guard let validatedDraft = draft.validated() else {
+            message = "Username must use lowercase letters, numbers or underscores."
+            return
+        }
+
+        guard !validatedDraft.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            message = "Display name cannot be empty."
+            return
+        }
+
+        draft = validatedDraft
+        message = ""
+        store.updateProfile(validatedDraft.makeProfile(from: store.profile))
+    }
+}
+
 private struct ProfileDraft {
+    static let collectorTypes = [
+        "casual collector",
+        "parent account",
+        "serious collector",
+        "trader"
+    ]
+
     var displayName = ""
     var handle = ""
     var location = ""
     var bio = ""
-    var collectorType = ""
+    var collectorType = Self.collectorTypes[0]
     var avatarSymbol = "person.crop.circle.fill"
 
     init() {}
@@ -423,18 +612,38 @@ private struct ProfileDraft {
         handle = profile.handle
         location = profile.location
         bio = profile.bio
-        collectorType = profile.collectorType
+        collectorType = Self.collectorTypes.contains(profile.collectorType) ? profile.collectorType : Self.collectorTypes[0]
         avatarSymbol = profile.avatarSymbol
+    }
+
+    func validated() -> ProfileDraft? {
+        var copy = self
+        let username = copy.handle
+            .replacingOccurrences(of: "@", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard !username.isEmpty, username.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+            return nil
+        }
+
+        copy.handle = "@\(username)"
+        copy.displayName = copy.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.location = copy.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.bio = copy.bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.avatarSymbol = copy.avatarSymbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "person.crop.circle.fill" : copy.avatarSymbol
+        copy.collectorType = Self.collectorTypes.contains(copy.collectorType) ? copy.collectorType : Self.collectorTypes[0]
+        return copy
     }
 
     func makeProfile(from profile: UserProfile) -> UserProfile {
         UserProfile(
             id: profile.id,
-            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.displayName : displayName,
-            handle: handle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.handle : handle,
-            location: location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.location : location,
+            displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.displayName : displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+            handle: handle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.handle : handle.trimmingCharacters(in: .whitespacesAndNewlines),
+            location: location.trimmingCharacters(in: .whitespacesAndNewlines),
             bio: bio.trimmingCharacters(in: .whitespacesAndNewlines),
-            collectorType: collectorType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.collectorType : collectorType,
+            collectorType: Self.collectorTypes.contains(collectorType) ? collectorType : profile.collectorType,
             avatarSymbol: avatarSymbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.avatarSymbol : avatarSymbol,
             avatarURL: profile.avatarURL,
             reputationScore: profile.reputationScore,

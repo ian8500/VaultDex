@@ -128,12 +128,22 @@ struct DashboardView: View {
 
             Spacer()
 
-            Label("Level \(collectorLevel)", systemImage: "bolt.fill")
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.vdNavy)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Color.vdGold, in: Capsule())
+            NavigationLink {
+                SocialProfileView()
+            } label: {
+                Image(systemName: store.profile.avatarSymbol)
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 44, height: 44)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                    )
+                    .shadow(color: Color.vdGold.opacity(0.24), radius: 12, x: 0, y: 6)
+                    .accessibilityLabel("Open profile")
+            }
+            .buttonStyle(.plain)
         }
         .padding(.top, 4)
     }
