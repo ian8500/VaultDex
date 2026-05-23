@@ -69,11 +69,22 @@ final class SupabaseClientProvider {
     private var session: SupabaseSession?
     private var demoModeEnabled: Bool
 
-    init(config: SupabaseConfig = .current, urlSession: URLSession = .shared) {
+    init(config: SupabaseConfig = .current, urlSession: URLSession = SupabaseClientProvider.makeStableURLSession()) {
         self.config = SupabaseConfig.current
         self.urlSession = urlSession
         self.session = SupabaseSessionStore.load()
         self.demoModeEnabled = SupabaseConfig.current.demoMode
+    }
+
+    static func makeStableURLSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 60
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpMaximumConnectionsPerHost = 4
+        return URLSession(configuration: configuration)
     }
 
     var isRemoteEnabled: Bool {
@@ -92,7 +103,10 @@ final class SupabaseClientProvider {
     #if canImport(Supabase)
     var sdkClient: SupabaseClient? {
         guard let url = config.url, let key = config.publishableKey else { return nil }
-        return SupabaseClient(supabaseURL: url, supabaseKey: key)
+        let options = SupabaseClientOptions(
+            global: .init(session: urlSession)
+        )
+        return SupabaseClient(supabaseURL: url, supabaseKey: key, options: options)
     }
 
     func requireSDKClient() throws -> SupabaseClient {

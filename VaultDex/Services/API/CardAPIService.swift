@@ -120,7 +120,7 @@ final class CardAPIService {
             )
             try await clientProvider.send(cardRequest)
         } catch {
-            print("VaultDex card API cache skipped: \(String(reflecting: error))")
+            return
         }
     }
 

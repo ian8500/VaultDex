@@ -209,7 +209,7 @@ struct SocialProfileView: View {
                 }
             }
 
-            Text("Avatar photos upload to Supabase Storage and save to the profile avatar URL. The symbol remains as a fallback.")
+            Text("Avatar photos upload to cloud storage. The symbol remains as a fallback.")
                 .font(.caption)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -527,11 +527,11 @@ struct SettingsView: View {
 
     private var dataModeControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Data Mode", subtitle: "Cloud mode is the default. Demo mode is only a fallback.")
+            VaultSectionHeader(title: "Data Mode", subtitle: "Cloud mode is the default. Local fallback is only for development and offline testing.")
 
             SafetyToggleRow(
-                title: "Demo Mode",
-                subtitle: authService.isDemoModeEnabled ? "Using local fallback mode." : "Using Supabase cloud data when signed in.",
+                title: "Local Fallback",
+                subtitle: authService.isDemoModeEnabled ? "Using local fallback mode." : "Using cloud data when signed in.",
                 isOn: Binding(
                     get: { authService.isDemoModeEnabled },
                     set: { authService.setDemoModeEnabled($0) }
@@ -541,17 +541,6 @@ struct SettingsView: View {
             Label(authService.status.title, systemImage: authService.status.systemImage)
                 .font(.caption.weight(.black))
                 .foregroundStyle(Color.vdTextSecondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                SettingsDebugRow(title: "demoMode", value: authService.debugDemoModeValue)
-                SettingsDebugRow(title: "supabaseURL", value: authService.debugSupabaseURLValue)
-                SettingsDebugRow(title: "publishableKey", value: authService.debugPublishableKeyValue)
-                SettingsDebugRow(title: "isConfigured", value: authService.debugIsConfiguredValue)
-                SettingsDebugRow(title: "Session active", value: authService.isSessionActive ? "yes" : "no")
-                SettingsDebugRow(title: "Current mode", value: authService.currentModeDescription)
-            }
-            .padding(12)
-            .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -722,23 +711,6 @@ private struct SafetyToggleRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
-    }
-}
-
-struct SettingsDebugRow: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdTextSecondary)
-            Spacer()
-            Text(value)
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.vdTextPrimary)
-        }
     }
 }
 

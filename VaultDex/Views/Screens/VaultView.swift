@@ -44,7 +44,7 @@ struct VaultView: View {
                         .stroke(Color.vdCoral.opacity(0.28), lineWidth: 1)
                 )
         } else if store.runtimeMode == .supabase {
-            Label("My Vault is syncing to Supabase", systemImage: "checkmark.icloud.fill")
+            Label("My Vault is syncing to cloud", systemImage: "checkmark.icloud.fill")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.vdEmerald)
         } else if store.runtimeMode == .offline {

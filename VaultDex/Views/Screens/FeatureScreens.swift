@@ -264,7 +264,7 @@ struct WishlistView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text(store.runtimeMode == .supabase ? "Find your next grail. Wants sync to Supabase when you are signed in." : "Find your next grail. Offline targets stay available locally.")
+                    Text(store.runtimeMode == .supabase ? "Find your next grail. Wants sync when you are signed in." : "Find your next grail. Offline targets stay available locally.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -297,7 +297,7 @@ struct WishlistView: View {
                 .foregroundStyle(Color.vdCoral)
                 .fixedSize(horizontal: false, vertical: true)
         } else if store.runtimeMode == .supabase {
-            Label("Wants are syncing to Supabase", systemImage: "icloud.fill")
+            Label("Wants are syncing to cloud", systemImage: "icloud.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.vdSky)
         } else if store.runtimeMode == .offline {
@@ -431,7 +431,7 @@ struct FriendsView: View {
                     .foregroundStyle(Color.vdCoral)
                     .fixedSize(horizontal: false, vertical: true)
             } else if store.runtimeMode == .supabase {
-                Label("Friends sync through Supabase", systemImage: "icloud.fill")
+                Label("Friends sync through cloud", systemImage: "icloud.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.vdSky)
             }

@@ -16,8 +16,8 @@ enum VaultAppStatus: Equatable {
         case .demoMode: "Demo Mode"
         case .cloudReady: "Cloud Ready"
         case .cloudSignedIn: "Cloud Sync Active"
-        case .supabaseConfigMissing: "Supabase Setup Needed"
-        case .supabaseError: "Supabase Error"
+        case .supabaseConfigMissing: "Cloud Setup Needed"
+        case .supabaseError: "Cloud Issue"
         }
     }
 
@@ -30,7 +30,7 @@ enum VaultAppStatus: Equatable {
         case .cloudSignedIn:
             "Signed in and syncing with Supabase."
         case .supabaseConfigMissing:
-            "Supabase URL or publishable key is missing."
+            "Cloud services are not available right now."
         case let .supabaseError(message):
             message
         }
@@ -66,51 +66,12 @@ final class AuthService: ObservableObject {
         status = Self.status(
             demoMode: initialDemoMode,
             isConfigured: clientProvider.config.isConfigured,
-            canCreateClient: clientProvider.canCreateClient,
             session: initialSession
         )
     }
 
     var shouldShowLogin: Bool {
         !isDemoModeEnabled && session == nil
-    }
-
-    var isSupabaseURLConfigured: Bool {
-        clientProvider.config.url != nil
-    }
-
-    var isSupabaseKeyConfigured: Bool {
-        !(clientProvider.config.publishableKey ?? "").isEmpty
-    }
-
-    var isSessionActive: Bool {
-        session != nil
-    }
-
-    var debugDemoModeValue: String {
-        "\(clientProvider.config.demoMode)"
-    }
-
-    var debugSupabaseURLValue: String {
-        clientProvider.config.url == nil ? "missing" : "configured"
-    }
-
-    var debugPublishableKeyValue: String {
-        (clientProvider.config.publishableKey ?? "").isEmpty ? "missing" : "configured"
-    }
-
-    var debugIsConfiguredValue: String {
-        "\(clientProvider.config.isConfigured)"
-    }
-
-    var currentModeDescription: String {
-        switch status {
-        case .demoMode: "Demo"
-        case .cloudReady: "Cloud Ready"
-        case .cloudSignedIn: "Cloud Sync Active"
-        case .supabaseConfigMissing: "Supabase Setup Needed"
-        case .supabaseError: "Supabase Error"
-        }
     }
 
     func setDemoModeEnabled(_ isEnabled: Bool) {
@@ -162,8 +123,7 @@ final class AuthService: ObservableObject {
             clientProvider.updateSession(nil)
             status = isDemoModeEnabled ? .demoMode : .cloudReady
         } catch {
-            logSupabaseError(error)
-            status = .supabaseError(Self.displayMessage(for: error))
+            status = .supabaseError(Self.accountMessage(for: error))
             throw error
         }
     }
@@ -186,7 +146,9 @@ final class AuthService: ObservableObject {
         do {
             #if canImport(Supabase)
             let client = try clientProvider.requireSDKClient()
-            let response = try await client.auth.signUp(email: email, password: password)
+            let response = try await runRetriableAuthRequest {
+                try await client.auth.signUp(email: email, password: password)
+            }
             guard let sdkSession = response.session else {
                 status = .cloudReady
                 throw SupabaseAuthFlowError.emailConfirmationRequired
@@ -199,11 +161,10 @@ final class AuthService: ObservableObject {
         } catch {
             session = nil
             clientProvider.updateSession(nil)
-            logSupabaseError(error)
             if case SupabaseClientError.missingConfiguration = error {
                 status = .cloudReady
             } else {
-                status = .supabaseError(Self.displayMessage(for: error))
+                status = .supabaseError(Self.signUpMessage(for: error))
             }
             throw error
         }
@@ -223,7 +184,9 @@ final class AuthService: ObservableObject {
         do {
             #if canImport(Supabase)
             let client = try clientProvider.requireSDKClient()
-            let sdkSession = try await client.auth.signIn(email: email, password: password)
+            let sdkSession = try await runRetriableAuthRequest {
+                try await client.auth.signIn(email: email, password: password)
+            }
             try await finishAuthentication(with: sdkSession, client: client)
             #else
             status = .cloudReady
@@ -232,11 +195,10 @@ final class AuthService: ObservableObject {
         } catch {
             session = nil
             clientProvider.updateSession(nil)
-            logSupabaseError(error)
             if case SupabaseClientError.missingConfiguration = error {
                 status = .cloudReady
             } else {
-                status = .supabaseError(Self.displayMessage(for: error))
+                status = .supabaseError(Self.signInMessage(for: error))
             }
             throw error
         }
@@ -289,7 +251,6 @@ final class AuthService: ObservableObject {
     private static func status(
         demoMode: Bool,
         isConfigured: Bool,
-        canCreateClient: Bool,
         session: SupabaseSession?
     ) -> VaultAppStatus {
         if demoMode { return .demoMode }
@@ -297,11 +258,20 @@ final class AuthService: ObservableObject {
         return session == nil ? .cloudReady : .cloudSignedIn
     }
 
-    private func logSupabaseError(_ error: Error) {
-        print("VaultDex Supabase auth error: \(String(reflecting: error))")
+    private static func signInMessage(for error: Error) -> String {
+        if transientNetworkCode(in: error) != nil {
+            return "Please check your connection and try again."
+        }
+        if case SupabaseClientError.missingConfiguration = error {
+            return "Cloud Ready — sign in to sync"
+        }
+        return "Unable to sign in right now."
     }
 
-    private static func displayMessage(for error: Error) -> String {
+    private static func signUpMessage(for error: Error) -> String {
+        if transientNetworkCode(in: error) != nil {
+            return "Please check your connection and try again."
+        }
         if case SupabaseClientError.missingConfiguration = error {
             return "Cloud Ready — sign in to sync"
         }
@@ -309,7 +279,70 @@ final class AuthService: ObservableObject {
            let description = localizedError.errorDescription {
             return description
         }
-        return error.localizedDescription
+        return "Something went wrong creating your account."
+    }
+
+    private static func accountMessage(for error: Error) -> String {
+        if transientNetworkCode(in: error) != nil {
+            return "Please check your connection and try again."
+        }
+        return "Unable to sign in right now."
+    }
+
+    private func runRetriableAuthRequest<T>(
+        operation: () async throws -> T
+    ) async throws -> T {
+        let maxRetries = 2
+        var attempt = 0
+
+        while true {
+            do {
+                return try await operation()
+            } catch {
+                guard Self.transientNetworkCode(in: error) != nil, attempt < maxRetries else {
+                    if Self.transientNetworkCode(in: error) != nil {
+                        VaultDexLogger.warning("Supabase auth request failed after retries.", error: error)
+                    }
+                    throw error
+                }
+
+                attempt += 1
+                let delay = UInt64(pow(2.0, Double(attempt - 1)) * 500_000_000)
+                try await Task.sleep(nanoseconds: delay)
+            }
+        }
+    }
+
+    private static func transientNetworkCode(in error: Error) -> URLError.Code? {
+        let transientCodes: Set<Int> = [
+            URLError.networkConnectionLost.rawValue,
+            URLError.timedOut.rawValue,
+            URLError.cannotConnectToHost.rawValue
+        ]
+
+        func findCode(in error: Error) -> URLError.Code? {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain, transientCodes.contains(nsError.code) {
+                return URLError.Code(rawValue: nsError.code)
+            }
+
+            if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error,
+               let code = findCode(in: underlying) {
+                return code
+            }
+
+            if let underlyingErrors = nsError.userInfo[NSMultipleUnderlyingErrorsKey] as? [Error] {
+                for underlying in underlyingErrors {
+                    if let code = findCode(in: underlying) {
+                        return code
+                    }
+                }
+            }
+
+            return nil
+        }
+
+        return findCode(in: error)
     }
 }
 

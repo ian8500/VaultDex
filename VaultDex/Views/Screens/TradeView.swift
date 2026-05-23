@@ -94,7 +94,7 @@ struct TradeView: View {
                     .foregroundStyle(Color.vdCoral)
                     .fixedSize(horizontal: false, vertical: true)
             } else if store.runtimeMode == .supabase {
-                Label("Trade offers sync through Supabase. Internal credits are prototype-only.", systemImage: "icloud.fill")
+                Label("Trade offers sync through cloud. Internal credits are prototype-only.", systemImage: "icloud.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.vdSky)
             }

@@ -16,7 +16,7 @@ struct AuthView: View {
                     header
                     dataModeCard
                     authCard
-                    sessionCard
+                    accountCard
                     NavigationLink("Open Collector Profile", destination: SocialProfileView())
                         .font(.headline.weight(.black))
                         .foregroundStyle(Color.vdGold)
@@ -44,7 +44,7 @@ struct AuthView: View {
                 .font(.system(.largeTitle, design: .rounded, weight: .black))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings from Supabase. Local fallback mode remains available in Settings.")
+            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings. Local fallback mode remains available in Settings.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
         }
@@ -97,7 +97,7 @@ struct AuthView: View {
                 set: { authService.setDemoModeEnabled($0) }
             )) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Demo Mode")
+                    Text("Local Fallback")
                         .font(.headline.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
                     Text(authService.isDemoModeEnabled ? "Local fallback mode is active." : "Cloud mode is active. Sign in to sync.")
@@ -112,45 +112,24 @@ struct AuthView: View {
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.22), lineWidth: 1))
     }
 
-    private var sessionCard: some View {
+    private var accountCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VaultSectionHeader(title: "Supabase Setup", subtitle: authService.status.message)
+            VaultSectionHeader(title: "Account Status", subtitle: authService.status.message)
 
             if let session = authService.currentSession() {
-                Label(session.email ?? session.userID.uuidString, systemImage: "checkmark.seal.fill")
+                Label(session.email ?? "Signed in", systemImage: "checkmark.seal.fill")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.vdLeaf)
-
-                Text("User ID: \(session.userID.uuidString)")
-                    .font(.caption)
-                    .foregroundStyle(Color.vdTextSecondary)
-                    .textSelection(.enabled)
             } else {
                 EmptyStateView(
                     systemImage: "person.crop.circle.badge.questionmark",
                     title: "Ready for sign in",
-                    message: "Supabase config is present. Sign in or sign up to start cloud sync."
+                    message: "Sign in or create an account to start cloud sync."
                 )
             }
-
-            debugPanel
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
-    }
-
-    private var debugPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Debug")
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.vdGold)
-            SettingsDebugRow(title: "demoMode", value: authService.debugDemoModeValue)
-            SettingsDebugRow(title: "URL configured", value: authService.isSupabaseURLConfigured ? "true" : "false")
-            SettingsDebugRow(title: "key configured", value: authService.isSupabaseKeyConfigured ? "true" : "false")
-            SettingsDebugRow(title: "isConfigured", value: authService.debugIsConfiguredValue)
-        }
-        .padding(12)
-        .background(Color.vdPanelRaised.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var canSubmit: Bool {
@@ -172,7 +151,7 @@ struct AuthView: View {
             try await action()
             lastMessage = authService.status.message
         } catch {
-            lastMessage = error.localizedDescription
+            lastMessage = authService.status.message
         }
     }
 }
