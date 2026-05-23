@@ -148,7 +148,7 @@ private struct AppStatusBanner: View {
     private var displayTitle: String {
         switch status {
         case .cloudReady:
-            "Cloud Ready - sign in to sync"
+            "Cloud Ready — sign in to sync"
         default:
             status.title + " - " + runtimeMode.displayName
         }

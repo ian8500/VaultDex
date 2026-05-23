@@ -460,8 +460,10 @@ struct SettingsView: View {
                 .foregroundStyle(Color.vdTextSecondary)
 
             VStack(alignment: .leading, spacing: 6) {
-                SettingsDebugRow(title: "Supabase URL configured", value: authService.isSupabaseURLConfigured ? "yes" : "no")
-                SettingsDebugRow(title: "Key configured", value: authService.isSupabaseKeyConfigured ? "yes" : "no")
+                SettingsDebugRow(title: "demoMode", value: authService.debugDemoModeValue)
+                SettingsDebugRow(title: "supabaseURL", value: authService.debugSupabaseURLValue)
+                SettingsDebugRow(title: "publishableKey", value: authService.debugPublishableKeyValue)
+                SettingsDebugRow(title: "isConfigured", value: authService.debugIsConfiguredValue)
                 SettingsDebugRow(title: "Session active", value: authService.isSessionActive ? "yes" : "no")
                 SettingsDebugRow(title: "Current mode", value: authService.currentModeDescription)
             }
@@ -640,7 +642,7 @@ private struct SafetyToggleRow: View {
     }
 }
 
-private struct SettingsDebugRow: View {
+struct SettingsDebugRow: View {
     let title: String
     let value: String
 

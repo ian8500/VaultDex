@@ -87,6 +87,22 @@ final class AuthService: ObservableObject {
         session != nil
     }
 
+    var debugDemoModeValue: String {
+        "\(clientProvider.config.demoMode)"
+    }
+
+    var debugSupabaseURLValue: String {
+        clientProvider.config.url == nil ? "missing" : "configured"
+    }
+
+    var debugPublishableKeyValue: String {
+        (clientProvider.config.publishableKey ?? "").isEmpty ? "missing" : "configured"
+    }
+
+    var debugIsConfiguredValue: String {
+        "\(clientProvider.config.isConfigured)"
+    }
+
     var currentModeDescription: String {
         switch status {
         case .demoMode: "Demo"
@@ -273,7 +289,7 @@ final class AuthService: ObservableObject {
 
     private static func displayMessage(for error: Error) -> String {
         if case SupabaseClientError.missingConfiguration = error {
-            return "Supabase development config is missing or demo mode is enabled."
+            return "Cloud setup is unavailable. Check the active Supabase development config."
         }
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {

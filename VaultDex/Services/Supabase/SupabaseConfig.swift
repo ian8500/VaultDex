@@ -1,6 +1,12 @@
 import Foundation
 
 struct SupabaseConfig: Equatable {
+    // Development-only publishable Supabase config.
+    // Move these values into secure build configuration before production.
+    static let developmentDemoMode = false
+    static let developmentURL = URL(string: "https://serqknmuacwbdgdrwkrp.supabase.co")!
+    static let developmentPublishableKey = "sb_publishable_3ZCT0O7LEOOsErhHTHu3wA_4TEA9DRS"
+
     let demoMode: Bool
     let url: URL?
     let publishableKey: String?
@@ -19,11 +25,11 @@ struct SupabaseConfig: Equatable {
 
     static var current: SupabaseConfig {
         SupabaseConfig(
-            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: SupabaseDevConfig.demoMode),
-            url: Self.urlValue(named: "SUPABASE_URL") ?? SupabaseDevConfig.url,
+            demoMode: Self.boolValue(named: "DEMO_MODE", defaultValue: developmentDemoMode),
+            url: Self.urlValue(named: "SUPABASE_URL") ?? developmentURL,
             publishableKey: Self.stringValue(named: "SUPABASE_PUBLISHABLE_KEY")
                 ?? Self.stringValue(named: "SUPABASE_ANON_KEY")
-                ?? SupabaseDevConfig.publishableKey
+                ?? developmentPublishableKey
         )
     }
 

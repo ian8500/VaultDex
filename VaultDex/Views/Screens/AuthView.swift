@@ -132,9 +132,25 @@ struct AuthView: View {
                     message: "Supabase config is present. Sign in or sign up to start cloud sync."
                 )
             }
+
+            debugPanel
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var debugPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Debug")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdGold)
+            SettingsDebugRow(title: "demoMode", value: authService.debugDemoModeValue)
+            SettingsDebugRow(title: "supabaseURL", value: authService.debugSupabaseURLValue)
+            SettingsDebugRow(title: "publishableKey", value: authService.debugPublishableKeyValue)
+            SettingsDebugRow(title: "isConfigured", value: authService.debugIsConfiguredValue)
+        }
+        .padding(12)
+        .background(Color.vdPanelRaised.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var canSubmit: Bool {

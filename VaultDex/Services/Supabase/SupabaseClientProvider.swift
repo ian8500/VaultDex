@@ -19,7 +19,7 @@ enum SupabaseClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingConfiguration:
-            "Supabase is not configured. Set DEMO_MODE=false, SUPABASE_URL, and SUPABASE_PUBLISHABLE_KEY."
+            "Cloud setup is unavailable. Check the active Supabase development config."
         case .invalidResponse:
             "Supabase returned an invalid response."
         case let .requestFailed(statusCode, body):
