@@ -9,15 +9,25 @@ import SwiftUI
 
 @main
 struct VaultDexApp: App {
-    @StateObject private var store = LocalVaultStore(
-        repositories: .live(config: .current),
-        localRepositories: .demo()
-    )
+    @StateObject private var store: LocalVaultStore
+    @StateObject private var authService: AuthService
+
+    init() {
+        let repositories = VaultRepositoryContainer.live(config: .current)
+        _store = StateObject(
+            wrappedValue: LocalVaultStore(
+                repositories: repositories,
+                localRepositories: .demo()
+            )
+        )
+        _authService = StateObject(wrappedValue: AuthService(clientProvider: repositories.clientProvider))
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(authService)
         }
     }
 }

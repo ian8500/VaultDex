@@ -1,0 +1,151 @@
+import SwiftUI
+
+struct AuthView: View {
+    @EnvironmentObject private var authService: AuthService
+    @State private var email = ""
+    @State private var password = ""
+    @State private var lastMessage = "Supabase auth is optional. Demo mode remains available."
+    @State private var showProfile = false
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    authCard
+                    sessionCard
+                    NavigationLink("Open Collector Profile", destination: SocialProfileView())
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 10)
+                }
+                .padding(20)
+                .padding(.bottom, 28)
+            }
+        }
+        .navigationTitle("Account")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(authService.status.title, systemImage: authService.status.systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdNavy)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(statusTint, in: Capsule())
+
+            Text("VaultDex Sign In")
+                .font(.system(.largeTitle, design: .rounded, weight: .black))
+                .foregroundStyle(Color.vdTextPrimary)
+
+            Text("Use email auth to prove the Supabase connection. Collection and trading data stay in local demo mode for now.")
+                .font(.subheadline)
+                .foregroundStyle(Color.vdTextSecondary)
+        }
+    }
+
+    private var authCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TextField("Email", text: $email)
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .vaultTextFieldStyle()
+
+            SecureField("Password", text: $password)
+                .textContentType(.password)
+                .vaultTextFieldStyle()
+
+            HStack(spacing: 12) {
+                PrimaryButton(title: "Sign In", systemImage: "person.fill.checkmark") {
+                    Task { await runAuthAction { try await authService.signIn(email: email, password: password) } }
+                }
+                .disabled(!canSubmit || authService.isLoading)
+
+                SecondaryButton(title: "Sign Up", systemImage: "person.badge.plus") {
+                    Task { await runAuthAction { try await authService.signUp(email: email, password: password) } }
+                }
+                .disabled(!canSubmit || authService.isLoading)
+            }
+
+            SecondaryButton(title: "Sign Out", systemImage: "rectangle.portrait.and.arrow.right") {
+                Task { await runAuthAction { try await authService.signOut() } }
+            }
+            .disabled(authService.isLoading)
+
+            Text(lastMessage)
+                .font(.caption)
+                .foregroundStyle(Color.vdTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.26), lineWidth: 1))
+    }
+
+    private var sessionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VaultSectionHeader(title: "Connection Proof", subtitle: authService.status.message)
+
+            if let session = authService.currentSession() {
+                Label(session.email ?? session.userID.uuidString, systemImage: "checkmark.seal.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdLeaf)
+
+                Text("User ID: \(session.userID.uuidString)")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .textSelection(.enabled)
+            } else {
+                EmptyStateView(
+                    systemImage: "person.crop.circle.badge.questionmark",
+                    title: "No active Supabase session",
+                    message: "Sign in or sign up to test auth. If the Swift package is missing, follow the README steps."
+                )
+            }
+        }
+        .padding(18)
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var canSubmit: Bool {
+        email.contains("@") && password.count >= 6
+    }
+
+    private var statusTint: Color {
+        switch authService.status {
+        case .demoMode: .vdSky
+        case .supabaseConnected: .vdLeaf
+        case .supabaseMissingPackage: .vdGold
+        case .supabaseError: .vdCoral
+        }
+    }
+
+    private func runAuthAction(_ action: @escaping () async throws -> Void) async {
+        do {
+            try await action()
+            lastMessage = authService.status.message
+        } catch {
+            lastMessage = error.localizedDescription
+        }
+    }
+}
+
+private extension View {
+    func vaultTextFieldStyle() -> some View {
+        self
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Color.vdTextPrimary)
+            .padding(.horizontal, 14)
+            .frame(height: 52)
+            .background(Color.vdPanelRaised.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdGold.opacity(0.25), lineWidth: 1))
+    }
+}
+

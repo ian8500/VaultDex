@@ -27,16 +27,15 @@
 		841967BF2FC090F20033B46B /* VaultDex.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VaultDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967CC2FC090F30033B46B /* VaultDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		84820FE02FC0EF3200928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8A2F00012FC0B00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */ = {
+		8A2F00012FC0B00000D0C0DE /* Exceptions for "." folder in "VaultDex" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				".DS_Store",
 				VaultDex/Assets.xcassets,
 				VaultDex/ContentView.swift,
-				VaultDex.xcodeproj,
 				VaultDex/VaultDexApp.swift,
 				VaultDexTests/VaultDexTests.swift,
 				VaultDexUITests/VaultDexUITests.swift,
@@ -47,12 +46,12 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		841967C12FC090F20033B46B /* VaultDex */ = {
+		841967C12FC090F20033B46B /* . */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				8A2F00012FC0B00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */,
+				8A2F00012FC0B00000D0C0DE /* Exceptions for "." folder in "VaultDex" target */,
 			);
-			path = ".";
+			path = .;
 			sourceTree = "<group>";
 		};
 		841967CF2FC090F30033B46B /* VaultDexTests */ = {
@@ -95,7 +94,7 @@
 		841967B62FC090F20033B46B = {
 			isa = PBXGroup;
 			children = (
-				841967C12FC090F20033B46B /* VaultDex */,
+				841967C12FC090F20033B46B /* . */,
 				841967CF2FC090F30033B46B /* VaultDexTests */,
 				841967D92FC090F30033B46B /* VaultDexUITests */,
 				841967C02FC090F20033B46B /* Products */,
@@ -109,6 +108,11 @@
 				841967CC2FC090F30033B46B /* VaultDexTests.xctest */,
 				841967D62FC090F30033B46B /* VaultDexUITests.xctest */,
 			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		84820FE22FC0EF3200928DDB /* Products */ = {
+			isa = PBXGroup;
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -128,7 +132,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				841967C12FC090F20033B46B /* VaultDex */,
+				841967C12FC090F20033B46B /* . */,
 			);
 			name = VaultDex;
 			packageProductDependencies = (
@@ -218,6 +222,12 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 841967C02FC090F20033B46B /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 84820FE22FC0EF3200928DDB /* Products */;
+					ProjectRef = 84820FE02FC0EF3200928DDB /* VaultDex.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				841967BE2FC090F20033B46B /* VaultDex */,

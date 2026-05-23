@@ -1,48 +1,56 @@
 # VaultDex
 
-VaultDex is a native SwiftUI iOS trading-card collection app. It runs in local demo mode by default, and can switch to Supabase-backed data when configured.
+VaultDex is a native SwiftUI iOS trading-card collection app. The app keeps local demo mode available and only uses Supabase for the first auth/profile connection proof.
+
+## Current Supabase Values
+
+The app is configured with the provided publishable client values:
+
+- `SUPABASE_URL=https://serqknmuacwbdgdrwkrp.supabase.co`
+- `SUPABASE_PUBLISHABLE_KEY=sb_publishable_3ZCT0O7LEOOsErhHTHu3wA_4TEA9DRS`
+
+This is a publishable key, not a service-role key. Never add a service-role key to the iOS app.
 
 ## Supabase Setup
 
-1. Create a Supabase project.
-   - In the Supabase dashboard, create a new project.
-   - Copy the Project URL and anon public API key from Project Settings > API.
-   - Do not use or ship the service-role key in the iOS app.
+1. In Supabase, open SQL Editor.
+2. Run `VaultDex/Resources/Supabase/schema.sql`.
+3. Run `VaultDex/Resources/Supabase/policies.sql`.
+4. In Authentication > Providers, enable Email.
+5. Build and run VaultDex.
+6. Open the Account tab and use Sign Up or Sign In.
 
-2. Run `schema.sql`.
-   - Open the Supabase SQL editor.
-   - Run `VaultDex/Resources/Supabase/schema.sql`.
-   - This creates tables for profiles, cards, collection, wishlist, friends, binder pages, trade listings, trade offers, marketplace listings, events, reputation, and storage buckets for avatars/card photos.
+Collection, wishlist, trade, binder, and event data intentionally remain in local demo mode for now.
 
-3. Run `policies.sql`.
-   - Run `VaultDex/Resources/Supabase/policies.sql`.
-   - This enables row level security and adds owner/friend/public access policies.
+## Xcode Environment Overrides
 
-4. Run `seed.sql`.
-   - Run `VaultDex/Resources/Supabase/seed.sql`.
-   - This seeds the demo card sets and card catalogue.
+The app has built-in Supabase publishable values for the first proof step. You can override them in the VaultDex scheme:
 
-5. Enable Email Auth.
-   - In Authentication > Providers, enable Email.
-   - Configure confirmation settings for your environment.
+- `DEMO_MODE=true` forces local demo mode.
+- `DEMO_MODE=false` allows Supabase auth when configured.
+- `SUPABASE_URL` overrides the built-in project URL.
+- `SUPABASE_PUBLISHABLE_KEY` overrides the built-in publishable key.
 
-6. Add app configuration.
-   - In Xcode, edit the VaultDex scheme and add environment variables:
-     - `DEMO_MODE=false`
-     - `SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co`
-     - `SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY`
-   - To force local mode, set `DEMO_MODE=true` or omit the Supabase URL/key.
+If Supabase is unavailable, missing, or errors, the app falls back to local demo data.
 
-## Runtime Modes
+## If “No Such Module Supabase” Appears
 
-- `DEMO_MODE=true`: Uses local demo/offline data.
-- `DEMO_MODE=false`: Uses Supabase repositories when both `SUPABASE_URL` and `SUPABASE_ANON_KEY` are present.
-- Missing Supabase values automatically keep the app in local/demo fallback so the app still compiles and launches safely.
+This project currently compiles without the Supabase Swift package by using a small REST auth fallback. If you add code that imports `Supabase` and Xcode shows `No such module Supabase`, do this manually:
 
-## Security Notes
+1. Open `VaultDex.xcodeproj` in Xcode.
+2. Select File > Add Package Dependencies.
+3. Enter `https://github.com/supabase/supabase-swift`.
+4. Choose the latest stable version.
+5. Add the `Supabase` package product to the `VaultDex` app target.
+6. Clean Build Folder with Shift-Command-K.
+7. Build again.
 
-- Never hardcode secrets in source.
-- Use only the Supabase anon key in the iOS app.
-- Keep row level security enabled.
-- User-uploaded avatars and card photos go through Supabase Storage buckets: `avatars` and `card-photos`.
+Do not add a service-role key. Use only the publishable key in the app.
+
+## App Status Labels
+
+- `Demo Mode`: Local/offline data is active.
+- `Supabase Connected`: Email auth succeeded and a session exists.
+- `Supabase Missing Package`: The Swift package is not installed; the app still compiles and keeps demo mode.
+- `Supabase Error`: Auth or configuration failed; demo data remains available.
 

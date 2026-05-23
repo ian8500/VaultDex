@@ -9,6 +9,8 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
+    @EnvironmentObject private var authService: AuthService
+
     init() {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
@@ -31,45 +33,88 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView {
-            NavigationStack {
-                DashboardView()
-            }
-            .tabItem {
-                Label("Home", systemImage: "house.fill")
-            }
+        VStack(spacing: 0) {
+            AppStatusBanner(status: authService.status)
 
-            NavigationStack {
-                SearchView()
-            }
-            .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
-            }
+            TabView {
+                NavigationStack {
+                    DashboardView()
+                }
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
 
-            NavigationStack {
-                VaultView()
-            }
-            .tabItem {
-                Label("My Vault", systemImage: "lock.shield")
-            }
+                NavigationStack {
+                    SearchView()
+                }
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
 
-            NavigationStack {
-                TradeView()
-            }
-            .tabItem {
-                Label("Trade Hub", systemImage: "arrow.left.arrow.right")
-            }
+                NavigationStack {
+                    VaultView()
+                }
+                .tabItem {
+                    Label("My Vault", systemImage: "lock.shield")
+                }
 
-            NavigationStack {
-                SocialProfileView()
-            }
-            .tabItem {
-                Label("Collector", systemImage: "person.crop.circle")
+                NavigationStack {
+                    TradeView()
+                }
+                .tabItem {
+                    Label("Trade Hub", systemImage: "arrow.left.arrow.right")
+                }
+
+                NavigationStack {
+                    AuthView()
+                }
+                .tabItem {
+                    Label("Account", systemImage: "person.crop.circle")
+                }
             }
         }
         .tint(Color.vdGold)
         .background(AppBackground())
         .toolbarBackground(Color.vdPanel.opacity(0.95), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+    }
+}
+
+private struct AppStatusBanner: View {
+    let status: VaultAppStatus
+
+    private var tint: Color {
+        switch status {
+        case .demoMode: .vdSky
+        case .supabaseConnected: .vdLeaf
+        case .supabaseMissingPackage: .vdGold
+        case .supabaseError: .vdCoral
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: status.systemImage)
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(Color.vdNavy)
+                .frame(width: 28, height: 28)
+                .background(tint, in: Circle())
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(status.title)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                Text(status.message)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.vdPanel.opacity(0.96))
+        .overlay(Rectangle().fill(tint.opacity(0.32)).frame(height: 1), alignment: .bottom)
     }
 }

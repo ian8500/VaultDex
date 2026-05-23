@@ -27,16 +27,15 @@
 		841967BF2FC090F20033B46B /* VaultDex.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VaultDex.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967CC2FC090F30033B46B /* VaultDexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		84820F6A2FC0EF3200928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		8A1F00012FC0A00000D0C0DE /* Exceptions for "VaultDex" folder in "VaultDex" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				".DS_Store",
 				VaultDex/Assets.xcassets,
 				VaultDex/ContentView.swift,
-				VaultDex.xcodeproj,
 				VaultDex/VaultDexApp.swift,
 				VaultDexTests/VaultDexTests.swift,
 				VaultDexUITests/VaultDexUITests.swift,
@@ -108,6 +107,13 @@
 				841967BF2FC090F20033B46B /* VaultDex.app */,
 				841967CC2FC090F30033B46B /* VaultDexTests.xctest */,
 				841967D62FC090F30033B46B /* VaultDexUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		84820F6C2FC0EF3200928DDB /* Products */ = {
+			isa = PBXGroup;
+			children = (
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -215,9 +221,18 @@
 			);
 			mainGroup = 841967B62FC090F20033B46B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				848210192FC19D6F00928DDB /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 841967C02FC090F20033B46B /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 84820F6C2FC0EF3200928DDB /* Products */;
+					ProjectRef = 84820F6A2FC0EF3200928DDB /* VaultDex.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				841967BE2FC090F20033B46B /* VaultDex */,
@@ -578,6 +593,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		848210192FC19D6F00928DDB /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 841967B72FC090F20033B46B /* Project object */;
 }

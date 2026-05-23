@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(Supabase)
+import Supabase
+#endif
+
 enum SupabaseHTTPMethod: String {
     case get = "GET"
     case post = "POST"
@@ -15,7 +19,7 @@ enum SupabaseClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingConfiguration:
-            "Supabase is not configured. Set DEMO_MODE=false, SUPABASE_URL, and SUPABASE_ANON_KEY."
+            "Supabase is not configured. Set DEMO_MODE=false, SUPABASE_URL, and SUPABASE_PUBLISHABLE_KEY."
         case .invalidResponse:
             "Supabase returned an invalid response."
         case let .requestFailed(statusCode, body):
@@ -33,6 +37,14 @@ struct SupabaseSession: Equatable {
 }
 
 final class SupabaseClientProvider {
+    static var isSupabaseSwiftPackageAvailable: Bool {
+        #if canImport(Supabase)
+        true
+        #else
+        false
+        #endif
+    }
+
     let config: SupabaseConfig
     private let urlSession: URLSession
     private var session: SupabaseSession?
@@ -44,6 +56,10 @@ final class SupabaseClientProvider {
 
     var isRemoteEnabled: Bool {
         config.shouldUseRemote
+    }
+
+    var currentSession: SupabaseSession? {
+        session
     }
 
     func updateSession(_ session: SupabaseSession?) {
@@ -92,7 +108,7 @@ final class SupabaseClientProvider {
         request.httpMethod = "POST"
         request.httpBody = body
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
@@ -169,4 +185,3 @@ extension ISO8601DateFormatter {
         return formatter
     }()
 }
-

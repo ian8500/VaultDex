@@ -28,7 +28,7 @@ final class LocalVaultStore: ObservableObject {
     ) {
         self.repositories = repositories
         self.localRepositories = localRepositories
-        runtimeMode = repositories.config.shouldUseRemote ? .supabase : .demo
+        runtimeMode = repositories.config.shouldUseRemote && SupabaseClientProvider.isSupabaseSwiftPackageAvailable ? .supabase : .demo
         sets = repository.sets
         cards = repository.cards
         profile = repository.profile
