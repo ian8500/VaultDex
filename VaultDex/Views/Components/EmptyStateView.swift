@@ -7,24 +7,45 @@ struct EmptyStateView: View {
     var actionTitle: String?
     var action: (() -> Void)?
 
+    @State private var isAnimating = false
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: systemImage)
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Color.vdGold)
-                .frame(width: 72, height: 72)
-                .background(Color.vdGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 18))
-                .shadow(color: Color.vdGold.opacity(0.28), radius: 16, x: 0, y: 6)
+        VStack(spacing: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.vdGold.opacity(0.22), Color.vdGold.opacity(0.08), Color.vdSky.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 82, height: 82)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(Color.vdGold.opacity(isAnimating ? 0.44 : 0.22), lineWidth: 1)
+                    )
+                    .shadow(color: Color.vdGold.opacity(isAnimating ? 0.24 : 0.12), radius: isAnimating ? 18 : 10, x: 0, y: 8)
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 34, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color.vdGold)
+                    .offset(y: isAnimating ? -2 : 2)
+            }
 
             VStack(spacing: 6) {
                 Text(title)
-                    .font(.headline)
+                    .font(.headline.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
+                    .multilineTextAlignment(.center)
 
                 Text(message)
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.vdTextSecondary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let actionTitle, let action {
@@ -33,13 +54,26 @@ struct EmptyStateView: View {
                     .padding(.top, 4)
             }
         }
-        .padding(24)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 26)
         .frame(maxWidth: .infinity)
-        .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 18))
+        .background(
+            LinearGradient(
+                colors: [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.88)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 20)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.vdGold.opacity(0.22), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.vdGold.opacity(0.20), lineWidth: 1)
         )
         .shadow(color: Color.vdGold.opacity(0.09), radius: 16, x: 0, y: 8)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
     }
 }

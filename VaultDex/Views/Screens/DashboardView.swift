@@ -49,6 +49,14 @@ struct DashboardView: View {
         store.recentlyAdded.first
     }
 
+    private var isVaultEmpty: Bool {
+        store.collectionItems.isEmpty
+            && store.wishlistItems.isEmpty
+            && store.tradeOffers.isEmpty
+            && store.tradeListings.isEmpty
+            && store.friends.isEmpty
+    }
+
     var body: some View {
         ZStack {
             AppBackground()
@@ -60,6 +68,9 @@ struct DashboardView: View {
                     } else {
                         heroCard
                         quickActions
+                        if isVaultEmpty {
+                            dashboardEmptyState
+                        }
                         collectionStats
                         featuredCards
                         friendOpportunitiesSection
@@ -231,12 +242,20 @@ struct DashboardView: View {
         }
     }
 
+    private var dashboardEmptyState: some View {
+        EmptyStateView(
+            systemImage: "rectangle.stack.badge.plus",
+            title: "Start building your vault",
+            message: "Search for real cards, import a CSV, or add wants to turn this dashboard into your collector command centre."
+        )
+    }
+
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Featured Cards", subtitle: "Rarest, highest value, and newest pulls")
 
             if store.collectionItems.isEmpty {
-                EmptyStateView(systemImage: "rectangle.stack.badge.plus", title: "No featured cards yet", message: "Add cards from Search or Import to light up this showcase.")
+                EmptyStateView(systemImage: "sparkles.rectangle.stack", title: "Start building your vault", message: "Add your first card to reveal rarest, highest value, and recently added highlights.")
             } else {
                 VStack(spacing: 12) {
                     if let rarestItem {
@@ -258,7 +277,7 @@ struct DashboardView: View {
             VaultSectionHeader(title: "Friend Opportunities", subtitle: "Match with collectors")
 
             if store.friends.isEmpty {
-                EmptyStateView(systemImage: "person.2.slash", title: "No collectors connected", message: "Add friends to compare wants, collections, and fair trade ideas.")
+                EmptyStateView(systemImage: "person.2.badge.plus", title: "Add collectors to trade safely", message: "Connect with trusted collectors to compare wants, collections, and fair trade ideas.")
             } else {
                 LazyVGrid(columns: statColumns, spacing: 12) {
                     OpportunityCard(

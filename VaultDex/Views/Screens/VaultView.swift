@@ -175,8 +175,8 @@ struct VaultView: View {
             if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "rectangle.stack.badge.plus",
-                    title: "My Vault is empty",
-                    message: "Search for cards or import a collection file to start tracking your vault."
+                    title: "Search and add your first card",
+                    message: "Find a card in Search or import a collection file to start tracking condition, variants, photos, and value."
                 )
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {

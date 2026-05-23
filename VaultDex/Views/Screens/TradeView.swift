@@ -120,7 +120,7 @@ struct TradeView: View {
             VaultSectionHeader(title: "List One Of My Cards", subtitle: "Choose from your trade-ready collection")
 
             if store.tradeableCollectionItems.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right", title: "No trade cards yet", message: "Open a card detail and mark it available for trade.")
+                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "No active trades yet", message: "Add cards to My Vault, then mark the ones you are happy to trade.")
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -155,7 +155,7 @@ struct TradeView: View {
             VaultSectionHeader(title: "My Listings", subtitle: "\(viewModel.myListings(in: store).count) active")
 
             if viewModel.myListings(in: store).isEmpty {
-                EmptyStateView(systemImage: "tag", title: "Nothing listed", message: "List one of your trade-ready cards to start receiving offers.")
+                EmptyStateView(systemImage: "tag.circle.fill", title: "No active trades yet", message: "List a trade-ready card when you are ready to receive friend offers.")
             } else {
                 VStack(spacing: 12) {
                     ForEach(viewModel.myListings(in: store)) { listing in
@@ -175,7 +175,7 @@ struct TradeView: View {
 
             let listings = viewModel.filteredListings(in: store)
             if listings.isEmpty {
-                EmptyStateView(systemImage: "magnifyingglass", title: "No listings found", message: "Adjust search, rarity, condition, value, or reputation filters.")
+                EmptyStateView(systemImage: "magnifyingglass.circle.fill", title: "No listings found", message: "Try changing filters, or check back after collectors list cards for trade.")
             } else {
                 VStack(spacing: 12) {
                     ForEach(listings) { listing in
@@ -255,7 +255,7 @@ struct TradeView: View {
             VaultSectionHeader(title: title, subtitle: subtitle)
 
             if offers.isEmpty {
-                EmptyStateView(systemImage: "tray", title: "No offers", message: "Trade offers will appear here.")
+                EmptyStateView(systemImage: "tray.circle.fill", title: "No active trades yet", message: "Sent and received offers will appear here once you start trading with collectors.")
             } else {
                 VStack(spacing: 12) {
                     ForEach(offers) { offer in

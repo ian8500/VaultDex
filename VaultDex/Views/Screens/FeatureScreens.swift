@@ -338,9 +338,9 @@ struct WishlistView: View {
 
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
-                    systemImage: "star",
-                    title: "No wants yet",
-                    message: "Add cards from search or card detail to start tracking targets."
+                    systemImage: "star.circle.fill",
+                    title: "Track cards you want",
+                    message: "Add cards from Search or card detail to build a focused wants list with priority, budget, and notes."
                 )
             } else {
                 VStack(spacing: 12) {
@@ -537,7 +537,7 @@ struct FriendsView: View {
             VaultSectionHeader(title: "Friend Requests", subtitle: "\(viewModel.incomingRequests(in: store).count) incoming · \(viewModel.outgoingRequests(in: store).count) pending")
 
             if store.friendRequests.isEmpty {
-                EmptyStateView(systemImage: "person.crop.circle.badge.checkmark", title: "No pending requests", message: "New friend requests will appear here.")
+                EmptyStateView(systemImage: "person.crop.circle.badge.checkmark", title: "Add collectors to trade safely", message: "Search by username to send a request. Incoming and pending requests will appear here.")
             } else {
                 VStack(spacing: 10) {
                     ForEach(store.friendRequests) { request in
@@ -560,7 +560,7 @@ struct FriendsView: View {
 
             let opportunities = store.tradeOpportunities()
             if opportunities.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right", title: "No matches yet", message: "Wants overlap will create suggested trade ideas.")
+                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "Add collectors to trade safely", message: "Once friends share wants and collections, VaultDex will suggest fair trade opportunities.")
             } else {
                 VStack(spacing: 10) {
                     ForEach(opportunities) { opportunity in
@@ -580,14 +580,22 @@ struct FriendsView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "My Friends", subtitle: "Public and friends-visible profiles")
 
-            VStack(spacing: 12) {
-                ForEach(viewModel.topCollectors(in: store)) { friend in
-                    NavigationLink {
-                        FriendProfileView(friend: friend)
-                    } label: {
-                        FriendRow(friend: friend)
+            if store.friends.isEmpty {
+                EmptyStateView(
+                    systemImage: "person.2.badge.plus",
+                    title: "Add collectors to trade safely",
+                    message: "Start with a username search, then compare wants, visible vault cards, and reputation before trading."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.topCollectors(in: store)) { friend in
+                        NavigationLink {
+                            FriendProfileView(friend: friend)
+                        } label: {
+                            FriendRow(friend: friend)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
