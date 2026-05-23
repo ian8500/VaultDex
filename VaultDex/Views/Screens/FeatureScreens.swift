@@ -343,6 +343,7 @@ struct WishlistView: View {
 struct FriendsView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = FriendsViewModel()
+    @FocusState private var isAddFriendFocused: Bool
 
     var body: some View {
         ZStack {
@@ -352,8 +353,9 @@ struct FriendsView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     header
                     addFriendCard
-                    requestList
-                    tradeMatches
+                    if !store.friendRequests.isEmpty {
+                        requestList
+                    }
                     friendsList
                 }
                 .padding(.horizontal, 20)
@@ -392,12 +394,6 @@ struct FriendsView: View {
                 .buttonStyle(.plain)
             }
 
-            if let error = store.lastSyncError, error.contains("Friend") || error.contains("friend") {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdCoral)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -409,12 +405,13 @@ struct FriendsView: View {
 
     private var addFriendCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Add Friend", subtitle: "Search by VaultDex username")
+            VaultSectionHeader(title: "Add friend", subtitle: nil)
 
             HStack(spacing: 10) {
                 TextField("@username or email", text: $viewModel.addFriendText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($isAddFriendFocused)
                     .foregroundStyle(Color.vdTextPrimary)
                     .padding(14)
                     .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
@@ -499,40 +496,14 @@ struct FriendsView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Friend Requests", subtitle: "\(viewModel.incomingRequests(in: store).count) incoming · \(viewModel.outgoingRequests(in: store).count) pending")
 
-            if store.friendRequests.isEmpty {
-                EmptyStateView(systemImage: "person.crop.circle.badge.checkmark", title: "Add collectors to trade safely", message: "Search by username to send a request. Incoming and pending requests will appear here.")
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(store.friendRequests) { request in
-                        FriendRequestRow(request: request) {
-                            store.acceptFriendRequest(request)
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        } onReject: {
-                            store.rejectFriendRequest(request)
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var tradeMatches: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Suggested Trades", subtitle: "Wants overlap from local friend data")
-
-            let opportunities = store.tradeOpportunities()
-            if opportunities.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "Add collectors to trade safely", message: "Once friends share wants and collections, VaultDex will suggest fair trade opportunities.")
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(opportunities) { opportunity in
-                        NavigationLink {
-                            FriendProfileView(friend: opportunity.friend)
-                        } label: {
-                            TradeOpportunityRow(opportunity: opportunity)
-                        }
-                        .buttonStyle(.plain)
+            VStack(spacing: 10) {
+                ForEach(store.friendRequests) { request in
+                    FriendRequestRow(request: request) {
+                        store.acceptFriendRequest(request)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } onReject: {
+                        store.rejectFriendRequest(request)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 }
             }
@@ -541,25 +512,30 @@ struct FriendsView: View {
 
     private var friendsList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "My Friends", subtitle: "Public and friends-visible profiles")
+            VaultSectionHeader(title: "My friends", subtitle: nil)
 
             if store.friends.isEmpty {
-                EmptyStateView(
-                    systemImage: "person.2.badge.plus",
-                    title: "Add collectors to trade safely",
-                    message: "Start with a username search, then compare wants, visible vault cards, and reputation before trading."
-                )
+                noFriendsState
             } else {
                 VStack(spacing: 12) {
                     ForEach(viewModel.topCollectors(in: store)) { friend in
-                        NavigationLink {
-                            FriendProfileView(friend: friend)
-                        } label: {
-                            FriendRow(friend: friend)
-                        }
-                        .buttonStyle(.plain)
+                        FriendSummaryCard(friend: friend)
                     }
                 }
+            }
+        }
+    }
+
+    private var noFriendsState: some View {
+        VStack(spacing: 16) {
+            EmptyStateView(
+                systemImage: "person.2.badge.plus",
+                title: "No friends yet",
+                message: "Add collectors to compare wants, view collections and start fair trades."
+            )
+
+            PrimaryButton(title: "Add friend", systemImage: "person.badge.plus") {
+                isAddFriendFocused = true
             }
         }
     }
@@ -1795,12 +1771,34 @@ private struct WishlistMatchCard: View {
     }
 }
 
+private enum FriendProfileTab: String, CaseIterable, Identifiable {
+    case collection
+    case wants
+    case tradeMatch
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .collection: "Collection"
+        case .wants: "Wants"
+        case .tradeMatch: "Trade Match"
+        }
+    }
+}
+
 private struct FriendProfileView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @Environment(\.dismiss) private var dismiss
     let friend: Friend
+    @State private var selectedTab: FriendProfileTab
     @State private var isRemoveConfirmationPresented = false
     @State private var actionMessage: String?
+
+    init(friend: Friend, initialTab: FriendProfileTab = .collection) {
+        self.friend = friend
+        _selectedTab = State(initialValue: initialTab)
+    }
 
     var body: some View {
         ZStack {
@@ -1809,9 +1807,8 @@ private struct FriendProfileView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     profileHeader
-                    matchSummary
-                    visibleCollection
-                    wishlist
+                    profileTabs
+                    tabContent
                     safetyActions
                 }
                 .padding(.horizontal, 20)
@@ -1876,31 +1873,32 @@ private struct FriendProfileView: View {
         )
     }
 
-    private var matchSummary: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Trade Match", subtitle: "Wants overlap between both collections")
-
-            VStack(spacing: 10) {
-                FriendMatchCard(
-                    title: "I want, \(friend.displayName) owns",
-                    items: store.cardsIWantThatFriendOwns(friend),
-                    tint: .vdGold
-                )
-
-                FriendMatchCard(
-                    title: "\(friend.displayName) wants, I own",
-                    items: store.cardsFriendWantsThatIOwn(friend),
-                    tint: .vdEmerald
-                )
+    private var profileTabs: some View {
+        Picker("Friend profile section", selection: $selectedTab) {
+            ForEach(FriendProfileTab.allCases) { tab in
+                Text(tab.title).tag(tab)
             }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .collection:
+            visibleCollection
+        case .wants:
+            wishlist
+        case .tradeMatch:
+            tradeMatch
         }
     }
 
     private var visibleCollection: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(
-                title: "Visible Collection",
-                subtitle: "\(friend.collectionVisibility.displayName) · \(friend.visibleCollection.count) cards"
+                title: "Collection",
+                subtitle: "\(friend.visibleCollection.count) cards"
             )
 
             if friend.visibleCollection.isEmpty {
@@ -1924,7 +1922,7 @@ private struct FriendProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(
                 title: "Wants",
-                subtitle: "\(friend.wishlistVisibility.displayName) · \(friend.wishlist.count) targets"
+                subtitle: "\(friend.wishlist.count) cards"
             )
 
             if friend.wishlist.isEmpty {
@@ -1940,6 +1938,30 @@ private struct FriendProfileView: View {
                         .buttonStyle(.plain)
                     }
                 }
+            }
+        }
+    }
+
+    private var tradeMatch: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Trade Match", subtitle: nil)
+
+            VStack(spacing: 10) {
+                FriendMatchCard(
+                    title: "Cards I want that they own",
+                    items: store.cardsIWantThatFriendOwns(friend),
+                    tint: .vdGold
+                )
+
+                FriendMatchCard(
+                    title: "Cards they want that I own",
+                    items: store.cardsFriendWantsThatIOwn(friend),
+                    tint: .vdEmerald
+                )
+            }
+
+            PrimaryButton(title: "Suggest Trade", systemImage: "arrow.left.arrow.right.circle.fill") {
+                actionMessage = "Trade suggestions will appear when both collectors have matching cards."
             }
         }
     }
@@ -2214,6 +2236,74 @@ private struct PlaceholderActionButton: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(tint.opacity(0.35), lineWidth: 1)
                 )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FriendSummaryCard: View {
+    let friend: Friend
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: friend.avatarSymbol)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color.vdGold)
+                    .frame(width: 52, height: 52)
+                    .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.vdGold.opacity(0.26), lineWidth: 1)
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(friend.displayName)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+
+                    Text(friend.handle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdGold)
+                }
+
+                Spacer()
+
+                StatusPill(title: "Trust \(friend.collectorScore)", tint: .vdEmerald)
+            }
+
+            HStack(spacing: 10) {
+                friendAction(title: "Collection", icon: "rectangle.stack.fill", tab: .collection)
+                friendAction(title: "Wants", icon: "star.fill", tab: .wants)
+                friendAction(title: "Trade", icon: "arrow.left.arrow.right.circle.fill", tab: .tradeMatch)
+            }
+        }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.20), lineWidth: 1)
+        )
+    }
+
+    private func friendAction(title: String, icon: String, tab: FriendProfileTab) -> some View {
+        NavigationLink {
+            FriendProfileView(friend: friend, initialTab: tab)
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.caption.weight(.black))
+
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(Color.vdGold)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

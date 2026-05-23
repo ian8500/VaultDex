@@ -63,10 +63,10 @@ struct ContentView: View {
                     }
 
                     NavigationStack {
-                        WishlistView()
+                        FriendsView()
                     }
                     .tabItem {
-                        Label("Wants", systemImage: "star.fill")
+                        Label("Friends", systemImage: "person.2.fill")
                     }
 
                     NavigationStack {
