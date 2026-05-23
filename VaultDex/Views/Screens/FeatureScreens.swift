@@ -60,7 +60,7 @@ struct ImportCollectionView: View {
             HStack(spacing: 12) {
                 MetricPill(title: "Matched", value: "\(viewModel.matchedRows.count)")
                 MetricPill(title: "Unmatched", value: "\(viewModel.unmatchedRows.count)")
-                MetricPill(title: "Value", value: viewModel.estimatedMatchedValue.compactVaultCurrency)
+                MetricPill(title: "Estimate", value: viewModel.estimatedMatchedValue.compactVaultCurrency)
             }
 
             HStack(spacing: 10) {
@@ -264,7 +264,7 @@ struct WishlistView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text(store.runtimeMode == .supabase ? "Find your next grail. Wants sync when you are signed in." : "Find your next grail. Offline targets stay available locally.")
+                    Text("Track the cards you’re hunting for.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -273,13 +273,6 @@ struct WishlistView: View {
 
                 StatusPill(title: "\(store.wishlistItems.count) Cards", tint: .vdGold)
             }
-
-            HStack(spacing: 12) {
-                MetricPill(title: "Target Total", value: viewModel.targetValue(in: store).compactVaultCurrency)
-                MetricPill(title: "High Priority", value: "\(viewModel.highPriorityItems(in: store).count)")
-            }
-
-            wishlistSyncStatus
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
@@ -290,28 +283,10 @@ struct WishlistView: View {
     }
 
     @ViewBuilder
-    private var wishlistSyncStatus: some View {
-        if store.lastSyncError?.contains("Wants") == true, let error = store.lastSyncError {
-            Label(error, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdCoral)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if store.runtimeMode == .supabase {
-            Label("Wants are syncing to cloud", systemImage: "icloud.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdSky)
-        } else if store.runtimeMode == .offline {
-            Label("Showing offline cached wants", systemImage: "wifi.slash")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdGold)
-        }
-    }
-
-    @ViewBuilder
     private var chaseStrip: some View {
         if !viewModel.highPriorityItems(in: store).isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Grail Board", subtitle: "Find your next grail")
+                VaultSectionHeader(title: "Grail Board", subtitle: nil)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -334,18 +309,16 @@ struct WishlistView: View {
 
     private var allItems: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "All Wants", subtitle: "Priority, target price, and notes")
+            VaultSectionHeader(title: "All Wants", subtitle: nil)
 
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star.circle.fill",
-                    title: "Track cards you want",
-                    message: "Add cards from Search or card detail to build a focused wants list with priority, budget, and notes."
+                    title: "Track the cards you’re hunting for.",
+                    message: "Add cards from Search."
                 )
             } else {
                 VStack(spacing: 12) {
-                    matchPlaceholders
-
                     ForEach(store.wishlistItems) { item in
                         NavigationLink {
                             CardDetailView(card: item.card)
@@ -400,7 +373,7 @@ struct FriendsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text(store.runtimeMode == .supabase ? "Cloud friends, visible collections, wants, and trade matches." : "Offline friends, collections, wants, and local trade matches.")
+                    Text("Add trusted collectors and find fair trades.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -419,21 +392,11 @@ struct FriendsView: View {
                 .buttonStyle(.plain)
             }
 
-            HStack(spacing: 12) {
-                MetricPill(title: "Friends", value: "\(store.friends.count)")
-                MetricPill(title: "Online", value: "\(viewModel.onlineFriends(in: store).count)")
-                MetricPill(title: "Requests", value: "\(store.friendRequests.count)")
-            }
-
             if let error = store.lastSyncError, error.contains("Friend") || error.contains("friend") {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.vdCoral)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if store.runtimeMode == .supabase {
-                Label("Friends sync through cloud", systemImage: "icloud.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdSky)
             }
         }
         .padding(18)
@@ -1362,7 +1325,7 @@ struct EventsView: View {
                     .font(.headline)
                     .foregroundStyle(Color.vdTextPrimary)
 
-                Text("Friend RSVPs and shared event calendars will connect here once sync is added.")
+                Text("See shared plans from trusted collectors.")
                     .font(.subheadline)
                     .foregroundStyle(Color.vdTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1407,7 +1370,7 @@ struct InviteFriendsView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("A local sharing flow today; real invites can plug into backend auth later.")
+                    Text("Share VaultDex with trusted collectors.")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1507,11 +1470,11 @@ struct AccountDeletionView: View {
         .navigationTitle("Delete Account")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "Delete local test account data?",
+            "Delete account data?",
             isPresented: $isDeleteConfirmationPresented,
             titleVisibility: .visible
         ) {
-            Button("Delete and Reset Local State", role: .destructive) {
+            Button("Delete and Reset", role: .destructive) {
                 store.resetDemoUserState()
                 viewModel.confirmationText = ""
                 didResetLocalState = true
@@ -1519,7 +1482,7 @@ struct AccountDeletionView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes collection, wants, binder, trade, and profile data in local mode, then returns VaultDex to an empty local state.")
+            Text("This deletes collection, wants, binder, trade, and profile data from this app.")
         }
     }
 
@@ -1533,7 +1496,7 @@ struct AccountDeletionView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Deleting an account removes collection, wants, binder, trade, and profile data. In local mode this resets VaultDex back to an empty local state.")
+            Text("Deleting an account removes collection, wants, binder, trade, and profile data.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1548,7 +1511,7 @@ struct AccountDeletionView: View {
 
     private var checklist: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Deletion Plan", subtitle: "Steps this app will need before launch")
+            VaultSectionHeader(title: "Deletion Plan", subtitle: "Review what will be removed.")
 
             VStack(spacing: 10) {
                 ForEach(viewModel.checklist, id: \.self) { item in
@@ -1581,7 +1544,7 @@ struct AccountDeletionView: View {
                 .disabled(!viewModel.canRequestDeletion)
 
             if didResetLocalState {
-                Label("Local test state reset", systemImage: "checkmark.circle.fill")
+                Label("Account data reset", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdEmerald)
             }

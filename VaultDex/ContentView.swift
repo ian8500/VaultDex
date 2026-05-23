@@ -35,8 +35,6 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppStatusBanner(status: authService.status, runtimeMode: store.runtimeMode, syncError: store.lastSyncError)
-
             if authService.shouldShowLogin {
                 NavigationStack {
                     AuthView()
@@ -61,21 +59,28 @@ struct ContentView: View {
                         VaultView()
                     }
                     .tabItem {
-                        Label("My Vault", systemImage: "lock.shield")
+                        Label("Vault", systemImage: "lock.shield")
+                    }
+
+                    NavigationStack {
+                        WishlistView()
+                    }
+                    .tabItem {
+                        Label("Wants", systemImage: "star.fill")
                     }
 
                     NavigationStack {
                         TradeView()
                     }
                     .tabItem {
-                        Label("Trade Hub", systemImage: "arrow.left.arrow.right")
+                        Label("Trade", systemImage: "arrow.left.arrow.right")
                     }
 
                     NavigationStack {
-                        AuthView()
+                        SocialProfileView()
                     }
                     .tabItem {
-                        Label("Account", systemImage: "person.crop.circle")
+                        Label("Profile", systemImage: "person.crop.circle")
                     }
                 }
             }
@@ -100,66 +105,6 @@ struct ContentView: View {
             store.useDemoMode()
         } else {
             await store.loadCloudDataIfPossible(session: authService.currentSession())
-        }
-    }
-}
-
-private struct AppStatusBanner: View {
-    let status: VaultAppStatus
-    let runtimeMode: VaultRuntimeMode
-    let syncError: String?
-
-    private var tint: Color {
-        switch status {
-        case .demoMode: .vdSky
-        case .cloudReady: .vdGold
-        case .cloudSignedIn: .vdLeaf
-        case .supabaseConfigMissing: .vdGold
-        case .supabaseError: .vdCoral
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: status.systemImage)
-                .font(.system(size: 13, weight: .black))
-                .foregroundStyle(Color.vdNavy)
-                .frame(width: 28, height: 28)
-                .background(tint, in: Circle())
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(displayTitle)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(Color.vdTextPrimary)
-                Text(displayMessage)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.vdTextSecondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.vdPanel.opacity(0.96))
-        .overlay(Rectangle().fill(tint.opacity(0.32)).frame(height: 1), alignment: .bottom)
-    }
-
-    private var displayTitle: String {
-        switch status {
-        case .cloudReady:
-            "Cloud Ready — sign in to sync"
-        default:
-            status.title + " - " + runtimeMode.displayName
-        }
-    }
-
-    private var displayMessage: String {
-        switch status {
-        case .cloudReady, .demoMode, .supabaseConfigMissing:
-            status.message
-        default:
-            syncError ?? status.message
         }
     }
 }

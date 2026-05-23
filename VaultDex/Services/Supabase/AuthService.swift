@@ -74,6 +74,14 @@ final class AuthService: ObservableObject {
         !isDemoModeEnabled && session == nil
     }
 
+    var isCloudConfigured: Bool {
+        clientProvider.config.isConfigured
+    }
+
+    var canCreateCloudClient: Bool {
+        clientProvider.canCreateClient
+    }
+
     func setDemoModeEnabled(_ isEnabled: Bool) {
         UserDefaults.standard.set(isEnabled, forKey: "VaultDexDemoModeEnabled")
         clientProvider.setDemoModeEnabled(isEnabled)

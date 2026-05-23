@@ -16,8 +16,7 @@ struct VaultView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     summary
-                    syncStatus
-                    collectionTools
+                    primaryActions
                     favorites
                     collectionGrid
                 }
@@ -26,39 +25,15 @@ struct VaultView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("My Vault")
+        .navigationTitle("Vault")
         .navigationBarTitleDisplayMode(.large)
-    }
-
-    @ViewBuilder
-    private var syncStatus: some View {
-        if let error = store.lastSyncError, error.contains("Collection") {
-            Label(error, systemImage: "exclamationmark.icloud.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdCoral)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.vdCoral.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.vdCoral.opacity(0.28), lineWidth: 1)
-                )
-        } else if store.runtimeMode == .supabase {
-            Label("My Vault is syncing to cloud", systemImage: "checkmark.icloud.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdEmerald)
-        } else if store.runtimeMode == .offline {
-            Label("Showing offline cached vault data", systemImage: "icloud.slash.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdGold)
-        }
     }
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Collection Value")
+                    Text("Estimated Value")
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
 
@@ -92,13 +67,13 @@ struct VaultView: View {
         )
     }
 
-    private var collectionTools: some View {
+    private var primaryActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collection Tools", subtitle: "Track your collection value")
+            VaultSectionHeader(title: "Tools", subtitle: nil)
 
             FeatureLinkCard(
                 title: "Import Collection",
-                subtitle: "\(viewModel.binderFilledSlots(in: store))/\(viewModel.binderTotalSlots(in: store)) binder slots filled; import or add cards next",
+                subtitle: "Upload CSV or JSON",
                 systemImage: "square.and.arrow.down.on.square.fill",
                 tint: .vdEmerald
             ) {
@@ -107,7 +82,7 @@ struct VaultView: View {
 
             FeatureLinkCard(
                 title: "Wants",
-                subtitle: "Find your next grail · \(store.wishlistItems.count) targets",
+                subtitle: "\(store.wishlistItems.count) cards",
                 systemImage: "star.fill",
                 tint: .vdGold
             ) {
@@ -140,7 +115,7 @@ struct VaultView: View {
 
         if !favoriteItems.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Favorites", subtitle: "Pinned cards from your vault")
+            VaultSectionHeader(title: "Favorites", subtitle: nil)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -170,13 +145,13 @@ struct VaultView: View {
 
     private var collectionGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "My Vault", subtitle: store.runtimeMode == .supabase ? "Cloud-backed inventory" : "Offline inventory")
+            VaultSectionHeader(title: "Cards", subtitle: nil)
 
             if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "rectangle.stack.badge.plus",
-                    title: "Search and add your first card",
-                    message: "Find a card in Search or import a collection file to start tracking condition, variants, photos, and value."
+                    title: "Your vault is empty. Add your first card.",
+                    message: "Search for a card or import your collection."
                 )
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {

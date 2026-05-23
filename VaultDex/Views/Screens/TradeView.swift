@@ -14,7 +14,6 @@ struct TradeView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     header
                     listMyCardSection
-                    myListingsSection
                     marketplaceSection
                     receivedOffersSection
                     sentOffersSection
@@ -24,7 +23,7 @@ struct TradeView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("Trade Hub")
+        .navigationTitle("Trade")
         .navigationBarTitleDisplayMode(.large)
         .sheet(item: $listingCard) { item in
             ListCardSheet(item: item, viewModel: viewModel) {
@@ -82,21 +81,11 @@ struct TradeView: View {
                     .shadow(color: Color.vdGold.opacity(0.26), radius: 14, x: 0, y: 6)
             }
 
-            HStack(spacing: 10) {
-                MetricPill(title: "Mine", value: "\(viewModel.myListings(in: store).count)")
-                MetricPill(title: "Market", value: "\(viewModel.publicListings(in: store).count)")
-                MetricPill(title: "Offers", value: "\(store.tradeOffers.count)")
-            }
-
-            if let error = store.lastSyncError, error.contains("Trade offer") {
+            if let error = store.lastSyncError, error.contains("Trade") || error.contains("trade") {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.vdCoral)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if store.runtimeMode == .supabase {
-                Label("Trade offers sync through cloud. Internal credits are prototype-only.", systemImage: "icloud.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdSky)
             }
         }
         .padding(18)
@@ -117,10 +106,10 @@ struct TradeView: View {
 
     private var listMyCardSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "List One Of My Cards", subtitle: "Choose from your trade-ready collection")
+            VaultSectionHeader(title: "List a Card", subtitle: nil)
 
             if store.tradeableCollectionItems.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "No active trades yet", message: "Add cards to My Vault, then mark the ones you are happy to trade.")
+                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "No trades yet. Add friends to start trading.", message: "Mark a card as available for trade from your vault.")
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
@@ -152,7 +141,7 @@ struct TradeView: View {
 
     private var myListingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "My Listings", subtitle: "\(viewModel.myListings(in: store).count) active")
+            VaultSectionHeader(title: "My Listings", subtitle: nil)
 
             if viewModel.myListings(in: store).isEmpty {
                 EmptyStateView(systemImage: "tag.circle.fill", title: "No active trades yet", message: "List a trade-ready card when you are ready to receive friend offers.")
@@ -170,7 +159,7 @@ struct TradeView: View {
 
     private var marketplaceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Card Market", subtitle: "Browse friend and public listings")
+            VaultSectionHeader(title: "Card Market", subtitle: nil)
             filters
 
             let listings = viewModel.filteredListings(in: store)
@@ -218,7 +207,7 @@ struct TradeView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Max value \(viewModel.maximumValue.vaultCurrency)")
+                Text("Max market estimate \(viewModel.maximumValue.vaultCurrency)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
                 Slider(value: $viewModel.maximumValue, in: 10...250, step: 5)
@@ -237,7 +226,7 @@ struct TradeView: View {
     private var receivedOffersSection: some View {
         offerSection(
             title: "Offers Received",
-            subtitle: "\(viewModel.receivedOffers(in: store).count) cloud-ready offers",
+            subtitle: "\(viewModel.receivedOffers(in: store).count) offers",
             offers: viewModel.receivedOffers(in: store)
         )
     }

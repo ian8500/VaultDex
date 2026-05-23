@@ -148,7 +148,7 @@ final class ImportCollectionViewModel: ObservableObject {
         }
 
         exportText = csvString(
-            headers: ["Name", "Set", "Number", "Priority", "Preferred Condition", "Max Trade Value", "Notes"],
+            headers: ["Name", "Set", "Number", "Priority", "Preferred Condition", "Max Trade Estimate", "Notes"],
             rows: rows
         )
     }

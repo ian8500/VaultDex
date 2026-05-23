@@ -15,9 +15,8 @@ struct SearchView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    VaultSectionHeader(title: "Find Cards", subtitle: "Search live Pokémon TCG cards")
+                    VaultSectionHeader(title: "Find Cards", subtitle: "Search by name, set, type or rarity.")
                     searchField
-                    apiStatus
                     typeFilters
                     rarityFilters
                     setFilters
@@ -30,7 +29,7 @@ struct SearchView: View {
                         EmptyStateView(
                             systemImage: "magnifyingglass",
                             title: "No cards found",
-                            message: viewModel.errorMessage ?? "Try a different name, set, type, or rarity."
+                            message: viewModel.errorMessage ?? "Try a different search."
                         )
                         .padding(.top, 32)
                     } else {
@@ -169,24 +168,6 @@ struct SearchView: View {
             return "\(count) of \(total) live cards"
         }
         return "\(count) cards"
-    }
-
-    private var apiStatus: some View {
-        Group {
-            if viewModel.isLoading {
-                Label("Loading live card data", systemImage: "arrow.clockwise")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdGold)
-            } else if viewModel.isShowingFallback {
-                Label("Live API unavailable. Showing local fallback cards.", systemImage: "wifi.slash")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdCoral)
-            } else if viewModel.didLoadAPI {
-                Label("Live Pokémon TCG results", systemImage: "checkmark.icloud.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdLeaf)
-            }
-        }
     }
 
     private var loadingState: some View {

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct VaultSectionHeader: View {
     let title: String
-    let subtitle: String
+    let subtitle: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -11,9 +11,11 @@ struct VaultSectionHeader: View {
             .foregroundStyle(Color.vdTextPrimary)
             .shadow(color: Color.vdGold.opacity(0.16), radius: 8, x: 0, y: 2)
 
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
         }
     }
 }

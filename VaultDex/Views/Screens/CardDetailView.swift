@@ -232,7 +232,7 @@ struct CardDetailView: View {
 
     private var priceDisclaimer: some View {
         Label(
-            "Values are estimates only and may vary by condition, market and grading.",
+            "Values are estimates based on available market data.",
             systemImage: "info.circle.fill"
         )
         .font(.caption.weight(.semibold))
@@ -289,7 +289,7 @@ struct CardDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             VaultSectionHeader(
                 title: "My Vault",
-                subtitle: ownedItem == nil ? "Add this card to your local vault" : "Edit owned quantity, condition, variant, and trade status"
+                subtitle: ownedItem == nil ? "Add this card to your vault." : "Edit quantity, condition, variant and trade status."
             )
 
             Stepper(value: $ownedQuantity, in: 1...99) {
@@ -378,7 +378,7 @@ struct CardDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(
                 title: "Owned Card Photos",
-                subtitle: "Front and back photos are private user uploads, separate from API artwork"
+                subtitle: "Add private front and back photos."
             )
 
             if let ownedItem {
@@ -398,7 +398,7 @@ struct CardDetailView: View {
                 }
 
                 if let message = store.imageUploadMessage, store.uploadingCardPhotoSide != nil || message.contains("photo") {
-                    Label(message, systemImage: store.uploadingCardPhotoSide == nil ? "checkmark.icloud.fill" : "icloud.and.arrow.up.fill")
+                    Label(message, systemImage: store.uploadingCardPhotoSide == nil ? "checkmark.circle.fill" : "photo.badge.arrow.down.fill")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(store.uploadingCardPhotoSide == nil ? Color.vdEmerald : Color.vdGold)
                 }
@@ -534,11 +534,11 @@ struct CardDetailView: View {
             .foregroundStyle(Color.vdTextPrimary)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Max Trade Value")
+                Text("Max Trade Estimate")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
 
-                TextField("Max trade value", value: $wishlistBudget, format: .number.precision(.fractionLength(0...2)))
+                TextField("Max trade estimate", value: $wishlistBudget, format: .number.precision(.fractionLength(0...2)))
                     .keyboardType(.decimalPad)
                     .foregroundStyle(Color.vdTextPrimary)
                     .padding(14)

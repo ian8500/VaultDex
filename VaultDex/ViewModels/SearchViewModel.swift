@@ -12,7 +12,7 @@ enum SearchSortOption: String, CaseIterable, Identifiable {
         switch self {
         case .name: "Name"
         case .rarity: "Rarity"
-        case .marketValue: "Market Value"
+        case .marketValue: "Market Estimate"
         case .newest: "Newest"
         }
     }
@@ -67,6 +67,7 @@ final class SearchViewModel: ObservableObject {
         }
 
         do {
+            await ExchangeRateService.shared.refreshRatesIfNeeded()
             let response = try await apiService.searchCards(
                 query: query,
                 rarity: selectedRarity,
@@ -93,6 +94,7 @@ final class SearchViewModel: ObservableObject {
         defer { isLoadingMore = false }
 
         do {
+            await ExchangeRateService.shared.refreshRatesIfNeeded()
             let nextPage = currentPage + 1
             let response = try await apiService.searchCards(
                 query: query,

@@ -4,7 +4,7 @@ struct AuthView: View {
     @EnvironmentObject private var authService: AuthService
     @State private var email = ""
     @State private var password = ""
-    @State private var lastMessage = "Cloud mode is ready. Sign in to load your vault."
+    @State private var lastMessage = ""
     @State private var showProfile = false
 
     var body: some View {
@@ -14,14 +14,7 @@ struct AuthView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    dataModeCard
                     authCard
-                    accountCard
-                    NavigationLink("Open Collector Profile", destination: SocialProfileView())
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(Color.vdGold)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 10)
                 }
                 .padding(20)
                 .padding(.bottom, 28)
@@ -33,18 +26,11 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(authService.status.title, systemImage: authService.status.systemImage)
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.vdNavy)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(statusTint, in: Capsule())
-
             Text("VaultDex Sign In")
                 .font(.system(.largeTitle, design: .rounded, weight: .black))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Sign in to sync your profile, cards, collection, wants, friends, trades, and listings. Local fallback mode remains available in Settings.")
+            Text("Sign in to keep your collection, wants and trades together.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
         }
@@ -75,81 +61,26 @@ struct AuthView: View {
                 .disabled(!canSubmit || authService.isLoading)
             }
 
-            SecondaryButton(title: "Sign Out", systemImage: "rectangle.portrait.and.arrow.right") {
-                Task { await runAuthAction { try await authService.signOut() } }
+            if !lastMessage.isEmpty {
+                Text(lastMessage)
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .disabled(authService.isLoading)
-
-            Text(lastMessage)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)
         .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.26), lineWidth: 1))
     }
 
-    private var dataModeCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle(isOn: Binding(
-                get: { authService.isDemoModeEnabled },
-                set: { authService.setDemoModeEnabled($0) }
-            )) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Local Fallback")
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(Color.vdTextPrimary)
-                    Text(authService.isDemoModeEnabled ? "Local fallback mode is active." : "Cloud mode is active. Sign in to sync.")
-                        .font(.caption)
-                        .foregroundStyle(Color.vdTextSecondary)
-                }
-            }
-            .tint(Color.vdGold)
-        }
-        .padding(18)
-        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.22), lineWidth: 1))
-    }
-
-    private var accountCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VaultSectionHeader(title: "Account Status", subtitle: authService.status.message)
-
-            if let session = authService.currentSession() {
-                Label(session.email ?? "Signed in", systemImage: "checkmark.seal.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.vdLeaf)
-            } else {
-                EmptyStateView(
-                    systemImage: "person.crop.circle.badge.questionmark",
-                    title: "Ready for sign in",
-                    message: "Sign in or create an account to start cloud sync."
-                )
-            }
-        }
-        .padding(18)
-        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 22))
-    }
-
     private var canSubmit: Bool {
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
-    }
-
-    private var statusTint: Color {
-        switch authService.status {
-        case .demoMode: .vdSky
-        case .cloudReady: .vdGold
-        case .cloudSignedIn: .vdLeaf
-        case .supabaseConfigMissing: .vdGold
-        case .supabaseError: .vdCoral
-        }
     }
 
     private func runAuthAction(_ action: @escaping () async throws -> Void) async {
         do {
             try await action()
-            lastMessage = authService.status.message
+            lastMessage = authService.currentSession() == nil ? "" : "Signed in."
         } catch {
             lastMessage = authService.status.message
         }

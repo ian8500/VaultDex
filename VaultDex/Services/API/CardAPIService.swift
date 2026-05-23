@@ -261,10 +261,15 @@ extension PokemonTCGCard {
     var localCard: Card {
         let mappedType = CardType(apiTypes: types)
         let mappedRarity = CardRarity(apiRarity: rarity)
+        let cardmarketPrice = cardmarket?.prices?.trendPrice
+            ?? cardmarket?.prices?.averageSellPrice
+            ?? cardmarket?.prices?.lowPrice
         let tcgPrice = tcgplayer?.prices?.values.compactMap(\.market).max()
             ?? tcgplayer?.prices?.values.compactMap(\.mid).max()
-        let marketPrice = cardmarket?.prices?.trendPrice ?? cardmarket?.prices?.averageSellPrice
-        let value = tcgPrice ?? marketPrice ?? 0
+            ?? tcgplayer?.prices?.values.compactMap(\.low).max()
+        let value = cardmarketPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: .eur) }
+            ?? tcgPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: .usd) }
+            ?? 0
         let setModel = CardSet(
             id: .deterministic("pokemon-tcg-set-\(set.id)"),
             name: set.name,
@@ -292,21 +297,31 @@ extension PokemonTCGCard {
             artist: artist,
             smallImageURL: images?.small,
             largeImageURL: images?.large,
-            tcgplayerPrices: tcgplayer?.prices?.values.first?.localPriceInfo,
-            cardmarketPrices: cardmarket?.prices?.localPriceInfo
+            tcgplayerPrices: tcgplayer?.prices?.values.first?.localPriceInfo(sourceCurrency: .usd),
+            cardmarketPrices: cardmarket?.prices?.localPriceInfo(sourceCurrency: .eur)
         )
     }
 }
 
 private extension PokemonTCGPrice {
-    var localPriceInfo: CardPriceInfo {
-        CardPriceInfo(low: low, mid: mid, high: high, market: market, directLow: directLow)
+    func localPriceInfo(sourceCurrency: MarketCurrency) -> CardPriceInfo {
+        CardPriceInfo(
+            low: low.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            mid: mid.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            high: high.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            market: market.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            directLow: directLow.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) }
+        )
     }
 }
 
 private extension PokemonCardmarketPrices {
-    var localPriceInfo: CardPriceInfo {
-        CardPriceInfo(low: lowPrice, averageSellPrice: averageSellPrice, trendPrice: trendPrice)
+    func localPriceInfo(sourceCurrency: MarketCurrency) -> CardPriceInfo {
+        CardPriceInfo(
+            low: lowPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            averageSellPrice: averageSellPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) },
+            trendPrice: trendPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: sourceCurrency) }
+        )
     }
 }
 

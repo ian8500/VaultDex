@@ -125,13 +125,13 @@ struct SocialProfileView: View {
             avatarUploadButton
 
             if let message = store.imageUploadMessage, store.isUploadingAvatar || message.contains("Avatar") {
-                Label(message, systemImage: store.isUploadingAvatar ? "icloud.and.arrow.up.fill" : "checkmark.icloud.fill")
+                Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald)
             }
 
             if didSaveProfile {
-                Label("Changes saved locally", systemImage: "checkmark.circle.fill")
+                Label("Changes saved", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdEmerald)
                     .transition(.opacity)
@@ -182,7 +182,7 @@ struct SocialProfileView: View {
 
     private var profileEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VaultSectionHeader(title: "Collector Profile", subtitle: "Edit the local profile fields that will sync later")
+            VaultSectionHeader(title: "Collector Profile", subtitle: "Complete your collector profile.")
 
             VStack(spacing: 12) {
                 ProfileTextField(title: "Avatar symbol", text: $draft.avatarSymbol, systemImage: "photo.badge.plus")
@@ -209,7 +209,7 @@ struct SocialProfileView: View {
                 }
             }
 
-            Text("Avatar photos upload to cloud storage. The symbol remains as a fallback.")
+            Text("Choose a profile photo or keep your collector symbol.")
                 .font(.caption)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -250,7 +250,7 @@ struct SocialProfileView: View {
 
     private var socialTools: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Social", subtitle: "Friends, invites, events, and account controls")
+            VaultSectionHeader(title: "Social", subtitle: "Friends, invites and safety tools.")
 
             FeatureLinkCard(
                 title: "Friends",
@@ -281,7 +281,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Settings",
-                subtitle: "Privacy controls and local preferences",
+                subtitle: "Privacy and trading preferences",
                 systemImage: "gearshape.fill",
                 tint: .vdGold
             ) {
@@ -299,7 +299,7 @@ struct SocialProfileView: View {
 
             FeatureLinkCard(
                 title: "Danger Zone",
-                subtitle: "Delete account and reset local test state",
+                subtitle: "Delete account data",
                 systemImage: "person.crop.circle.badge.xmark",
                 tint: .vdCoral
             ) {
@@ -310,7 +310,7 @@ struct SocialProfileView: View {
 
     private var setProgress: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Set Progress", subtitle: "Local collection coverage")
+            VaultSectionHeader(title: "Set Progress", subtitle: "Your collection by set.")
 
             VStack(spacing: 10) {
                 ForEach(setProgressRows) { progress in
@@ -479,11 +479,13 @@ private struct ProfileTextField: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var authService: AuthService
+    @EnvironmentObject private var store: LocalVaultStore
     @State private var profileVisibility = BinderVisibility.friends
     @State private var collectionVisibility = BinderVisibility.friends
     @State private var allowFriendTradeRequests = true
     @State private var showWishlistBadges = true
     @State private var requireSafeTradeForHighValue = true
+    @State private var showDeveloperSection = false
 
     var body: some View {
         ZStack {
@@ -492,10 +494,10 @@ struct SettingsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     settingsHeader
-                    dataModeControls
                     privacyControls
                     tradeControls
                     legalLinks
+                    developerControls
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -512,7 +514,7 @@ struct SettingsView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Cloud-first controls for data mode, privacy, visibility, and marketplace behaviour.")
+            Text("Privacy, safety and profile preferences.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -525,28 +527,43 @@ struct SettingsView: View {
         )
     }
 
-    private var dataModeControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Data Mode", subtitle: "Cloud mode is the default. Local fallback is only for development and offline testing.")
-
-            SafetyToggleRow(
-                title: "Local Fallback",
-                subtitle: authService.isDemoModeEnabled ? "Using local fallback mode." : "Using cloud data when signed in.",
-                isOn: Binding(
-                    get: { authService.isDemoModeEnabled },
-                    set: { authService.setDemoModeEnabled($0) }
+    private var developerControls: some View {
+        DisclosureGroup(isExpanded: $showDeveloperSection) {
+            VStack(alignment: .leading, spacing: 12) {
+                SafetyToggleRow(
+                    title: "Demo Mode",
+                    subtitle: authService.isDemoModeEnabled ? "Local fallback is on." : "Cloud mode is on.",
+                    isOn: Binding(
+                        get: { authService.isDemoModeEnabled },
+                        set: { authService.setDemoModeEnabled($0) }
+                    )
                 )
-            )
 
-            Label(authService.status.title, systemImage: authService.status.systemImage)
-                .font(.caption.weight(.black))
+                DeveloperStatusRow(title: "Cloud mode", value: authService.status.title)
+                DeveloperStatusRow(title: "Supabase config", value: authService.isCloudConfigured ? "Configured" : "Missing")
+                DeveloperStatusRow(title: "Client", value: authService.canCreateCloudClient ? "Ready" : "Unavailable")
+                DeveloperStatusRow(title: "Session", value: authService.currentSession() == nil ? "Signed out" : "Signed in")
+
+                SecondaryButton(title: "Test Connection", systemImage: "network") {
+                    Task {
+                        await store.loadCloudDataIfPossible(session: authService.currentSession())
+                    }
+                }
+            }
+            .padding(.top, 12)
+        } label: {
+            Label("Developer", systemImage: "wrench.and.screwdriver.fill")
+                .font(.subheadline.weight(.bold))
                 .foregroundStyle(Color.vdTextSecondary)
         }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.5), lineWidth: 1))
     }
 
     private var privacyControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Privacy Controls", subtitle: "Visibility defaults for your profile and collection")
+            VaultSectionHeader(title: "Privacy Controls", subtitle: "Choose what other collectors can see.")
 
             Picker("Profile visibility", selection: $profileVisibility) {
                 ForEach(BinderVisibility.allCases) { visibility in
@@ -566,7 +583,7 @@ struct SettingsView: View {
 
     private var tradeControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Trading Preferences", subtitle: "Prototype toggles for future safety rules")
+            VaultSectionHeader(title: "Trading Preferences", subtitle: "Set your comfort level for trades.")
 
             SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send trade offers.", isOn: $allowFriendTradeRequests)
             SafetyToggleRow(title: "Show wants badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
@@ -576,7 +593,7 @@ struct SettingsView: View {
 
     private var legalLinks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Legal", subtitle: "Policies to review before launch")
+            VaultSectionHeader(title: "Legal", subtitle: "Terms, privacy and app information.")
 
             PlaceholderLinkRow(title: "Terms", systemImage: "doc.text.fill")
             PlaceholderLinkRow(title: "Privacy policy", systemImage: "hand.raised.fill")
@@ -616,7 +633,7 @@ struct SafetyCentreView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Safety flows are ready for moderation, reporting, and privacy systems.")
+            Text("Simple guidance for trading safely with friends and family.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -631,7 +648,7 @@ struct SafetyCentreView: View {
 
     private var guidanceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Parent/Child Trading", subtitle: "Guidance before real accounts are added")
+            VaultSectionHeader(title: "Parent/Child Trading", subtitle: "Helpful checks before younger collectors trade.")
 
             SafetyInfoRow(systemImage: "person.2.fill", title: "Use supervised accounts", message: "Children should trade only with parent or guardian awareness, especially for high-value cards.")
             SafetyInfoRow(systemImage: "lock.shield.fill", title: "Keep personal details private", message: "Do not share home addresses, school details, phone numbers, or payment information in trade messages.")
@@ -641,7 +658,7 @@ struct SafetyCentreView: View {
 
     private var marketplaceTips: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Marketplace Safety Tips", subtitle: "Prototype marketplace rules for safer trading")
+            VaultSectionHeader(title: "Marketplace Safety Tips", subtitle: "Keep trades clear, fair and comfortable.")
 
             SafetyInfoRow(systemImage: "star.leadinghalf.filled", title: "Check reputation", message: "Prefer traders with strong reputation scores, completed trades, and trust badges.")
             SafetyInfoRow(systemImage: "camera.macro", title: "Ask for clear photos", message: "For physical cards, verify card condition, language, variant, and authenticity before meeting or shipping.")
@@ -665,7 +682,7 @@ struct SafetyCentreView: View {
 
     private var privacyAndLegal: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Privacy & Policies", subtitle: "Production copy will live here later")
+            VaultSectionHeader(title: "Privacy & Policies", subtitle: "Control your data and review app policies.")
 
             PlaceholderLinkRow(title: "Privacy controls", systemImage: "hand.raised.fill")
             PlaceholderLinkRow(title: "Terms", systemImage: "doc.text.fill")
@@ -711,6 +728,25 @@ private struct SafetyToggleRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
+    }
+}
+
+private struct DeveloperStatusRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
+        }
+        .padding(12)
+        .background(Color.vdPanelRaised.opacity(0.58), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

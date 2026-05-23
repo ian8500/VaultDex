@@ -71,7 +71,6 @@ struct DashboardView: View {
                         if isVaultEmpty {
                             dashboardEmptyState
                         }
-                        collectionStats
                         featuredCards
                         friendOpportunitiesSection
                         safetyPanel
@@ -84,18 +83,8 @@ struct DashboardView: View {
                 .offset(y: isLoading || hasAnimated ? 0 : 12)
             }
         }
-        .navigationTitle("Today")
+        .navigationTitle("Home")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Text(store.runtimeMode.displayName)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(Color.vdNavy)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.vdGold.opacity(0.94), in: Capsule())
-            }
-        }
         .task {
             guard isLoading else { return }
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -117,11 +106,6 @@ struct DashboardView: View {
             Text("Preparing your vault")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
-
-            Text("Checking cards, wants, trade offers, and safe-trade reminders.")
-                .font(.subheadline)
-                .foregroundStyle(Color.vdTextSecondary)
-                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(28)
@@ -171,9 +155,6 @@ struct DashboardView: View {
                 HeroMetric(title: "Estimated Value", value: store.estimatedCollectionValue.compactVaultCurrency, icon: "chart.line.uptrend.xyaxis")
             }
 
-            Text("Track your collection value")
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.vdGold)
         }
         .padding(20)
         .background {
@@ -210,19 +191,19 @@ struct DashboardView: View {
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Quick Actions", subtitle: "Jump straight into the collection flow")
+            VaultSectionHeader(title: "Quick Actions", subtitle: nil)
 
             LazyVGrid(columns: statColumns, spacing: 12) {
-                DashboardQuickAction(title: "Add Card", subtitle: "Grow My Vault", icon: "plus.circle.fill", tint: .vdGold) {
-                    SearchView()
-                }
                 DashboardQuickAction(title: "Search", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
                     SearchView()
                 }
-                DashboardQuickAction(title: "Import", subtitle: "Paste CSV", icon: "square.and.arrow.down.on.square.fill", tint: .vdLeaf) {
-                    ImportCollectionView()
+                DashboardQuickAction(title: "Add Card", subtitle: "Grow Vault", icon: "plus.circle.fill", tint: .vdGold) {
+                    SearchView()
                 }
-                DashboardQuickAction(title: "Trade", subtitle: "Trade Hub", icon: "arrow.left.arrow.right", tint: .vdCoral) {
+                DashboardQuickAction(title: "Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
+                    WishlistView()
+                }
+                DashboardQuickAction(title: "Trade", subtitle: "Make offers", icon: "arrow.left.arrow.right", tint: .vdCoral) {
                     TradeView()
                 }
             }
@@ -246,26 +227,20 @@ struct DashboardView: View {
         EmptyStateView(
             systemImage: "rectangle.stack.badge.plus",
             title: "Start building your vault",
-            message: "Search for real cards, import a CSV, or add wants to turn this dashboard into your collector command centre."
+            message: "Search and add your first card."
         )
     }
 
     private var featuredCards: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Featured Cards", subtitle: "Rarest, highest value, and newest pulls")
+            VaultSectionHeader(title: "Recently Added", subtitle: nil)
 
             if store.collectionItems.isEmpty {
-                EmptyStateView(systemImage: "sparkles.rectangle.stack", title: "Start building your vault", message: "Add your first card to reveal rarest, highest value, and recently added highlights.")
+                EmptyStateView(systemImage: "sparkles.rectangle.stack", title: "Your vault is empty", message: "Add your first card.")
             } else {
                 VStack(spacing: 12) {
-                    if let rarestItem {
-                        FeaturedDashboardCard(label: "Rarest Card", item: rarestItem, accent: .vdGold)
-                    }
-                    if let highestValueItem {
-                        FeaturedDashboardCard(label: "Highest Value Card", item: highestValueItem, accent: .vdLeaf)
-                    }
-                    if let recentlyAddedItem {
-                        FeaturedDashboardCard(label: "Recently Added", item: recentlyAddedItem, accent: .vdSky)
+                    ForEach(store.recentlyAdded.prefix(3)) { item in
+                        FeaturedDashboardCard(label: "Added", item: item, accent: .vdSky)
                     }
                 }
             }
@@ -274,10 +249,10 @@ struct DashboardView: View {
 
     private var friendOpportunitiesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Friend Opportunities", subtitle: "Match with collectors")
+            VaultSectionHeader(title: "Trade Opportunities", subtitle: nil)
 
             if store.friends.isEmpty {
-                EmptyStateView(systemImage: "person.2.badge.plus", title: "Add collectors to trade safely", message: "Connect with trusted collectors to compare wants, collections, and fair trade ideas.")
+                EmptyStateView(systemImage: "person.2.badge.plus", title: "No trade matches yet", message: "Add friends to start trading.")
             } else {
                 LazyVGrid(columns: statColumns, spacing: 12) {
                     OpportunityCard(
@@ -320,16 +295,10 @@ struct DashboardView: View {
                         .font(.title3.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    Text("Friendly reminders before real accounts and moderation arrive.")
+                    Text("Review condition, value and trust before trading.")
                         .font(.caption)
                         .foregroundStyle(Color.vdTextSecondary)
                 }
-            }
-
-            VStack(spacing: 10) {
-                SafetyReminderRow(icon: "person.crop.circle.badge.checkmark", title: "Parent approval", message: "Require a trusted grown-up review before young collectors trade.")
-                SafetyReminderRow(icon: "hand.raised.fill", title: "Report/block reminders", message: "Keep report and block controls visible on listings and profiles.")
-                SafetyReminderRow(icon: "checkmark.seal.fill", title: "Value and condition check", message: "Review condition, variant, credits, and fairness before accepting.")
             }
         }
         .padding(18)
