@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct SocialProfileView: View {
     @EnvironmentObject private var authService: AuthService
@@ -13,6 +14,7 @@ struct SocialProfileView: View {
     @State private var showLogoutConfirmation = false
     @State private var pendingAvatarData: Data?
     @State private var showAvatarUploadError = false
+    @State private var isProcessingAvatar = false
 
     var body: some View {
         ZStack {
@@ -166,7 +168,7 @@ struct SocialProfileView: View {
     }
 
     private var avatarUploadButton: some View {
-        let isUploading = store.isUploadingAvatar
+        let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
         return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
             HStack(spacing: 10) {
@@ -178,7 +180,7 @@ struct SocialProfileView: View {
                         .font(.headline.weight(.bold))
                 }
 
-                Text(isUploading ? "Uploading Avatar..." : "Upload Avatar Photo")
+                Text(isUploading ? "Saving Photo..." : "Upload Avatar Photo")
                     .font(.headline.weight(.bold))
             }
             .foregroundStyle(Color.vdNavy)
@@ -193,7 +195,7 @@ struct SocialProfileView: View {
         let avatarURL = store.profile.avatarURL
         let avatarSymbol = store.profile.avatarSymbol
         let initials = profileInitials
-        let isUploading = store.isUploadingAvatar
+        let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
         return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
             ZStack(alignment: .bottomTrailing) {
@@ -329,24 +331,30 @@ struct SocialProfileView: View {
 
     private func loadAvatar(from item: PhotosPickerItem?) {
         guard let item else { return }
+        isProcessingAvatar = true
         Task {
             do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      UIImage(data: data) != nil else {
                     await MainActor.run {
                         store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                        isProcessingAvatar = false
                         showAvatarUploadError = true
                         selectedAvatarItem = nil
                     }
                     return
                 }
+                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 1_200, quality: 0.82)
                 await MainActor.run {
-                    pendingAvatarData = data
+                    pendingAvatarData = preparedData
+                    isProcessingAvatar = false
                     selectedAvatarItem = nil
                 }
                 await uploadPendingAvatar()
             } catch {
                 await MainActor.run {
                     store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                    isProcessingAvatar = false
                     showAvatarUploadError = true
                     selectedAvatarItem = nil
                 }
