@@ -90,10 +90,18 @@ using (
 );
 
 drop policy if exists "profiles are readable by signed in users" on public.profiles;
+drop policy if exists "users select own profile" on public.profiles;
+create policy "users select own profile"
+on public.profiles
+for select
+to authenticated
+using (id = auth.uid());
+
 drop policy if exists "profiles are publicly readable when visible" on public.profiles;
 create policy "profiles are publicly readable when visible"
 on public.profiles
 for select
+to authenticated
 using (auth.uid() is not null and (profile_visibility = 'public' or id = auth.uid()));
 
 drop policy if exists "users insert own profile" on public.profiles;

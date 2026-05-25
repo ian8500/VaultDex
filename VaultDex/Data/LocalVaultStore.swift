@@ -143,16 +143,27 @@ final class LocalVaultStore: ObservableObject {
         defer { isLoadingCloudData = false }
 
         do {
-            var snapshot = try await fetchCloudSnapshot(userID: session.userID)
-            if snapshot.profile == nil {
-                snapshot.profile = try await createBlankCloudProfile(userID: session.userID)
+            let cloudProfile = try await fetchOrCreateCloudProfile(userID: session.userID)
+            do {
+                let snapshot = try await fetchCloudSnapshot(userID: session.userID, profile: cloudProfile)
+                apply(snapshot: snapshot, userID: session.userID)
+                CloudVaultCache.save(snapshot, userID: session.userID)
+                runtimeMode = .supabase
+                lastSyncError = nil
+            } catch {
+                if var cachedSnapshot = CloudVaultCache.load(userID: session.userID) {
+                    cachedSnapshot.profile = cloudProfile
+                    apply(snapshot: cachedSnapshot, userID: session.userID)
+                } else {
+                    apply(snapshot: CloudVaultSnapshot.empty(profile: cloudProfile), userID: session.userID)
+                }
+                runtimeMode = .offline
+                lastSyncError = Self.cloudConnectionMessage
             }
-            apply(snapshot: snapshot, userID: session.userID)
-            CloudVaultCache.save(snapshot, userID: session.userID)
-            runtimeMode = .supabase
-            lastSyncError = nil
         } catch {
-            loadCachedOrDemo(reason: Self.cloudConnectionMessage)
+            clearSignedOutState()
+            runtimeMode = .offline
+            lastSyncError = Self.cloudConnectionMessage
         }
     }
 
@@ -170,8 +181,14 @@ final class LocalVaultStore: ObservableObject {
         lastSyncError = reason
     }
 
-    private func fetchCloudSnapshot(userID: UUID) async throws -> CloudVaultSnapshot {
-        async let remoteProfile = repositories.profiles.fetchCurrentProfile(userID: userID)
+    private func fetchOrCreateCloudProfile(userID: UUID) async throws -> RemoteProfile {
+        if let profile = try await repositories.profiles.fetchCurrentProfile(userID: userID) {
+            return profile
+        }
+        return try await createBlankCloudProfile(userID: userID)
+    }
+
+    private func fetchCloudSnapshot(userID: UUID, profile: RemoteProfile) async throws -> CloudVaultSnapshot {
         async let remoteSets = repositories.cards.fetchSets()
         async let remoteCards = repositories.cards.fetchCards(search: nil)
         async let remoteCollection = repositories.collection.fetchCollection(userID: userID)
@@ -205,7 +222,7 @@ final class LocalVaultStore: ObservableObject {
         }
 
         return try await CloudVaultSnapshot(
-            profile: remoteProfile,
+            profile: profile,
             sets: remoteSets,
             cards: remoteCards,
             collection: remoteCollection,
@@ -632,7 +649,8 @@ final class LocalVaultStore: ObservableObject {
             Task {
                 do {
                     try await repositories.friends.acceptFriendRequest(remoteRequest)
-                    let snapshot = try await fetchCloudSnapshot(userID: addresseeID)
+                    let cloudProfile = try await fetchOrCreateCloudProfile(userID: addresseeID)
+                    let snapshot = try await fetchCloudSnapshot(userID: addresseeID, profile: cloudProfile)
                     await MainActor.run {
                         apply(snapshot: snapshot, userID: addresseeID)
                         CloudVaultCache.save(snapshot, userID: addresseeID)
@@ -870,12 +888,16 @@ final class LocalVaultStore: ObservableObject {
     }
 
     func updateProfile(_ updatedProfile: UserProfile) async throws {
-        guard runtimeMode == .supabase else {
+        let shouldSaveToCloud = runtimeMode != .demo
+            && repositories.clientProvider.canCreateClient
+            && repositories.clientProvider.currentSession?.userID != nil
+
+        guard shouldSaveToCloud else {
             profile = updatedProfile
             return
         }
 
-        guard repositories.clientProvider.currentSession?.userID != nil else {
+        guard let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.cloudConnectionMessage
             throw SupabaseClientError.missingConfiguration
         }
@@ -884,8 +906,10 @@ final class LocalVaultStore: ObservableObject {
         defer { isSavingProfile = false }
 
         do {
-            try await repositories.profiles.upsertProfile(remoteProfile(from: updatedProfile))
-            profile = updatedProfile
+            let profileForCurrentUser = updatedProfile.replacingID(with: userID)
+            try await repositories.profiles.upsertProfile(remoteProfile(from: profileForCurrentUser, userID: userID))
+            profile = profileForCurrentUser
+            runtimeMode = .supabase
             lastSyncError = nil
         } catch {
             lastSyncError = Self.cloudConnectionMessage
@@ -1378,6 +1402,24 @@ private struct CloudVaultSnapshot: Codable {
     let tradeOfferItems: [RemoteTradeOfferItem]?
     let marketplaceListings: [RemoteMarketplaceListing]
     let events: [RemoteVaultEvent]
+
+    static func empty(profile: RemoteProfile?) -> CloudVaultSnapshot {
+        CloudVaultSnapshot(
+            profile: profile,
+            sets: [],
+            cards: [],
+            collection: [],
+            wishlist: [],
+            friends: [],
+            friendRequests: [],
+            friendProfiles: [],
+            visibleFriendData: [],
+            tradeOffers: [],
+            tradeOfferItems: [],
+            marketplaceListings: [],
+            events: []
+        )
+    }
 }
 
 private struct RemoteFriendVisibleData: Codable {
@@ -1631,6 +1673,29 @@ private extension RemoteVaultEvent {
             emojiMarker: emojiMarker,
             notes: notes,
             visibility: BinderVisibility(rawValue: visibility) ?? .public
+        )
+    }
+}
+
+private extension UserProfile {
+    func replacingID(with id: UUID) -> UserProfile {
+        UserProfile(
+            id: id,
+            displayName: displayName,
+            handle: handle,
+            location: location,
+            bio: bio,
+            collectorType: collectorType,
+            avatarSymbol: avatarSymbol,
+            avatarURL: avatarURL,
+            reputationScore: reputationScore,
+            trustBadges: trustBadges,
+            completedTrades: completedTrades,
+            collectorScore: collectorScore,
+            favoriteSet: favoriteSet,
+            joinedDate: joinedDate,
+            followers: followers,
+            following: following
         )
     }
 }

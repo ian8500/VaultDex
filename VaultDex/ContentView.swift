@@ -12,6 +12,7 @@ struct ContentView: View {
     @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var store: LocalVaultStore
     @State private var hasResolvedAuthenticatedLaunch = false
+    @State private var continueToProfileSetupAfterError = false
 
     init() {
         let appearance = UITabBarAppearance()
@@ -42,11 +43,18 @@ struct ContentView: View {
                 }
             } else if !hasResolvedAuthenticatedLaunch || store.isLoadingCloudData {
                 AuthenticatedLoadingView()
-            } else if shouldShowProfileLoadError {
+            } else if shouldShowProfileLoadError && !continueToProfileSetupAfterError {
                 ProfileLoadErrorView {
                     Task { await refreshDataMode() }
+                } continueToSetup: {
+                    continueToProfileSetupAfterError = true
+                } signOut: {
+                    Task {
+                        try? await authService.signOut()
+                        store.clearSignedOutState()
+                    }
                 }
-            } else if needsProfileSetup {
+            } else if needsProfileSetup || (continueToProfileSetupAfterError && shouldShowProfileLoadError) {
                 NavigationStack {
                     ProfileSetupView()
                 }
@@ -135,6 +143,7 @@ struct ContentView: View {
         }
 
         hasResolvedAuthenticatedLaunch = false
+        continueToProfileSetupAfterError = false
 
         if authService.isDemoModeEnabled {
             store.useDemoMode()
@@ -170,6 +179,8 @@ private struct AuthenticatedLoadingView: View {
 
 private struct ProfileLoadErrorView: View {
     let retry: () -> Void
+    let continueToSetup: () -> Void
+    let signOut: () -> Void
 
     var body: some View {
         ZStack {
@@ -182,17 +193,28 @@ private struct ProfileLoadErrorView: View {
                     .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(Color.vdGold)
 
-                Text("Unable to load profile")
+                Text("We couldn’t load your profile")
                     .font(.title3.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
 
-                Text("Please check your connection and try again.")
+                Text("Try again, finish setup, or sign out.")
                     .font(.subheadline)
                     .foregroundStyle(Color.vdTextSecondary)
                     .multilineTextAlignment(.center)
 
                 PrimaryButton(title: "Retry", systemImage: "arrow.clockwise") {
                     retry()
+                }
+
+                SecondaryButton(title: "Finish Profile Setup", systemImage: "person.crop.circle.badge.plus") {
+                    continueToSetup()
+                }
+
+                Button(role: .destructive) {
+                    signOut()
+                } label: {
+                    Text("Sign Out")
+                        .font(.subheadline.weight(.bold))
                 }
             }
             .padding(24)

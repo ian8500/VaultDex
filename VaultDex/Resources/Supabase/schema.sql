@@ -24,6 +24,8 @@ alter table public.profiles add column if not exists wishlist_visibility text no
 alter table public.profiles add column if not exists allow_friend_trade_requests boolean not null default true;
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
 alter table public.profiles add column if not exists updated_at timestamptz not null default now();
+alter table public.profiles alter column username drop not null;
+alter table public.profiles alter column display_name drop not null;
 
 create table if not exists public.card_sets (
   id uuid primary key default gen_random_uuid(),
