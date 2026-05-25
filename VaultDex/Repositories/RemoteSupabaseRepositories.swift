@@ -95,7 +95,7 @@ final class SupabaseProfileRepository: SupabaseTableRepository, ProfileRepositor
     }
 
     func upsertProfile(_ profile: RemoteProfile) async throws {
-        try await upsert(profile, into: "profiles")
+        try await upsert(profile, into: "profiles", onConflict: "id")
     }
 }
 
@@ -178,7 +178,7 @@ final class SupabaseFriendsRepository: SupabaseTableRepository, FriendsRepositor
             .replacingOccurrences(of: "@", with: "")
         guard !trimmed.isEmpty else { return [] }
         return try await fetchRows(from: "profiles", queryItems: [
-            URLQueryItem(name: "username", value: "ilike.*\(trimmed)*"),
+            URLQueryItem(name: "or", value: "(username.ilike.*\(trimmed)*,display_name.ilike.*\(trimmed)*)"),
             URLQueryItem(name: "id", value: "neq.\(currentUserID.uuidString)"),
             URLQueryItem(name: "limit", value: "8")
         ])
@@ -261,7 +261,10 @@ final class SupabaseBinderRepository: SupabaseTableRepository, BinderRepository 
 
 final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
     func fetchTradeListings(userID: UUID?) async throws -> [RemoteTradeListing] {
-        var queryItems = [URLQueryItem(name: "order", value: "listed_at.desc")]
+        var queryItems = [
+            URLQueryItem(name: "status", value: "eq.active"),
+            URLQueryItem(name: "order", value: "listed_at.desc")
+        ]
         if let userID {
             queryItems.append(URLQueryItem(name: "owner_id", value: "eq.\(userID.uuidString)"))
         }
@@ -288,6 +291,10 @@ final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
         try await upsert(listing, into: "marketplace_listings")
     }
 
+    func deleteTradeListing(id: UUID) async throws {
+        try await delete(from: "marketplace_listings", id: id)
+    }
+
     func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws {
         try await upsert(offer, into: "trade_offers", onConflict: "id")
     }
@@ -304,7 +311,10 @@ final class SupabaseTradeRepository: SupabaseTableRepository, TradeRepository {
 
 final class SupabaseMarketplaceRepository: SupabaseTableRepository, MarketplaceRepository {
     func fetchMarketplaceListings(search: String?) async throws -> [RemoteMarketplaceListing] {
-        var queryItems = [URLQueryItem(name: "order", value: "estimated_value.desc")]
+        var queryItems = [
+            URLQueryItem(name: "status", value: "eq.active"),
+            URLQueryItem(name: "order", value: "estimated_value.desc")
+        ]
         if let search, !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             queryItems.append(URLQueryItem(name: "title", value: "ilike.*\(search)*"))
         }

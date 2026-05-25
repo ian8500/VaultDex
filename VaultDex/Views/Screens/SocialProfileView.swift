@@ -141,7 +141,14 @@ struct SocialProfileView: View {
             }
 
             PrimaryButton(title: "Save Profile Changes", systemImage: "checkmark.seal.fill") {
-                saveProfile()
+                Task { await saveProfile() }
+            }
+            .disabled(store.isSavingProfile)
+
+            if store.isSavingProfile {
+                Label("Saving profile...", systemImage: "icloud.and.arrow.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
             }
 
             avatarUploadButton
@@ -285,7 +292,7 @@ struct SocialProfileView: View {
                 }
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("Unable to upload that image right now. Please try again.")
+                    store.reportImagePickerError("Avatar upload failed. Please try again.")
                     selectedAvatarItem = nil
                 }
             }
@@ -310,7 +317,7 @@ struct SocialProfileView: View {
         }
     }
 
-    private func saveProfile() {
+    private func saveProfile() async {
         usernameError = ""
         didSaveProfile = false
 
@@ -325,10 +332,14 @@ struct SocialProfileView: View {
         }
 
         draft = validatedDraft
-        store.updateProfile(validatedDraft.makeProfile(from: store.profile))
-        profileMessage = "Profile saved"
-        withAnimation(.easeInOut(duration: 0.2)) {
-            didSaveProfile = true
+        do {
+            try await store.updateProfile(validatedDraft.makeProfile(from: store.profile))
+            profileMessage = "Profile saved"
+            withAnimation(.easeInOut(duration: 0.2)) {
+                didSaveProfile = true
+            }
+        } catch {
+            usernameError = "Unable to save profile. Please try again."
         }
     }
 
@@ -548,7 +559,14 @@ struct ProfileSetupView: View {
                         }
 
                         PrimaryButton(title: "Save Profile", systemImage: "checkmark.seal.fill") {
-                            saveProfile()
+                            Task { await saveProfile() }
+                        }
+                        .disabled(store.isSavingProfile)
+
+                        if store.isSavingProfile {
+                            Label("Saving profile...", systemImage: "icloud.and.arrow.up")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdGold)
                         }
 
                         if !message.isEmpty {
@@ -573,7 +591,7 @@ struct ProfileSetupView: View {
         }
     }
 
-    private func saveProfile() {
+    private func saveProfile() async {
         guard let validatedDraft = draft.validated() else {
             message = "Username must use lowercase letters, numbers or underscores."
             return
@@ -586,7 +604,11 @@ struct ProfileSetupView: View {
 
         draft = validatedDraft
         message = ""
-        store.updateProfile(validatedDraft.makeProfile(from: store.profile))
+        do {
+            try await store.updateProfile(validatedDraft.makeProfile(from: store.profile))
+        } catch {
+            message = "Unable to save profile. Please try again."
+        }
     }
 }
 
@@ -687,14 +709,13 @@ private struct ProfileTextField: View {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var authService: AuthService
-    @EnvironmentObject private var store: LocalVaultStore
     @State private var profileVisibility = BinderVisibility.friends
     @State private var collectionVisibility = BinderVisibility.friends
+    @State private var wantsVisibility = BinderVisibility.friends
     @State private var allowFriendTradeRequests = true
     @State private var showWishlistBadges = true
     @State private var requireSafeTradeForHighValue = true
-    @State private var showDeveloperSection = false
+    @State private var parentManagedAccount = false
 
     var body: some View {
         ZStack {
@@ -706,7 +727,6 @@ struct SettingsView: View {
                     privacyControls
                     tradeControls
                     legalLinks
-                    developerControls
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -742,39 +762,6 @@ struct SettingsView: View {
         )
     }
 
-    private var developerControls: some View {
-        DisclosureGroup(isExpanded: $showDeveloperSection) {
-            VStack(alignment: .leading, spacing: 12) {
-                SafetyToggleRow(
-                    title: "Offline testing",
-                    subtitle: authService.isDemoModeEnabled ? "On" : "Off",
-                    isOn: Binding(
-                        get: { authService.isDemoModeEnabled },
-                        set: { authService.setDemoModeEnabled($0) }
-                    )
-                )
-
-                DeveloperStatusRow(title: "Account", value: authService.status.title)
-                DeveloperStatusRow(title: "Connection", value: authService.canCreateCloudClient ? "Ready" : "Needs setup")
-                DeveloperStatusRow(title: "Session", value: authService.currentSession() == nil ? "Signed out" : "Signed in")
-
-                SecondaryButton(title: "Refresh Data", systemImage: "arrow.clockwise") {
-                    Task {
-                        await store.loadCloudDataIfPossible(session: authService.currentSession())
-                    }
-                }
-            }
-            .padding(.top, 12)
-        } label: {
-            Label("Developer", systemImage: "wrench.and.screwdriver.fill")
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(Color.vdTextSecondary)
-        }
-        .padding(16)
-        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.5), lineWidth: 1))
-    }
-
     private var privacyControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Privacy Controls", subtitle: "Choose what other collectors can see.")
@@ -792,6 +779,19 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            Picker("Wants visibility", selection: $wantsVisibility) {
+                ForEach(BinderVisibility.allCases) { visibility in
+                    Label(visibility.displayName, systemImage: visibility.systemImage).tag(visibility)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            SafetyInfoRow(
+                systemImage: "eye.slash.fill",
+                title: "Your choice",
+                message: "Use Private, Friends or Public controls for profile details, your vault and wants."
+            )
         }
     }
 
@@ -802,6 +802,9 @@ struct SettingsView: View {
             SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send trade offers.", isOn: $allowFriendTradeRequests)
             SafetyToggleRow(title: "Show wants badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
             SafetyToggleRow(title: "Safe trade for high value", subtitle: "Prefer an intermediary flow for expensive cards.", isOn: $requireSafeTradeForHighValue)
+            SafetyToggleRow(title: "Parent-managed account", subtitle: "Placeholder for guardian approval and trade review.", isOn: $parentManagedAccount)
+            SafetyInfoRow(systemImage: "message.badge.slash.fill", title: "No open random chat", message: "VaultDex keeps trading focused on friend-based offers, not public chat rooms.")
+            SafetyInfoRow(systemImage: "person.crop.circle.badge.questionmark", title: "No anonymous messaging", message: "Trade messages stay tied to collector profiles so reports and blocks can be reviewed.")
         }
     }
 
@@ -817,7 +820,9 @@ struct SettingsView: View {
 
 struct SafetyCentreView: View {
     @State private var reportText = ""
+    @State private var listingReportText = ""
     @State private var blockText = ""
+    @State private var actionMessage: String?
 
     var body: some View {
         ZStack {
@@ -826,7 +831,9 @@ struct SafetyCentreView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     safetyHeader
-                    guidanceSection
+                    communicationSection
+                    familyGuidance
+                    tradeSafetyTips
                     marketplaceTips
                     reportBlockTools
                     privacyAndLegal
@@ -860,13 +867,34 @@ struct SafetyCentreView: View {
         )
     }
 
-    private var guidanceSection: some View {
+    private var communicationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Communication", subtitle: "Designed for safer collector interactions.")
+
+            SafetyInfoRow(systemImage: "person.2.fill", title: "Friends first", message: "Trading is built around collectors you add, not open random chat.")
+            SafetyInfoRow(systemImage: "person.crop.circle.badge.checkmark", title: "Known profiles", message: "Messages are linked to signed-in profiles. Anonymous messaging is not part of VaultDex.")
+            SafetyInfoRow(systemImage: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Keep it trade related", message: "Offer messages should stay about cards, condition, value and delivery arrangements.")
+        }
+    }
+
+    private var familyGuidance: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Parent/Child Trading", subtitle: "Helpful checks before younger collectors trade.")
 
+            SafetyInfoRow(systemImage: "figure.and.child.holdinghands", title: "Parent-managed account", message: "A guardian approval flow is planned for younger collectors and high-value trades.")
             SafetyInfoRow(systemImage: "person.2.fill", title: "Use supervised accounts", message: "Children should trade only with parent or guardian awareness, especially for high-value cards.")
             SafetyInfoRow(systemImage: "lock.shield.fill", title: "Keep personal details private", message: "Do not share home addresses, school details, phone numbers, or payment information in trade messages.")
             SafetyInfoRow(systemImage: "checkmark.seal.fill", title: "Confirm every trade", message: "Review condition, variant, value balance, and wants before accepting an offer.")
+        }
+    }
+
+    private var tradeSafetyTips: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Trade Safety Tips", subtitle: "Simple checks before you accept.")
+
+            SafetyInfoRow(systemImage: "scale.3d", title: "Check value balance", message: "Use estimated values as a guide only. Condition, grading and personal preference can change a fair trade.")
+            SafetyInfoRow(systemImage: "rectangle.stack.badge.person.crop.fill", title: "Confirm the exact card", message: "Compare set, number, variant, language and photos before sending cards.")
+            SafetyInfoRow(systemImage: "hand.raised.fill", title: "Pause if unsure", message: "Reject any offer that feels rushed, unclear or uncomfortable.")
         }
     }
 
@@ -885,11 +913,23 @@ struct SafetyCentreView: View {
             VaultSectionHeader(title: "Report & Block", subtitle: "Moderation actions")
 
             ProfileTextField(title: "Report user", text: $reportText, systemImage: "flag.fill")
+            ProfileTextField(title: "Report listing", text: $listingReportText, systemImage: "flag.checkered")
             ProfileTextField(title: "Block user", text: $blockText, systemImage: "nosign")
 
             HStack(spacing: 10) {
-                PrimaryButton(title: "Report", systemImage: "flag.fill") {}
-                PrimaryButton(title: "Block", systemImage: "nosign") {}
+                PrimaryButton(title: "Report", systemImage: "flag.fill") {
+                    actionMessage = "Thanks. Reporting tools will be available soon."
+                }
+                PrimaryButton(title: "Block", systemImage: "nosign") {
+                    actionMessage = "Thanks. Blocking tools will be available soon."
+                }
+            }
+
+            if let actionMessage {
+                Text(actionMessage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .padding(.top, 2)
             }
         }
     }
@@ -899,13 +939,16 @@ struct SafetyCentreView: View {
             VaultSectionHeader(title: "Privacy & Policies", subtitle: "Control your data and review app policies.")
 
             PlaceholderLinkRow(title: "Privacy controls", systemImage: "hand.raised.fill")
+            SafetyInfoRow(systemImage: "lock.fill", title: "Private", message: "Only you can see it.")
+            SafetyInfoRow(systemImage: "person.2.fill", title: "Friends", message: "Only accepted friends can see it.")
+            SafetyInfoRow(systemImage: "globe.europe.africa.fill", title: "Public", message: "Visible to collectors when public features are enabled.")
             PlaceholderLinkRow(title: "Terms", systemImage: "doc.text.fill")
             PlaceholderLinkRow(title: "Privacy policy", systemImage: "lock.doc.fill")
         }
     }
 
     private var disclaimer: some View {
-        Text("VaultDex is an independent collection and trading companion app and is not affiliated with, endorsed by, or sponsored by The Pokémon Company, Nintendo, Creatures Inc. or GAME FREAK.")
+        Text("VaultDex is independent and not affiliated with The Pokémon Company, Nintendo, Creatures Inc. or GAME FREAK.")
             .font(.caption)
             .foregroundStyle(Color.vdTextSecondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -942,25 +985,6 @@ private struct SafetyToggleRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.72), lineWidth: 1)
         )
-    }
-}
-
-private struct DeveloperStatusRow: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdTextSecondary)
-            Spacer()
-            Text(value)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdTextPrimary)
-        }
-        .padding(12)
-        .background(Color.vdPanelRaised.opacity(0.58), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

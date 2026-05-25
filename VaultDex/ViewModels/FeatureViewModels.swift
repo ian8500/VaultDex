@@ -696,7 +696,7 @@ final class AccountDeletionViewModel: ObservableObject {
         "Delete collection data",
         "Delete wishlist data",
         "Delete binder pages",
-        "Delete profile and reset local test state"
+        "Delete profile data"
     ]
 
     var canRequestDeletion: Bool {

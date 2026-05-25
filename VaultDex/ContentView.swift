@@ -42,6 +42,10 @@ struct ContentView: View {
                 }
             } else if !hasResolvedAuthenticatedLaunch || store.isLoadingCloudData {
                 AuthenticatedLoadingView()
+            } else if shouldShowProfileLoadError {
+                ProfileLoadErrorView {
+                    Task { await refreshDataMode() }
+                }
             } else if needsProfileSetup {
                 NavigationStack {
                     ProfileSetupView()
@@ -73,6 +77,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Home", systemImage: "house.fill")
             }
+            .accessibilityLabel("Home")
 
             NavigationStack {
                 SearchView()
@@ -80,6 +85,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Search", systemImage: "magnifyingglass")
             }
+            .accessibilityLabel("Search")
 
             NavigationStack {
                 VaultView()
@@ -87,6 +93,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Vault", systemImage: "lock.shield")
             }
+            .accessibilityLabel("Vault")
 
             NavigationStack {
                 FriendsView()
@@ -94,6 +101,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Friends", systemImage: "person.2.fill")
             }
+            .accessibilityLabel("Friends")
 
             NavigationStack {
                 TradeView()
@@ -101,6 +109,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Trade", systemImage: "arrow.left.arrow.right.circle.fill")
             }
+            .accessibilityLabel("Trade")
         }
     }
 
@@ -110,6 +119,12 @@ struct ContentView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let displayName = store.profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return username.isEmpty || displayName.isEmpty
+    }
+
+    private var shouldShowProfileLoadError: Bool {
+        guard store.lastSyncError != nil, !authService.isDemoModeEnabled else { return false }
+        return store.profile.handle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && store.profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func refreshDataMode() async {
@@ -142,13 +157,48 @@ private struct AuthenticatedLoadingView: View {
                 ProgressView()
                     .tint(Color.vdGold)
 
-                Text("Preparing your vault")
+                Text("Loading profile...")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color.vdTextPrimary)
             }
             .padding(28)
             .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 24))
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+        }
+    }
+}
+
+private struct ProfileLoadErrorView: View {
+    let retry: () -> Void
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(spacing: 16) {
+                VaultDexLogo(size: 70)
+
+                Image(systemName: "exclamationmark.icloud.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(Color.vdGold)
+
+                Text("Unable to load profile")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                Text("Please check your connection and try again.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .multilineTextAlignment(.center)
+
+                PrimaryButton(title: "Retry", systemImage: "arrow.clockwise") {
+                    retry()
+                }
+            }
+            .padding(24)
+            .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+            .padding(20)
         }
     }
 }

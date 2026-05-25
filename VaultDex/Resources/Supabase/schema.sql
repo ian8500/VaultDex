@@ -252,7 +252,7 @@ create table if not exists public.marketplace_listings (
   rarity text not null,
   estimated_value numeric(10, 2) not null default 0,
   asking_for text not null default '',
-  seller_display_name text not null default 'VaultDex Demo Collector',
+  seller_display_name text not null default 'VaultDex Collector',
   seller_reputation integer not null default 0,
   location_label text,
   is_public boolean not null default true,
@@ -266,6 +266,10 @@ create table if not exists public.marketplace_listings (
 
 alter table public.marketplace_listings alter column title set default 'Cloud trade listing';
 alter table public.marketplace_listings alter column rarity set default 'rare';
+alter table public.marketplace_listings alter column seller_display_name set default 'VaultDex Collector';
+alter table public.marketplace_listings add column if not exists listing_kind text not null default 'trade';
+alter table public.marketplace_listings add column if not exists asking_credits integer check (asking_credits is null or asking_credits >= 0);
+alter table public.marketplace_listings add column if not exists description text;
 
 create table if not exists public.reputation_events (
   id uuid primary key default gen_random_uuid(),
@@ -390,6 +394,7 @@ create index if not exists marketplace_listings_card_idx on public.marketplace_l
 create index if not exists marketplace_listings_owner_idx on public.marketplace_listings(owner_id);
 create index if not exists marketplace_listings_collection_item_idx on public.marketplace_listings(collection_item_id);
 create index if not exists marketplace_listings_status_idx on public.marketplace_listings(status);
+create index if not exists marketplace_listings_listing_kind_idx on public.marketplace_listings(listing_kind);
 create index if not exists marketplace_listings_created_at_idx on public.marketplace_listings(created_at);
 create index if not exists reputation_events_profile_idx on public.reputation_events(profile_id);
 create index if not exists reputation_events_actor_idx on public.reputation_events(actor_id);

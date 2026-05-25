@@ -23,6 +23,11 @@ struct CardDetailView: View {
     @State private var wishlistNotes = ""
     @State private var selectedFrontPhotoItem: PhotosPickerItem?
     @State private var selectedBackPhotoItem: PhotosPickerItem?
+    @State private var liveCard: Card?
+    @State private var isLoadingLiveCard = false
+    @State private var detailErrorMessage: String?
+
+    private let apiService = CardAPIService()
 
     init(card: Card) {
         self.card = card
@@ -37,6 +42,12 @@ struct CardDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     hero
+                    if isLoadingLiveCard {
+                        loadingLiveCardState
+                    }
+                    if let detailErrorMessage {
+                        detailErrorState(detailErrorMessage)
+                    }
                     quickActions
                     priceDisclaimer
                     friendWishlistBadges
@@ -48,21 +59,31 @@ struct CardDetailView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle(card.name)
+        .navigationTitle(detailCard.name)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: syncState)
+        .onAppear {
+            syncState()
+            store.cacheViewedCard(detailCard)
+        }
+        .task {
+            await loadLiveDetailIfPossible()
+        }
+    }
+
+    private var detailCard: Card {
+        liveCard ?? card
     }
 
     private var ownedItem: CollectionItem? {
-        store.collectionItem(for: card)
+        store.collectionItem(for: detailCard)
     }
 
     private var savedWishlistItem: WishlistItem? {
-        store.wishlistItem(for: card)
+        store.wishlistItem(for: detailCard)
     }
 
     private var friendsWantingCard: [Friend] {
-        store.friendsWanting(card)
+        store.friendsWanting(detailCard)
     }
 
     private var hero: some View {
@@ -71,12 +92,12 @@ struct CardDetailView: View {
                 .padding(.bottom, 4)
 
             HStack(spacing: 10) {
-                StatusPill(title: card.cardType.displayName, tint: .vdEmerald)
-                RarityBadge(rarity: card.rarity)
-                StatusPill(title: card.marketValue.vaultCurrency, tint: .vdGold)
+                StatusPill(title: detailCard.cardType.displayName, tint: .vdEmerald)
+                RarityBadge(rarity: detailCard.rarity)
+                StatusPill(title: detailCard.marketValue.vaultCurrency, tint: .vdGold)
             }
 
-            Text(card.set.name + " · " + card.typeLine)
+            Text(detailCard.set.name + " · " + detailCard.typeLine)
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -96,7 +117,7 @@ struct CardDetailView: View {
                     )
                 )
 
-            if let imageURL = card.largeImageURL ?? card.smallImageURL {
+            if let imageURL = detailCard.largeImageURL ?? detailCard.smallImageURL {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case let .success(image):
@@ -107,7 +128,7 @@ struct CardDetailView: View {
                             .transition(.opacity)
                     case .failure:
                         CardTile(
-                            card: card,
+                            card: detailCard,
                             quantity: ownedItem?.quantity,
                             condition: ownedItem?.condition,
                             variant: ownedItem?.variant,
@@ -121,7 +142,7 @@ struct CardDetailView: View {
                 }
             } else {
                 CardTile(
-                    card: card,
+                    card: detailCard,
                     quantity: ownedItem?.quantity,
                     condition: ownedItem?.condition,
                     variant: ownedItem?.variant,
@@ -135,17 +156,19 @@ struct CardDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.vdGold.opacity(card.rarity == .legendary || card.rarity == .mythic ? 0.58 : 0.24), lineWidth: 1.2)
+                .stroke(Color.vdGold.opacity(detailCard.rarity == .legendary || detailCard.rarity == .mythic ? 0.58 : 0.24), lineWidth: 1.2)
         )
-        .shadow(color: Color.vdGold.opacity(card.rarity == .legendary || card.rarity == .mythic ? 0.22 : 0.10), radius: 22, x: 0, y: 10)
+        .shadow(color: Color.vdGold.opacity(detailCard.rarity == .legendary || detailCard.rarity == .mythic ? 0.22 : 0.10), radius: 22, x: 0, y: 10)
     }
 
     private var metadataGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            detailMetric("Set", card.set.name)
-            detailMetric("Number", card.number)
-            detailMetric("Type", card.types.isEmpty ? card.cardType.displayName : card.types.joined(separator: ", "))
-            detailMetric("Artist", card.artist ?? "Unknown")
+            detailMetric("Set", detailCard.set.name)
+            detailMetric("Number", detailCard.number)
+            detailMetric("Rarity", detailCard.rarity.displayName)
+            detailMetric("Value", detailCard.marketValue.vaultCurrency)
+            detailMetric("Type", detailCard.types.isEmpty ? detailCard.cardType.displayName : detailCard.types.joined(separator: ", "))
+            detailMetric("Artist", detailCard.artist ?? "Unknown")
         }
     }
 
@@ -177,7 +200,7 @@ struct CardDetailView: View {
                 tint: .vdEmerald
             ) {
                 if ownedItem == nil {
-                    store.addCard(card, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
+                    store.addCard(detailCard, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
                     syncState()
                 }
             }
@@ -188,7 +211,7 @@ struct CardDetailView: View {
                 tint: .vdGold
             ) {
                 if savedWishlistItem == nil {
-                    store.addToWishlist(card, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
+                    store.addToWishlist(detailCard, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
                     syncState()
                 }
             }
@@ -199,12 +222,43 @@ struct CardDetailView: View {
                 tint: .vdSky
             ) {
                 if ownedItem == nil {
-                    store.addCard(card, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
+                    store.addCard(detailCard, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
                 }
-                store.updateTradeAvailability(for: card, isAvailable: true)
+                store.updateTradeAvailability(for: detailCard, isAvailable: true)
                 syncState()
             }
         }
+    }
+
+    private var loadingLiveCardState: some View {
+        Label("Refreshing card details...", systemImage: "arrow.triangle.2.circlepath")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.vdTextSecondary)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func detailErrorState(_ message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(Color.vdGold)
+
+            Text(message)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+
+            Spacer()
+
+            Button("Retry") {
+                Task { await loadLiveDetailIfPossible(force: true) }
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.vdGold)
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
     }
 
     private func detailAction(title: String, systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
@@ -344,23 +398,23 @@ struct CardDetailView: View {
 
             if ownedItem == nil {
                 PrimaryButton(title: "Add to My Vault", systemImage: "plus.circle.fill") {
-                    store.addCard(card, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
-                    store.updateTradeAvailability(for: card, isAvailable: isAvailableForTrade)
+                    store.addCard(detailCard, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
+                    store.updateTradeAvailability(for: detailCard, isAvailable: isAvailableForTrade)
                     saveCollectionDetails()
                     syncState()
                 }
             } else {
                 PrimaryButton(title: "Save Collection Changes", systemImage: "checkmark.circle.fill") {
-                    store.updateQuantity(for: card, quantity: ownedQuantity)
-                    store.updateCondition(for: card, condition: selectedCondition)
-                    store.updateVariant(for: card, variant: selectedVariant)
-                    store.updateTradeAvailability(for: card, isAvailable: isAvailableForTrade)
+                    store.updateQuantity(for: detailCard, quantity: ownedQuantity)
+                    store.updateCondition(for: detailCard, condition: selectedCondition)
+                    store.updateVariant(for: detailCard, variant: selectedVariant)
+                    store.updateTradeAvailability(for: detailCard, isAvailable: isAvailableForTrade)
                     saveCollectionDetails()
                     syncState()
                 }
 
                 secondaryButton(title: "Remove from Collection", systemImage: "minus.circle.fill", tint: .vdCoral) {
-                    store.removeCard(card)
+                    store.removeCard(detailCard)
                     syncState()
                 }
             }
@@ -495,7 +549,7 @@ struct CardDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("Unable to upload that image right now. Please try again.")
+                    store.reportImagePickerError("\(side.displayName) photo upload failed. Please try again.")
                     resetPhotoSelection(for: side)
                 }
             }
@@ -571,7 +625,7 @@ struct CardDetailView: View {
                     .foregroundStyle(savedWishlistItem == nil ? Color.vdTextSecondary : Color.vdGold)
 
                 HStack(spacing: 10) {
-                    matchPlaceholder(title: "Friend matches", value: "Coming soon", systemImage: "person.2.fill", tint: .vdSky)
+                    matchPlaceholder(title: "Friend matches", value: "Checked", systemImage: "person.2.fill", tint: .vdSky)
                     matchPlaceholder(title: "Market matches", value: "Watching", systemImage: "storefront.fill", tint: .vdLeaf)
                 }
             }
@@ -585,17 +639,17 @@ struct CardDetailView: View {
 
             if savedWishlistItem == nil {
                 PrimaryButton(title: "Add to Wants", systemImage: "star.fill") {
-                    store.addToWishlist(card, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
+                    store.addToWishlist(detailCard, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
                     syncState()
                 }
             } else {
                 PrimaryButton(title: "Save Want", systemImage: "checkmark.circle.fill") {
-                    store.updateWishlist(for: card, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
+                    store.updateWishlist(for: detailCard, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
                     syncState()
                 }
 
                 secondaryButton(title: "Remove from Wants", systemImage: "star.slash.fill", tint: .vdCoral) {
-                    store.removeFromWishlist(card)
+                    store.removeFromWishlist(detailCard)
                     syncState()
                 }
             }
@@ -729,7 +783,7 @@ struct CardDetailView: View {
             askingCredits = ownedItem.askingCredits ?? 0
         } else {
             ownedQuantity = 1
-            selectedCondition = card.condition
+            selectedCondition = detailCard.condition
             selectedVariant = .normal
             isAvailableForTrade = false
             collectionLanguage = "English"
@@ -749,14 +803,38 @@ struct CardDetailView: View {
         } else {
             wishlistPriority = .medium
             wishlistPreferredCondition = .nearMint
-            wishlistBudget = card.marketValue
+            wishlistBudget = detailCard.marketValue
             wishlistNotes = ""
+        }
+    }
+
+    private func loadLiveDetailIfPossible(force: Bool = false) async {
+        guard let externalID = card.externalID, !externalID.isEmpty else {
+            store.cacheViewedCard(detailCard)
+            return
+        }
+        guard force || liveCard == nil else { return }
+
+        isLoadingLiveCard = true
+        detailErrorMessage = nil
+        defer { isLoadingLiveCard = false }
+
+        do {
+            await ExchangeRateService.shared.refreshRatesIfNeeded()
+            let apiCard = try await apiService.fetchCard(id: externalID)
+            let refreshedCard = apiCard.localCard
+            liveCard = refreshedCard
+            store.cacheViewedCard(refreshedCard)
+            syncState()
+        } catch {
+            detailErrorMessage = "This card could not be refreshed right now."
+            store.cacheViewedCard(detailCard)
         }
     }
 
     private func saveCollectionDetails() {
         store.updateCollectionDetails(
-            for: card,
+            for: detailCard,
             language: collectionLanguage,
             gradedCompany: gradedCompany,
             gradedScore: gradedScore,

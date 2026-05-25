@@ -54,6 +54,7 @@ protocol TradeRepository {
     func fetchTradeOffers(userID: UUID) async throws -> [RemoteTradeOffer]
     func fetchTradeOfferItems(offerIDs: [UUID]) async throws -> [RemoteTradeOfferItem]
     func upsertTradeListing(_ listing: RemoteTradeListing) async throws
+    func deleteTradeListing(id: UUID) async throws
     func upsertTradeOffer(_ offer: RemoteTradeOffer) async throws
     func upsertTradeOfferItems(_ items: [RemoteTradeOfferItem]) async throws
     func updateTradeOfferStatus(id: UUID, status: String) async throws

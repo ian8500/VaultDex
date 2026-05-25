@@ -24,11 +24,11 @@ enum VaultAppStatus: Equatable {
     var message: String {
         switch self {
         case .demoMode:
-            "Using local fallback mode. Supabase auth is safely bypassed."
+            "Offline testing is active."
         case .cloudReady:
             "sign in to sync"
         case .cloudSignedIn:
-            "Signed in and syncing with Supabase."
+            "Signed in and ready."
         case .supabaseConfigMissing:
             "Cloud services are not available right now."
         case let .supabaseError(message):
@@ -131,8 +131,32 @@ final class AuthService: ObservableObject {
             clientProvider.updateSession(nil)
             status = isDemoModeEnabled ? .demoMode : .cloudReady
         } catch {
+            session = nil
+            clientProvider.updateSession(nil)
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
+        }
+    }
+
+    func resetPassword(email: String) async throws {
+        guard clientProvider.config.isConfigured, clientProvider.canCreateClient else {
+            status = .cloudReady
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            #if canImport(Supabase)
+            let client = try clientProvider.requireSDKClient()
+            try await runRetriableAuthRequest {
+                try await client.auth.resetPasswordForEmail(email)
+            }
+            #else
+            throw SupabaseClientError.missingSupabasePackage
+            #endif
+        } catch {
             status = .supabaseError(Self.accountMessage(for: error))
-            VaultDexLogger.error("Auth request failed")
             throw error
         }
     }
@@ -174,7 +198,6 @@ final class AuthService: ObservableObject {
                 status = .cloudReady
             } else {
                 status = .supabaseError(Self.signUpMessage(for: error))
-                VaultDexLogger.error("Auth request failed")
             }
             throw error
         }
@@ -209,7 +232,6 @@ final class AuthService: ObservableObject {
                 status = .cloudReady
             } else {
                 status = .supabaseError(Self.signInMessage(for: error))
-                VaultDexLogger.error("Auth request failed")
             }
             throw error
         }
@@ -220,44 +242,9 @@ final class AuthService: ObservableObject {
         let newSession = SupabaseSession(sdkSession)
         session = newSession
         clientProvider.updateSession(newSession)
-        try await upsertProfile(for: newSession, client: client)
         status = .cloudSignedIn
     }
     #endif
-
-    #if canImport(Supabase)
-    private func upsertProfile(for session: SupabaseSession, client: SupabaseClient) async throws {
-        let fallbackUsername = session.email?
-            .components(separatedBy: "@")
-            .first?
-            .lowercased()
-            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
-        let username = fallbackUsername?.isEmpty == false
-            ? fallbackUsername ?? "collector_\(session.userID.uuidString.prefix(8))"
-            : "collector_\(session.userID.uuidString.prefix(8))"
-        let profile = ProfilePayload(
-            id: session.userID,
-            username: username,
-            displayName: session.email ?? "VaultDex Collector"
-        )
-        try await client
-            .from("profiles")
-            .upsert(profile, onConflict: "id")
-            .execute()
-    }
-    #endif
-
-    private struct ProfilePayload: Codable {
-        let id: UUID
-        let username: String
-        let displayName: String
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case username
-            case displayName = "display_name"
-        }
-    }
 
     private static func status(
         demoMode: Bool,
@@ -271,14 +258,14 @@ final class AuthService: ObservableObject {
 
     private static func signInMessage(for error: Error) -> String {
         if case SupabaseClientError.missingConfiguration = error {
-            return "Cloud Ready — sign in to sync"
+            return "Unable to connect right now. Please try again."
         }
         return "Unable to connect to VaultDex Cloud. Please try again."
     }
 
     private static func signUpMessage(for error: Error) -> String {
         if case SupabaseClientError.missingConfiguration = error {
-            return "Cloud Ready — sign in to sync"
+            return "Unable to connect right now. Please try again."
         }
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {

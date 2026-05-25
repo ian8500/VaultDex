@@ -5,6 +5,8 @@ struct TradeView: View {
     @StateObject private var viewModel = TradeViewModel()
     @State private var listingCard: CollectionItem?
     @State private var offerListing: TradeListing?
+    @State private var detailListing: TradeListing?
+    @State private var isFriendTradePresented = false
     @State private var selectedTab: TradeListTab = .active
 
     var body: some View {
@@ -17,6 +19,9 @@ struct TradeView: View {
                     createTradeAction
                     tradeTabs
                     tradesSection
+                    listMyCardSection
+                    myListingsSection
+                    marketplaceSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -27,7 +32,14 @@ struct TradeView: View {
         .navigationBarTitleDisplayMode(.large)
         .sheet(item: $listingCard) { item in
             ListCardSheet(item: item, viewModel: viewModel) {
-                store.listCardForTrade(item, askingFor: viewModel.listingAsk, usesSafeTrade: viewModel.listingUsesSafeTrade)
+                store.listCardForTrade(
+                    item,
+                    listingKind: viewModel.listingKind,
+                    askingCredits: viewModel.listingKind == .trade ? nil : viewModel.listingAskingCredits,
+                    description: viewModel.listingDescription,
+                    askingFor: viewModel.listingAsk,
+                    usesSafeTrade: viewModel.listingUsesSafeTrade
+                )
                 listingCard = nil
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
@@ -50,6 +62,34 @@ struct TradeView: View {
             .environmentObject(store)
             .onAppear {
                 viewModel.resetOffer(for: listing)
+            }
+        }
+        .sheet(item: $detailListing) { listing in
+            TradeListingDetailView(listing: listing) {
+                detailListing = nil
+                offerListing = listing
+            }
+            .environmentObject(store)
+        }
+        .sheet(isPresented: $isFriendTradePresented) {
+            FriendTradeComposer(viewModel: viewModel) {
+                guard let friend = viewModel.selectedFriend(in: store) else { return }
+                let offeredItems = viewModel.selectedOfferItems(in: store)
+                let requestedItems = viewModel.requestedItems(from: friend)
+                store.sendTradeOffer(
+                    to: friend,
+                    offeredItems: offeredItems,
+                    requestedItems: requestedItems,
+                    internalCredits: viewModel.internalCredits,
+                    message: viewModel.offerMessage,
+                    usesSafeTrade: viewModel.offerUsesSafeTrade
+                )
+                isFriendTradePresented = false
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+            .environmentObject(store)
+            .onAppear {
+                viewModel.resetFriendOffer(in: store)
             }
         }
     }
@@ -99,11 +139,10 @@ struct TradeView: View {
 
     @ViewBuilder
     private var createTradeAction: some View {
-        if let firstTradeableCard = store.tradeableCollectionItems.first {
+        if !store.friends.isEmpty, !store.collectionItems.isEmpty {
             PrimaryButton(title: "Create Trade", systemImage: "plus.circle.fill") {
-                viewModel.listingAsk = ""
-                viewModel.listingUsesSafeTrade = true
-                listingCard = firstTradeableCard
+                viewModel.resetFriendOffer(in: store)
+                isFriendTradePresented = true
             }
         } else {
             NavigationLink {
@@ -218,14 +257,17 @@ struct TradeView: View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "List a Card", subtitle: nil)
 
-            if store.tradeableCollectionItems.isEmpty {
-                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "No trades yet. Add friends to start trading.", message: "Mark a card as available for trade from your vault.")
+            if store.collectionItems.isEmpty {
+                EmptyStateView(systemImage: "arrow.left.arrow.right.circle.fill", title: "No cards to list", message: "Add cards to your vault before listing in Card Market.")
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        ForEach(store.tradeableCollectionItems) { item in
+                        ForEach(store.collectionItems) { item in
                             Button {
                                 viewModel.listingAsk = ""
+                                viewModel.listingDescription = ""
+                                viewModel.listingKind = .both
+                                viewModel.listingAskingCredits = item.askingCredits ?? max(Int(item.card.marketValue.rounded()), 0)
                                 viewModel.listingUsesSafeTrade = true
                                 listingCard = item
                             } label: {
@@ -260,7 +302,9 @@ struct TradeView: View {
                     ForEach(viewModel.myListings(in: store)) { listing in
                         TradeListingRow(listing: listing, isMine: true) {
                             store.removeTradeListing(listing)
-                        } onOffer: {}
+                        } onOffer: {} onDetails: {
+                            detailListing = listing
+                        }
                     }
                 }
             }
@@ -282,6 +326,8 @@ struct TradeView: View {
                             store.toggleSavedListing(listing)
                         } onOffer: {
                             offerListing = listing
+                        } onDetails: {
+                            detailListing = listing
                         }
                     }
                 }
@@ -405,18 +451,45 @@ private struct ListCardSheet: View {
                 VStack(alignment: .leading, spacing: 18) {
                     CardTile(card: item.card, quantity: item.quantity, condition: item.condition, variant: item.variant, isAvailableForTrade: true)
 
-                    TextField("Asking for...", text: $viewModel.listingAsk, axis: .vertical)
+                    Picker("Listing type", selection: $viewModel.listingKind) {
+                        ForEach(TradeListingKind.allCases) { kind in
+                            Text(kind.displayName).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if viewModel.listingKind != .trade {
+                        Stepper(value: $viewModel.listingAskingCredits, in: 0...5000, step: 5) {
+                            HStack {
+                                Text("Asking credits")
+                                    .foregroundStyle(Color.vdTextPrimary)
+                                Spacer()
+                                Text("\(viewModel.listingAskingCredits)")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.vdGold)
+                            }
+                        }
+                    }
+
+                    TextField("Description", text: $viewModel.listingDescription, axis: .vertical)
                         .lineLimit(3...5)
                         .foregroundStyle(Color.vdTextPrimary)
                         .padding(14)
                         .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
 
-                    Toggle("Safe trade review", isOn: $viewModel.listingUsesSafeTrade)
+                    TextField("What would you like?", text: $viewModel.listingAsk, axis: .vertical)
+                        .lineLimit(3...5)
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .padding(14)
+                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+
+                    Toggle("Safe intermediary placeholder", isOn: $viewModel.listingUsesSafeTrade)
                         .tint(Color.vdGold)
                         .foregroundStyle(Color.vdTextPrimary)
 
-                    PrimaryButton(title: "List Card For Trade", systemImage: "tag.fill", action: onConfirm)
+                    PrimaryButton(title: "List in Card Market", systemImage: "tag.fill", action: onConfirm)
                     Spacer()
                 }
                 .padding(20)
@@ -426,6 +499,220 @@ private struct ListCardSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+private struct FriendTradeComposer: View {
+    @EnvironmentObject private var store: LocalVaultStore
+    @ObservedObject var viewModel: TradeViewModel
+    let onSend: () -> Void
+
+    private var selectedFriend: Friend? {
+        viewModel.selectedFriend(in: store)
+    }
+
+    private var offeredItems: [CollectionItem] {
+        viewModel.selectedOfferItems(in: store)
+    }
+
+    private var requestedItems: [CollectionItem] {
+        viewModel.requestedItems(from: selectedFriend)
+    }
+
+    private var offeredCards: [Card] {
+        offeredItems.map(\.card)
+    }
+
+    private var requestedCards: [Card] {
+        requestedItems.map(\.card)
+    }
+
+    private var fairScore: Double {
+        viewModel.fairnessScore(offeredCards: offeredCards, requestedCards: requestedCards, credits: viewModel.internalCredits)
+    }
+
+    private var canSend: Bool {
+        selectedFriend != nil && (!offeredItems.isEmpty || viewModel.internalCredits > 0) && !requestedItems.isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        friendPicker
+                        ownCardPicker
+                        friendCardPicker
+                        creditsAndMessage
+                        fairTradeMeter
+
+                        PrimaryButton(title: "Send Offer", systemImage: "paperplane.fill", action: onSend)
+                            .disabled(!canSend)
+                            .opacity(canSend ? 1 : 0.45)
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Create Trade")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var friendPicker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Collector", subtitle: "Choose a friend to trade with")
+
+            Picker("Collector", selection: $viewModel.selectedFriendID) {
+                ForEach(store.friends) { friend in
+                    Text(friend.displayName).tag(Optional(friend.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Color.vdGold)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+            .onChange(of: viewModel.selectedFriendID) {
+                viewModel.requestedFriendCollectionItemIDs = []
+            }
+
+            if let selectedFriend {
+                Label(selectedFriend.handle, systemImage: "person.2.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+        }
+    }
+
+    private var ownCardPicker: some View {
+        collectionPicker(
+            title: "Offer My Cards",
+            subtitle: "\(offeredItems.count) selected",
+            items: store.collectionItems,
+            selectedIDs: Binding(
+                get: { Set(store.collectionItems.filter { viewModel.selectedOfferCardIDs.contains($0.card.id) }.map(\.id)) },
+                set: { ids in
+                    viewModel.selectedOfferCardIDs = Set(store.collectionItems.filter { ids.contains($0.id) }.map(\.card.id))
+                }
+            )
+        )
+    }
+
+    @ViewBuilder
+    private var friendCardPicker: some View {
+        if let selectedFriend {
+            if selectedFriend.visibleCollection.isEmpty {
+                EmptyStateView(
+                    systemImage: "lock.rectangle.stack",
+                    title: "No shared cards",
+                    message: "This friend has not shared tradeable collection cards yet."
+                )
+            } else {
+                collectionPicker(
+                    title: "Request Their Cards",
+                    subtitle: "\(requestedItems.count) selected",
+                    items: selectedFriend.visibleCollection,
+                    selectedIDs: $viewModel.requestedFriendCollectionItemIDs
+                )
+            }
+        } else {
+            EmptyStateView(
+                systemImage: "person.2.slash",
+                title: "Choose a friend",
+                message: "Add a friend first, then build a fair trade offer."
+            )
+        }
+    }
+
+    private func collectionPicker(
+        title: String,
+        subtitle: String,
+        items: [CollectionItem],
+        selectedIDs: Binding<Set<CollectionItem.ID>>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: title, subtitle: subtitle)
+
+            VStack(spacing: 8) {
+                ForEach(items) { item in
+                    Toggle(isOn: Binding(
+                        get: { selectedIDs.wrappedValue.contains(item.id) },
+                        set: { isOn in
+                            if isOn {
+                                selectedIDs.wrappedValue.insert(item.id)
+                            } else {
+                                selectedIDs.wrappedValue.remove(item.id)
+                            }
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.card.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.vdTextPrimary)
+                            Text(item.card.marketValue.vaultCurrency)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+                        }
+                    }
+                    .tint(Color.vdGold)
+                    .padding(12)
+                    .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    private var creditsAndMessage: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Stepper(value: $viewModel.internalCredits, in: 0...500, step: 5) {
+                HStack {
+                    Text("Internal credits")
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Spacer()
+                    Text("\(viewModel.internalCredits)")
+                        .font(.headline)
+                        .foregroundStyle(Color.vdGold)
+                }
+            }
+
+            TextField("Message", text: $viewModel.offerMessage, axis: .vertical)
+                .lineLimit(3...5)
+                .foregroundStyle(Color.vdTextPrimary)
+                .padding(14)
+                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+
+            Toggle("Safe trade review", isOn: $viewModel.offerUsesSafeTrade)
+                .tint(Color.vdGold)
+                .foregroundStyle(Color.vdTextPrimary)
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var fairTradeMeter: some View {
+        let balance = viewModel.valueBalance(offeredCards: offeredCards, requestedCards: requestedCards, credits: viewModel.internalCredits)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Fair trade meter")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                Spacer()
+                Text(viewModel.fairnessLabel(score: fairScore))
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(fairScore > 0.85 ? Color.vdEmerald : Color.vdGold)
+            }
+            ProgressView(value: fairScore)
+                .tint(fairScore > 0.85 ? Color.vdEmerald : Color.vdGold)
+            Text("Estimated value balance: \(balance.vaultCurrency)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.vdTextPrimary)
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -453,7 +740,7 @@ private struct TradeOfferComposer: View {
                 AppBackground()
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        TradeListingRow(listing: listing, isMine: false) {} onOffer: {}
+                        TradeListingRow(listing: listing, isMine: false) {} onOffer: {} onDetails: {}
                             .allowsHitTesting(false)
 
                         cardPicker(title: "Offer My Cards", items: store.collectionItems, selectedIDs: $viewModel.selectedOfferCardIDs)
@@ -581,6 +868,7 @@ private struct TradeListingRow: View {
     let isMine: Bool
     let onSaveOrRemove: () -> Void
     let onOffer: () -> Void
+    let onDetails: () -> Void
     @State private var reportMessage: String?
 
     var body: some View {
@@ -614,6 +902,10 @@ private struct TradeListingRow: View {
                     HStack(spacing: 8) {
                         RarityBadge(rarity: listing.card.rarity)
                         TradeValueChip(value: listing.estimatedValue.vaultCurrency, tint: .vdLeaf)
+                        StatusPill(title: listing.listingKind.displayName, tint: .vdGold)
+                        if let askingCredits = listing.askingCredits, listing.listingKind != .trade {
+                            StatusPill(title: "\(askingCredits) credits", tint: .vdSky)
+                        }
                     }
 
                     HStack(spacing: 8) {
@@ -629,8 +921,10 @@ private struct TradeListingRow: View {
 
             HStack(spacing: 10) {
                 if isMine {
+                    miniButton(title: "Details", systemImage: "info.circle", tint: .vdGold, action: onDetails)
                     miniButton(title: "Remove", systemImage: "trash", tint: .vdCoral, action: onSaveOrRemove)
                 } else {
+                    miniButton(title: "Details", systemImage: "info.circle", tint: .vdSky, action: onDetails)
                     miniButton(title: listing.isSaved ? "Saved" : "Save", systemImage: listing.isSaved ? "bookmark.fill" : "bookmark", tint: .vdGold, action: onSaveOrRemove)
                     miniButton(title: "Offer", systemImage: "arrow.left.arrow.right", tint: .vdEmerald, action: onOffer)
                     miniButton(title: "Report", systemImage: "exclamationmark.bubble", tint: .vdCoral) {
@@ -673,6 +967,101 @@ private struct TradeListingRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.32), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct TradeListingDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    let listing: TradeListing
+    let onOffer: () -> Void
+    @State private var reportMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        CardTile(card: listing.card, condition: listing.condition, variant: listing.variant)
+                            .frame(maxWidth: .infinity)
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(listing.card.name)
+                                .font(.title2.weight(.black))
+                                .foregroundStyle(Color.vdTextPrimary)
+
+                            Text(listing.ownerName + " · " + listing.ownerHandle)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.vdGold)
+
+                            if !listing.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(listing.description)
+                                    .font(.body)
+                                    .foregroundStyle(Color.vdTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Text(listing.askingFor)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.vdTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack(spacing: 8) {
+                                RarityBadge(rarity: listing.card.rarity)
+                                TradeValueChip(value: listing.estimatedValue.vaultCurrency, tint: .vdLeaf)
+                                StatusPill(title: listing.listingKind.displayName, tint: .vdGold)
+                            }
+
+                            if let askingCredits = listing.askingCredits, listing.listingKind != .trade {
+                                Label("\(askingCredits) internal credits", systemImage: "seal.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.vdSky)
+                            }
+
+                            if listing.usesSafeTrade {
+                                Label("Safe intermediary option placeholder enabled", systemImage: "shield.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.vdTextSecondary)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
+
+                        if !listing.isMine {
+                            PrimaryButton(title: "Make Offer", systemImage: "arrow.left.arrow.right.circle.fill") {
+                                dismiss()
+                                onOffer()
+                            }
+
+                            Button {
+                                reportMessage = "Report listing flow will be available when moderation is enabled."
+                            } label: {
+                                Label("Report Listing", systemImage: "exclamationmark.bubble.fill")
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(Color.vdCoral)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 52)
+                                    .background(Color.vdCoral.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdCoral.opacity(0.32), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if let reportMessage {
+                            Text(reportMessage)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.vdTextSecondary)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Listing")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 

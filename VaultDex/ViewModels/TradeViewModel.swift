@@ -8,11 +8,16 @@ final class TradeViewModel: ObservableObject {
     @Published var maximumValue: Double = 250
     @Published var minimumReputation = 0
     @Published var listingAsk = ""
+    @Published var listingDescription = ""
+    @Published var listingKind: TradeListingKind = .both
+    @Published var listingAskingCredits = 0
     @Published var listingUsesSafeTrade = true
     @Published var offerMessage = ""
     @Published var internalCredits = 0
     @Published var selectedOfferCardIDs: Set<Card.ID> = []
     @Published var requestedCardIDs: Set<Card.ID> = []
+    @Published var selectedFriendID: Friend.ID?
+    @Published var requestedFriendCollectionItemIDs: Set<CollectionItem.ID> = []
     @Published var offerUsesSafeTrade = true
 
     func publicListings(in store: LocalVaultStore) -> [TradeListing] {
@@ -29,7 +34,8 @@ final class TradeViewModel: ObservableObject {
             let matchesSearch = query.isEmpty ||
                 listing.card.name.lowercased().contains(query) ||
                 listing.ownerName.lowercased().contains(query) ||
-                listing.askingFor.lowercased().contains(query)
+                listing.askingFor.lowercased().contains(query) ||
+                listing.description.lowercased().contains(query)
             let matchesRarity = selectedRarity == nil || listing.card.rarity == selectedRarity
             let matchesCondition = selectedCondition == nil || listing.condition == selectedCondition
             let matchesValue = listing.estimatedValue <= maximumValue
@@ -51,13 +57,26 @@ final class TradeViewModel: ObservableObject {
     }
 
     func selectedOfferCards(in store: LocalVaultStore) -> [Card] {
+        selectedOfferItems(in: store).map(\.card)
+    }
+
+    func selectedOfferItems(in store: LocalVaultStore) -> [CollectionItem] {
         store.collectionItems
-            .map(\.card)
-            .filter { selectedOfferCardIDs.contains($0.id) }
+            .filter { selectedOfferCardIDs.contains($0.card.id) }
     }
 
     func requestedCards(from listing: TradeListing) -> [Card] {
         requestedCardIDs.contains(listing.card.id) ? [listing.card] : []
+    }
+
+    func selectedFriend(in store: LocalVaultStore) -> Friend? {
+        guard let selectedFriendID else { return store.friends.first }
+        return store.friends.first { $0.id == selectedFriendID }
+    }
+
+    func requestedItems(from friend: Friend?) -> [CollectionItem] {
+        guard let friend else { return [] }
+        return friend.visibleCollection.filter { requestedFriendCollectionItemIDs.contains($0.id) }
     }
 
     func resetOffer(for listing: TradeListing) {
@@ -65,7 +84,19 @@ final class TradeViewModel: ObservableObject {
         internalCredits = 0
         selectedOfferCardIDs = []
         requestedCardIDs = [listing.card.id]
+        selectedFriendID = nil
+        requestedFriendCollectionItemIDs = []
         offerUsesSafeTrade = listing.usesSafeTrade
+    }
+
+    func resetFriendOffer(in store: LocalVaultStore) {
+        offerMessage = ""
+        internalCredits = 0
+        selectedOfferCardIDs = []
+        requestedCardIDs = []
+        selectedFriendID = store.friends.first?.id
+        requestedFriendCollectionItemIDs = []
+        offerUsesSafeTrade = true
     }
 
     func valueBalance(offeredCards: [Card], requestedCards: [Card], credits: Int) -> Double {

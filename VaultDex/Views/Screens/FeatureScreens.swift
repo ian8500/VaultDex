@@ -236,6 +236,8 @@ struct ImportCollectionView: View {
 struct WishlistView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = WishlistViewModel()
+    @State private var selectedPriority: WishlistPriority?
+    @State private var editingItem: WishlistItem?
 
     var body: some View {
         ZStack {
@@ -244,6 +246,7 @@ struct WishlistView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    matchPlaceholders
                     chaseStrip
                     allItems
                 }
@@ -254,6 +257,10 @@ struct WishlistView: View {
         }
         .navigationTitle("Wants")
         .navigationBarTitleDisplayMode(.large)
+        .sheet(item: $editingItem) { item in
+            WishlistEditSheet(item: item)
+                .environmentObject(store)
+        }
     }
 
     private var header: some View {
@@ -271,7 +278,12 @@ struct WishlistView: View {
 
                 Spacer()
 
-                StatusPill(title: "\(store.wishlistItems.count) Cards", tint: .vdGold)
+                VStack(alignment: .trailing, spacing: 6) {
+                    StatusPill(title: "\(store.wishlistItems.count) Cards", tint: .vdGold)
+                    Text(viewModel.targetValue(in: store).vaultCurrency)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
             }
         }
         .padding(18)
@@ -309,7 +321,11 @@ struct WishlistView: View {
 
     private var allItems: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "All Wants", subtitle: nil)
+            HStack {
+                VaultSectionHeader(title: "All Wants", subtitle: nil)
+                Spacer()
+                priorityFilter
+            }
 
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
@@ -317,13 +333,41 @@ struct WishlistView: View {
                     title: "Track the cards you’re hunting for.",
                     message: "Add cards from Search."
                 )
+            } else if filteredItems.isEmpty {
+                EmptyStateView(
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    title: "No wants match this filter.",
+                    message: "Clear the filter or choose another priority."
+                )
             } else {
                 VStack(spacing: 12) {
-                    ForEach(store.wishlistItems) { item in
+                    ForEach(filteredItems) { item in
                         NavigationLink {
                             CardDetailView(card: item.card)
                         } label: {
                             WishlistRow(item: item)
+                        }
+                        .contextMenu {
+                            Button("Edit Want", systemImage: "slider.horizontal.3") {
+                                editingItem = item
+                            }
+                            Button("Remove from Wants", systemImage: "star.slash", role: .destructive) {
+                                store.removeFromWishlist(item.card)
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                store.removeFromWishlist(item.card)
+                            } label: {
+                                Label("Remove", systemImage: "star.slash")
+                            }
+
+                            Button {
+                                editingItem = item
+                            } label: {
+                                Label("Edit", systemImage: "slider.horizontal.3")
+                            }
+                            .tint(.vdGold)
                         }
                         .buttonStyle(.plain)
                     }
@@ -337,6 +381,145 @@ struct WishlistView: View {
             WishlistMatchCard(title: "Friend Matches", subtitle: "Cards friends may own", systemImage: "person.2.fill", tint: .vdSky)
             WishlistMatchCard(title: "Market Matches", subtitle: "Saved listing alerts soon", systemImage: "storefront.fill", tint: .vdLeaf)
         }
+    }
+
+    private var priorityFilter: some View {
+        Menu {
+            Button("All Priorities") {
+                selectedPriority = nil
+            }
+            ForEach(WishlistPriority.allCases) { priority in
+                Button(priority.displayName) {
+                    selectedPriority = priority
+                }
+            }
+        } label: {
+            Label(selectedPriority?.displayName ?? "Filter", systemImage: selectedPriority == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.vdGold)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.vdGold.opacity(0.12), in: Capsule())
+                .overlay(Capsule().stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var filteredItems: [WishlistItem] {
+        let items = store.wishlistItems.sorted { first, second in
+            if first.priority.sortRank != second.priority.sortRank {
+                return first.priority.sortRank > second.priority.sortRank
+            }
+            return first.addedAt > second.addedAt
+        }
+        guard let selectedPriority else { return items }
+        return items.filter { $0.priority == selectedPriority }
+    }
+}
+
+private struct WishlistEditSheet: View {
+    @EnvironmentObject private var store: LocalVaultStore
+    @Environment(\.dismiss) private var dismiss
+
+    let item: WishlistItem
+
+    @State private var priority: WishlistPriority
+    @State private var preferredCondition: CardCondition
+    @State private var budget: Double
+    @State private var notes: String
+
+    init(item: WishlistItem) {
+        self.item = item
+        _priority = State(initialValue: item.priority)
+        _preferredCondition = State(initialValue: item.preferredCondition)
+        _budget = State(initialValue: item.budget)
+        _notes = State(initialValue: item.notes)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        CardTile(card: item.card, variant: priority == .grail ? .secretRare : nil, style: .compact)
+                            .frame(maxWidth: .infinity)
+
+                        Picker("Priority", selection: $priority) {
+                            ForEach(WishlistPriority.allCases) { priority in
+                                Text(priority.displayName).tag(priority)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Picker("Preferred Condition", selection: $preferredCondition) {
+                            ForEach(CardCondition.allCases) { condition in
+                                Text(condition.displayName).tag(condition)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.vdGold)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Max Value")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+
+                            TextField("Max value", value: $budget, format: .number.precision(.fractionLength(0...2)))
+                                .keyboardType(.decimalPad)
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .padding(14)
+                                .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+
+                            TextField("Notes", text: $notes, axis: .vertical)
+                                .lineLimit(3...6)
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .padding(14)
+                                .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        if store.lastSyncError?.contains("Wants") == true, let error = store.lastSyncError {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdCoral)
+                        }
+
+                        PrimaryButton(title: "Save Want", systemImage: "checkmark.circle.fill") {
+                            store.updateWishlist(for: item.card, priority: priority, preferredCondition: preferredCondition, budget: budget, notes: notes)
+                            dismiss()
+                        }
+
+                        secondaryRemoveButton
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("Edit Want")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var secondaryRemoveButton: some View {
+        Button {
+            store.removeFromWishlist(item.card)
+            dismiss()
+        } label: {
+            Label("Remove from Wants", systemImage: "star.slash.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.vdCoral)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.vdCoral.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdCoral.opacity(0.38), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -445,8 +628,8 @@ struct FriendsView: View {
                 VStack(spacing: 8) {
                     ForEach(store.friendSearchResults) { profile in
                         Button {
-                            viewModel.addFriendText = profile.username
-                            viewModel.addFriend(in: store)
+                            store.sendFriendRequest(to: profile)
+                            viewModel.addFriendText = ""
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         } label: {
                             HStack(spacing: 10) {
@@ -456,7 +639,7 @@ struct FriendsView: View {
                                     .background(Color.vdGold.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(profile.displayName)
+                                    Text(profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? profile.username : profile.displayName)
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(Color.vdTextPrimary)
                                     Text("@\(profile.username)")
@@ -1370,8 +1553,6 @@ struct InviteFriendsView: View {
                         .stroke(Color.vdGold.opacity(0.3), lineWidth: 1)
                 )
 
-            PrimaryButton(title: "Send Invites", systemImage: "paperplane.fill") {}
-
             HStack(spacing: 10) {
                 ShareLink(item: viewModel.inviteMessage) {
                     Label("Share Invite", systemImage: "square.and.arrow.up")
@@ -1423,10 +1604,12 @@ struct InviteFriendsView: View {
 }
 
 struct AccountDeletionView: View {
+    @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = AccountDeletionViewModel()
     @State private var isDeleteConfirmationPresented = false
-    @State private var didResetLocalState = false
+    @State private var message = ""
+    @State private var isDeleting = false
 
     var body: some View {
         ZStack {
@@ -1451,14 +1634,12 @@ struct AccountDeletionView: View {
             titleVisibility: .visible
         ) {
             Button("Delete and Reset", role: .destructive) {
-                store.resetDemoUserState()
-                viewModel.confirmationText = ""
-                didResetLocalState = true
+                Task { await deleteAccountData() }
             }
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes collection, wants, binder, trade, and profile data from this app.")
+            Text("This deletes your VaultDex app data and signs you out.")
         }
     }
 
@@ -1472,7 +1653,7 @@ struct AccountDeletionView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.vdTextPrimary)
 
-            Text("Deleting an account removes collection, wants, binder, trade, and profile data.")
+            Text("Deleting your account removes your VaultDex profile, collection, wants, binder, and trade data from this app.")
                 .font(.subheadline)
                 .foregroundStyle(Color.vdTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1517,12 +1698,18 @@ struct AccountDeletionView: View {
             PrimaryButton(title: "Delete Account", systemImage: "trash.fill") {
                 isDeleteConfirmationPresented = true
             }
-                .disabled(!viewModel.canRequestDeletion)
+            .disabled(!viewModel.canRequestDeletion || isDeleting)
 
-            if didResetLocalState {
-                Label("Account data reset", systemImage: "checkmark.circle.fill")
+            if isDeleting {
+                Label("Deleting account data...", systemImage: "trash")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdEmerald)
+                    .foregroundStyle(Color.vdGold)
+            }
+
+            if !message.isEmpty {
+                Label(message, systemImage: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdCoral)
             }
         }
         .padding(18)
@@ -1530,7 +1717,21 @@ struct AccountDeletionView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
-        )
+            )
+    }
+
+    private func deleteAccountData() async {
+        isDeleting = true
+        message = ""
+        defer { isDeleting = false }
+
+        do {
+            try await store.deleteSignedInAccountData()
+            try? await authService.signOut()
+            viewModel.confirmationText = ""
+        } catch {
+            message = "Unable to delete account data right now. Please try again."
+        }
     }
 }
 
@@ -2346,19 +2547,21 @@ private struct FriendRow: View {
                 MetricPill(title: "Complete", value: friend.completionPercent.formatted(.percent.precision(.fractionLength(0))))
             }
 
-            HStack(spacing: 10) {
-                Text("Favorite")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdTextSecondary)
+            if let favoriteCard = friend.favoriteCard {
+                HStack(spacing: 10) {
+                    Text("Featured")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
 
-                Text(friend.favoriteCard.name)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .lineLimit(1)
+                    Text(favoriteCard.name)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(1)
 
-                Spacer()
+                    Spacer()
 
-                RarityBadge(rarity: friend.favoriteCard.rarity)
+                    RarityBadge(rarity: favoriteCard.rarity)
+                }
             }
         }
         .padding(16)

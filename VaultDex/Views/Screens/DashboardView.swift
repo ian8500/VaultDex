@@ -267,9 +267,6 @@ struct DashboardView: View {
                 DashboardQuickAction(title: "Search Cards", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
                     SearchView()
                 }
-                DashboardQuickAction(title: "Add to Vault", subtitle: "Start your collection", icon: "plus.circle.fill", tint: .vdGold) {
-                    SearchView()
-                }
                 DashboardQuickAction(title: "Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
                     WishlistView()
                 }

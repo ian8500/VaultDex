@@ -52,10 +52,8 @@ final class CardAPIService {
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedQuery.isEmpty {
-            let escaped = trimmedQuery
-                .replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: ":", with: "\\:")
-            parts.append("(name:*\(escaped)* OR set.name:*\(escaped)*)")
+            let escaped = apiEscaped(trimmedQuery)
+            parts.append("(name:*\(escaped)* OR set.name:*\(escaped)* OR number:\(escaped))")
         }
 
         if let rarityQuery = rarity?.apiQuery {
@@ -71,6 +69,14 @@ final class CardAPIService {
         }
 
         return parts
+    }
+
+    private func apiEscaped(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: ":", with: "\\:")
+            .replacingOccurrences(of: " ", with: "\\ ")
     }
 
     func fetchCard(id: String) async throws -> PokemonTCGCard {

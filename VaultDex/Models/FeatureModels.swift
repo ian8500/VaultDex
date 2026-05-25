@@ -16,6 +16,15 @@ enum WishlistPriority: String, CaseIterable, Identifiable, Hashable {
         case .grail: "Grail"
         }
     }
+
+    var sortRank: Int {
+        switch self {
+        case .low: 0
+        case .medium: 1
+        case .high: 2
+        case .grail: 3
+        }
+    }
 }
 
 struct WishlistItem: Identifiable, Hashable {
@@ -124,7 +133,7 @@ struct Friend: Identifiable, Hashable {
     let email: String
     let avatarSymbol: String
     let collectorScore: Int
-    let favoriteCard: Card
+    let favoriteCard: Card?
     let completionPercent: Double
     let mutualTrades: Int
     let isOnline: Bool
@@ -141,7 +150,7 @@ struct Friend: Identifiable, Hashable {
         email: String = "",
         avatarSymbol: String,
         collectorScore: Int,
-        favoriteCard: Card,
+        favoriteCard: Card? = nil,
         completionPercent: Double,
         mutualTrades: Int,
         isOnline: Bool,
@@ -188,6 +197,22 @@ struct FriendTradeOpportunity: Identifiable, Hashable {
 
     var score: Int {
         theyOwn.count + youOwn.count
+    }
+}
+
+enum TradeListingKind: String, CaseIterable, Identifiable, Hashable {
+    case trade
+    case credits
+    case both
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .trade: "Trade"
+        case .credits: "Credits"
+        case .both: "Trade or Credits"
+        }
     }
 }
 
@@ -263,7 +288,10 @@ struct TradeListing: Identifiable, Hashable {
     let card: Card
     let condition: CardCondition
     let variant: CardVariant
+    let listingKind: TradeListingKind
     let askingFor: String
+    let askingCredits: Int?
+    let description: String
     let listedAt: Date
     let locationLabel: String
     let sellerReputation: Int
@@ -281,7 +309,10 @@ struct TradeListing: Identifiable, Hashable {
         card: Card,
         condition: CardCondition? = nil,
         variant: CardVariant = .normal,
+        listingKind: TradeListingKind = .trade,
         askingFor: String,
+        askingCredits: Int? = nil,
+        description: String = "",
         listedAt: Date = .now,
         locationLabel: String,
         sellerReputation: Int = 90,
@@ -298,7 +329,10 @@ struct TradeListing: Identifiable, Hashable {
         self.card = card
         self.condition = condition ?? card.condition
         self.variant = variant
+        self.listingKind = listingKind
         self.askingFor = askingFor
+        self.askingCredits = askingCredits
+        self.description = description
         self.listedAt = listedAt
         self.locationLabel = locationLabel
         self.sellerReputation = sellerReputation

@@ -10,25 +10,25 @@ struct EmptyStateView: View {
     @State private var isAnimating = false
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             ZStack {
-                RoundedRectangle(cornerRadius: 22)
+                RoundedRectangle(cornerRadius: 20)
                     .fill(
                         LinearGradient(
-                            colors: [Color.vdGold.opacity(0.22), Color.vdGold.opacity(0.08), Color.vdSky.opacity(0.08)],
+                            colors: [Color.vdGold.opacity(0.18), Color.vdPanelRaised.opacity(0.72)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 82, height: 82)
+                    .frame(width: 76, height: 76)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(Color.vdGold.opacity(isAnimating ? 0.44 : 0.22), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.vdGold.opacity(isAnimating ? 0.36 : 0.20), lineWidth: 1)
                     )
-                    .shadow(color: Color.vdGold.opacity(isAnimating ? 0.24 : 0.12), radius: isAnimating ? 18 : 10, x: 0, y: 8)
+                    .shadow(color: Color.vdGold.opacity(isAnimating ? 0.18 : 0.10), radius: isAnimating ? 16 : 10, x: 0, y: 7)
 
                 Image(systemName: systemImage)
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.system(size: 31, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color.vdGold)
                     .offset(y: isAnimating ? -2 : 2)
@@ -39,6 +39,8 @@ struct EmptyStateView: View {
                     .font(.headline.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.84)
 
                 Text(message)
                     .font(.subheadline)
@@ -54,12 +56,12 @@ struct EmptyStateView: View {
                     .padding(.top, 4)
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 26)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
-                colors: [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.88)],
+                colors: [Color.vdPanelRaised.opacity(0.88), Color.vdPanel.opacity(0.78)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),

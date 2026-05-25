@@ -13,19 +13,8 @@ struct AppBackground: View {
                 endPoint: .bottomTrailing
             )
 
-            Circle()
-                .fill(Color.vdGold.opacity(colorScheme == .dark ? 0.18 : 0.28))
-                .blur(radius: 70)
-                .frame(width: 220, height: 220)
-                .offset(x: -120, y: -270)
-
-            Circle()
-                .fill(Color.vdSky.opacity(colorScheme == .dark ? 0.12 : 0.18))
-                .blur(radius: 80)
-                .frame(width: 260, height: 260)
-                .offset(x: 150, y: 120)
-
             diagonalFoil
+            cardTexture
         }
         .ignoresSafeArea()
     }
@@ -55,14 +44,31 @@ struct AppBackground: View {
     private var diagonalFoil: some View {
         LinearGradient(
             colors: [
-                Color.white.opacity(colorScheme == .dark ? 0.04 : 0.32),
+                Color.white.opacity(colorScheme == .dark ? 0.035 : 0.30),
                 Color.clear,
-                Color.vdGold.opacity(colorScheme == .dark ? 0.08 : 0.18),
+                Color.vdGold.opacity(colorScheme == .dark ? 0.07 : 0.16),
                 Color.clear
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
         .blendMode(colorScheme == .dark ? .screen : .normal)
+    }
+
+    private var cardTexture: some View {
+        GeometryReader { proxy in
+            let spacing: CGFloat = 54
+            Path { path in
+                var x: CGFloat = -spacing
+                while x < proxy.size.width + spacing {
+                    path.move(to: CGPoint(x: x, y: -spacing))
+                    path.addLine(to: CGPoint(x: x + proxy.size.height + spacing, y: proxy.size.height + spacing))
+                    x += spacing
+                }
+            }
+            .stroke(Color.vdGold.opacity(colorScheme == .dark ? 0.025 : 0.06), lineWidth: 1)
+            .blendMode(colorScheme == .dark ? .screen : .multiply)
+        }
+        .allowsHitTesting(false)
     }
 }

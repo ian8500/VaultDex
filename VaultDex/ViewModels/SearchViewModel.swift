@@ -137,8 +137,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func filteredCards(in store: LocalVaultStore) -> [Card] {
-        let sourceCards = apiCards.isEmpty ? store.cards : apiCards
-        return sort(sourceCards.filter { card in
+        sort(apiCards.filter { card in
             let matchesQuery = query.isEmpty
                 || card.name.localizedCaseInsensitiveContains(query)
                 || card.number.localizedCaseInsensitiveContains(query)
@@ -158,7 +157,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func availableSets(in store: LocalVaultStore) -> [CardSet] {
-        let combined = apiSets + apiCards.map(\.set) + store.sets
+        let combined = apiSets + apiCards.map(\.set)
         var seen = Set<String>()
         return combined.filter { set in
             let key = set.externalID ?? set.code

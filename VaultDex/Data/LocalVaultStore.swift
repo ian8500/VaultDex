@@ -12,6 +12,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var runtimeMode: VaultRuntimeMode
     @Published private(set) var isLoadingCloudData = false
     @Published private(set) var imageUploadMessage: String?
+    @Published private(set) var isSavingProfile = false
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
     @Published private(set) var lastSyncError: String?
@@ -37,22 +38,38 @@ final class LocalVaultStore: ObservableObject {
     ) {
         self.repositories = repositories
         self.localRepositories = localRepositories
-        runtimeMode = repositories.clientProvider.isRemoteEnabled ? .supabase : .demo
-        sets = repository.sets
-        cards = repository.cards
-        profile = repository.profile
-        events = repository.events
-        importPreviewItems = repository.importPreviewItems
-        inviteContacts = repository.inviteContacts
-        collectionItems = repository.collectionItems
-        wishlistItems = repository.wishlistItems
-        events = repository.events
-        binderPages = repository.binderPages
-        friends = repository.friends
-        friendRequests = repository.friendRequests
-        friendWants = repository.friendWants
-        tradeListings = repository.tradeListings
-        tradeOffers = repository.tradeOffers
+        let useCloudState = repositories.clientProvider.isRemoteEnabled
+        runtimeMode = useCloudState ? .supabase : .demo
+        importPreviewItems = useCloudState ? [] : repository.importPreviewItems
+        inviteContacts = useCloudState ? [] : repository.inviteContacts
+
+        if useCloudState {
+            sets = []
+            cards = []
+            profile = Self.emptyProfile
+            collectionItems = []
+            wishlistItems = []
+            events = []
+            binderPages = []
+            friends = []
+            friendRequests = []
+            friendWants = []
+            tradeListings = []
+            tradeOffers = []
+        } else {
+            sets = repository.sets
+            cards = repository.cards
+            profile = repository.profile
+            collectionItems = repository.collectionItems
+            wishlistItems = repository.wishlistItems
+            events = repository.events
+            binderPages = repository.binderPages
+            friends = repository.friends
+            friendRequests = repository.friendRequests
+            friendWants = repository.friendWants
+            tradeListings = repository.tradeListings
+            tradeOffers = repository.tradeOffers
+        }
     }
 
     var isDemoMode: Bool {
@@ -88,7 +105,11 @@ final class LocalVaultStore: ObservableObject {
         tradeListings = []
         tradeOffers = []
         events = []
-        profile = UserProfile(
+        profile = Self.emptyProfile
+    }
+
+    private static var emptyProfile: UserProfile {
+        UserProfile(
             displayName: "",
             handle: "",
             location: "",
@@ -99,7 +120,7 @@ final class LocalVaultStore: ObservableObject {
             trustBadges: [],
             completedTrades: 0,
             collectorScore: 0,
-            favoriteSet: Self.fallbackSet,
+            favoriteSet: fallbackSet,
             joinedDate: .now,
             followers: 0,
             following: 0
@@ -122,9 +143,12 @@ final class LocalVaultStore: ObservableObject {
         defer { isLoadingCloudData = false }
 
         do {
-            let snapshot = try await fetchCloudSnapshot(userID: session.userID)
+            var snapshot = try await fetchCloudSnapshot(userID: session.userID)
+            if snapshot.profile == nil {
+                snapshot.profile = try await createBlankCloudProfile(userID: session.userID)
+            }
             apply(snapshot: snapshot, userID: session.userID)
-            CloudVaultCache.save(snapshot)
+            CloudVaultCache.save(snapshot, userID: session.userID)
             runtimeMode = .supabase
             lastSyncError = nil
         } catch {
@@ -133,7 +157,8 @@ final class LocalVaultStore: ObservableObject {
     }
 
     private func loadCachedOrDemo(reason: String) {
-        if let snapshot = CloudVaultCache.load(), let userID = repositories.clientProvider.currentSession?.userID {
+        if let userID = repositories.clientProvider.currentSession?.userID,
+           let snapshot = CloudVaultCache.load(userID: userID) {
             apply(snapshot: snapshot, userID: userID)
             runtimeMode = .offline
         } else if repositories.clientProvider.currentSession != nil {
@@ -196,6 +221,30 @@ final class LocalVaultStore: ObservableObject {
         )
     }
 
+    private func createBlankCloudProfile(userID: UUID) async throws -> RemoteProfile {
+        let profile = RemoteProfile(
+            id: userID,
+            username: "collector_\(userID.uuidString.prefix(8).lowercased())",
+            displayName: "",
+            location: nil,
+            bio: nil,
+            collectorType: nil,
+            avatarURL: nil,
+            avatarPath: nil,
+            reputationScore: 0,
+            trustBadges: [],
+            completedTrades: 0,
+            collectorScore: 0,
+            profileVisibility: "public",
+            collectionVisibility: "friends",
+            wishlistVisibility: "friends",
+            createdAt: nil,
+            updatedAt: nil
+        )
+        try await repositories.profiles.upsertProfile(profile)
+        return profile
+    }
+
     private func apply(snapshot: CloudVaultSnapshot, userID: UUID) {
         let mappedSets = snapshot.sets.map(\.localSet)
         let setByID = Dictionary(uniqueKeysWithValues: mappedSets.map { ($0.id, $0) })
@@ -205,7 +254,9 @@ final class LocalVaultStore: ObservableObject {
 
         sets = mappedSets
         cards = mappedCards
-        profile = snapshot.profile?.localProfile(favoriteSet: sets.first ?? fallbackSet) ?? profile
+        if let cloudProfile = snapshot.profile {
+            profile = cloudProfile.localProfile(favoriteSet: sets.first ?? fallbackSet)
+        }
         collectionItems = snapshot.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
         wishlistItems = snapshot.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) }
         let profileByID = Dictionary(uniqueKeysWithValues: (snapshot.friendProfiles ?? []).map { ($0.id, $0) })
@@ -466,7 +517,7 @@ final class LocalVaultStore: ObservableObject {
                     let request = FriendRequest(
                         requesterID: userID,
                         addresseeID: matchedProfile.id,
-                        displayName: matchedProfile.displayName,
+                        displayName: matchedProfile.displayName.nilIfBlank ?? matchedProfile.username,
                         handleOrEmail: "@\(matchedProfile.username)",
                         avatarSymbol: "paperplane.fill",
                         direction: .outgoing,
@@ -499,6 +550,40 @@ final class LocalVaultStore: ObservableObject {
             ),
             at: 0
         )
+    }
+
+    func sendFriendRequest(to profile: RemoteProfile) {
+        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
+        guard profile.id != userID else { return }
+        guard !friends.contains(where: { $0.id == profile.id }) else { return }
+        guard !friendRequests.contains(where: { $0.requesterID == userID && $0.addresseeID == profile.id }) else { return }
+
+        Task {
+            do {
+                try await repositories.friends.sendFriendRequest(from: userID, to: profile.id)
+                let request = FriendRequest(
+                    requesterID: userID,
+                    addresseeID: profile.id,
+                    displayName: profile.displayName.nilIfBlank ?? profile.username,
+                    handleOrEmail: "@\(profile.username)",
+                    avatarSymbol: "paperplane.fill",
+                    direction: .outgoing,
+                    previewCard: cards.first
+                )
+                await MainActor.run {
+                    friendRequests.removeAll { $0.addresseeID == profile.id }
+                    friendRequests.insert(request, at: 0)
+                    friendSearchResults = []
+                    if lastSyncError?.contains("Friend request failed") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = Self.friendsSyncMessage
+                }
+            }
+        }
     }
 
     func searchFriendUsers(matching query: String) {
@@ -550,7 +635,7 @@ final class LocalVaultStore: ObservableObject {
                     let snapshot = try await fetchCloudSnapshot(userID: addresseeID)
                     await MainActor.run {
                         apply(snapshot: snapshot, userID: addresseeID)
-                        CloudVaultCache.save(snapshot)
+                        CloudVaultCache.save(snapshot, userID: addresseeID)
                         lastSyncError = nil
                     }
                 } catch {
@@ -646,29 +731,51 @@ final class LocalVaultStore: ObservableObject {
         .sorted { $0.score > $1.score }
     }
 
-    func listCardForTrade(_ item: CollectionItem, askingFor: String, usesSafeTrade: Bool) {
+    func listCardForTrade(
+        _ item: CollectionItem,
+        listingKind: TradeListingKind,
+        askingCredits: Int?,
+        description: String,
+        askingFor: String,
+        usesSafeTrade: Bool
+    ) {
         guard !tradeListings.contains(where: { $0.isMine && $0.card.id == item.card.id }) else { return }
-        tradeListings.insert(
-            TradeListing(
-                ownerName: profile.displayName,
-                ownerHandle: profile.handle,
-                card: item.card,
-                condition: item.condition,
-                variant: item.variant,
-                askingFor: askingFor.isEmpty ? "Open to fair offers" : askingFor,
-                locationLabel: "My vault",
-                sellerReputation: 100,
-                isFeatured: true,
-                isMine: true,
-                usesSafeTrade: usesSafeTrade
-            ),
-            at: 0
+        let listing = TradeListing(
+            ownerID: repositories.clientProvider.currentSession?.userID,
+            collectionItemID: item.id,
+            ownerName: profile.displayName,
+            ownerHandle: profile.handle,
+            card: item.card,
+            condition: item.condition,
+            variant: item.variant,
+            listingKind: listingKind,
+            askingFor: askingFor.isEmpty ? listingKind.defaultAskText(askingCredits: askingCredits) : askingFor,
+            askingCredits: askingCredits,
+            description: description,
+            locationLabel: "My vault",
+            sellerReputation: max(profile.reputationScore, 0),
+            isFeatured: true,
+            isMine: true,
+            usesSafeTrade: usesSafeTrade
         )
+        tradeListings.insert(listing, at: 0)
         updateTradeAvailability(for: item.card, isAvailable: true)
+        syncTradeListing(listing)
     }
 
     func removeTradeListing(_ listing: TradeListing) {
         tradeListings.removeAll { $0.id == listing.id }
+        if runtimeMode == .supabase {
+            Task {
+                do {
+                    try await repositories.trades.deleteTradeListing(id: listing.id)
+                } catch {
+                    await MainActor.run {
+                        lastSyncError = Self.tradeSyncMessage
+                    }
+                }
+            }
+        }
     }
 
     func toggleSavedListing(_ listing: TradeListing) {
@@ -704,7 +811,40 @@ final class LocalVaultStore: ObservableObject {
         tradeOffers.insert(offer, at: 0)
 
         if runtimeMode == .supabase {
-            syncTradeOffer(offer, listing: listing)
+            let requestedItems = collectionItemsForListing(listing, requestedCards: requestedCards)
+            syncTradeOffer(offer, receiverID: listing.ownerID, offeredItems: offeredCollectionItems(for: offeredCards), requestedItems: requestedItems)
+        }
+    }
+
+    func sendTradeOffer(
+        to friend: Friend,
+        offeredItems: [CollectionItem],
+        requestedItems: [CollectionItem],
+        internalCredits: Int,
+        message: String,
+        usesSafeTrade: Bool
+    ) {
+        guard !offeredItems.isEmpty || internalCredits > 0 else { return }
+        guard !requestedItems.isEmpty else { return }
+
+        let offer = TradeOffer(
+            senderID: repositories.clientProvider.currentSession?.userID,
+            receiverID: friend.id,
+            partnerName: friend.displayName,
+            partnerHandle: friend.handle,
+            offeredCards: offeredItems.map(\.card),
+            requestedCards: requestedItems.map(\.card),
+            status: .pending,
+            direction: .sent,
+            internalCredits: max(internalCredits, 0),
+            expiresInDays: 7,
+            note: message.isEmpty ? "Trade offer sent to \(friend.displayName)." : message,
+            usesSafeTrade: usesSafeTrade
+        )
+        tradeOffers.insert(offer, at: 0)
+
+        if runtimeMode == .supabase {
+            syncTradeOffer(offer, receiverID: friend.id, offeredItems: offeredItems, requestedItems: requestedItems)
         }
     }
 
@@ -729,13 +869,49 @@ final class LocalVaultStore: ObservableObject {
         }
     }
 
-    func updateProfile(_ updatedProfile: UserProfile) {
-        profile = updatedProfile
-        syncProfile(updatedProfile)
+    func updateProfile(_ updatedProfile: UserProfile) async throws {
+        guard runtimeMode == .supabase else {
+            profile = updatedProfile
+            return
+        }
+
+        guard repositories.clientProvider.currentSession?.userID != nil else {
+            lastSyncError = Self.cloudConnectionMessage
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        isSavingProfile = true
+        defer { isSavingProfile = false }
+
+        do {
+            try await repositories.profiles.upsertProfile(remoteProfile(from: updatedProfile))
+            profile = updatedProfile
+            lastSyncError = nil
+        } catch {
+            lastSyncError = Self.cloudConnectionMessage
+            throw error
+        }
+    }
+
+    func deleteSignedInAccountData() async throws {
+        guard let userID = repositories.clientProvider.currentSession?.userID else {
+            clearSignedOutState()
+            return
+        }
+
+        let request = try repositories.clientProvider.restRequest(
+            table: "profiles",
+            method: .delete,
+            queryItems: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            prefer: "return=minimal"
+        )
+        try await repositories.clientProvider.send(request)
+        CloudVaultCache.delete(userID: userID)
+        clearSignedOutState()
     }
 
     func reportImagePickerError(_ message: String) {
-        imageUploadMessage = nil
+        imageUploadMessage = message
         isUploadingAvatar = false
         uploadingCardPhotoSide = nil
         lastSyncError = message
@@ -840,6 +1016,18 @@ final class LocalVaultStore: ObservableObject {
         addToWishlist(card, priority: .high, budget: card.marketValue, notes: "Added from Pokédex missing tracker.")
     }
 
+    func cacheViewedCard(_ card: Card) {
+        guard runtimeMode == .supabase else { return }
+        Task {
+            do {
+                try await repositories.cards.upsertSet(card.remoteSet)
+                try await repositories.cards.upsertCard(card.remoteCard)
+            } catch {
+                return
+            }
+        }
+    }
+
     func addEvent(_ event: VaultEvent) {
         events.append(event)
         events.sort { $0.date < $1.date }
@@ -929,8 +1117,14 @@ final class LocalVaultStore: ObservableObject {
 
     private func syncProfile(_ profile: UserProfile) {
         guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else { return }
+        let remoteProfile = remoteProfile(from: profile, userID: userID)
+        Task { try? await repositories.profiles.upsertProfile(remoteProfile) }
+    }
+
+    private func remoteProfile(from profile: UserProfile, userID: UUID? = nil) -> RemoteProfile {
+        let profileID = userID ?? profile.id
         let remoteProfile = RemoteProfile(
-            id: userID,
+            id: profileID,
             username: profile.handle.replacingOccurrences(of: "@", with: ""),
             displayName: profile.displayName,
             location: profile.location,
@@ -948,7 +1142,7 @@ final class LocalVaultStore: ObservableObject {
             createdAt: nil,
             updatedAt: nil
         )
-        Task { try? await repositories.profiles.upsertProfile(remoteProfile) }
+        return remoteProfile
     }
 
     private func syncCollectionItem(_ item: CollectionItem) {
@@ -1021,20 +1215,93 @@ final class LocalVaultStore: ObservableObject {
         }
     }
 
-    private func syncTradeOffer(_ offer: TradeOffer, listing: TradeListing) {
+    private func syncTradeListing(_ listing: TradeListing) {
+        guard runtimeMode == .supabase,
+              let ownerID = repositories.clientProvider.currentSession?.userID
+        else { return }
+
+        let remoteListing = RemoteTradeListing(
+            id: listing.id,
+            ownerID: ownerID,
+            cardID: listing.card.id,
+            collectionItemID: listing.collectionItemID,
+            title: listing.card.name,
+            condition: listing.condition.rawValue,
+            variant: listing.variant.rawValue,
+            rarity: listing.card.rarity.rawValue,
+            estimatedValue: listing.estimatedValue,
+            listingKind: listing.listingKind.rawValue,
+            askingCredits: listing.askingCredits,
+            description: listing.description.nilIfBlank,
+            askingFor: listing.askingFor,
+            sellerDisplayName: profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Collector" : profile.displayName,
+            locationLabel: listing.locationLabel,
+            sellerReputation: listing.sellerReputation,
+            isPublic: true,
+            status: "active",
+            usesSafeTrade: listing.usesSafeTrade,
+            listedAt: listing.listedAt
+        )
+
+        Task {
+            do {
+                try await repositories.cards.upsertSet(listing.card.remoteSet)
+                try await repositories.cards.upsertCard(listing.card.remoteCard)
+                try await repositories.trades.upsertTradeListing(remoteListing)
+                await MainActor.run {
+                    if lastSyncError?.contains("listing") == true {
+                        lastSyncError = nil
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = Self.tradeSyncMessage
+                }
+            }
+        }
+    }
+
+    private func offeredCollectionItems(for cards: [Card]) -> [CollectionItem] {
+        let cardIDs = Set(cards.map(\.id))
+        return collectionItems.filter { cardIDs.contains($0.card.id) }
+    }
+
+    private func collectionItemsForListing(_ listing: TradeListing, requestedCards: [Card]) -> [CollectionItem] {
+        if let collectionItemID = listing.collectionItemID {
+            return requestedCards.map { card in
+                CollectionItem(
+                    id: collectionItemID,
+                    card: card,
+                    quantity: 1,
+                    condition: listing.condition,
+                    variant: listing.variant,
+                    isAvailableForTrade: true,
+                    visibility: .friends
+                )
+            }
+        }
+        return requestedCards.map { card in
+            CollectionItem(
+                card: card,
+                quantity: 1,
+                condition: listing.condition,
+                variant: listing.variant,
+                isAvailableForTrade: true,
+                visibility: .public
+            )
+        }
+    }
+
+    private func syncTradeOffer(_ offer: TradeOffer, receiverID: UUID?, offeredItems: [CollectionItem], requestedItems: [CollectionItem]) {
         guard runtimeMode == .supabase,
               let senderID = repositories.clientProvider.currentSession?.userID,
-              let receiverID = listing.ownerID,
+              let receiverID,
               senderID != receiverID
         else {
             lastSyncError = "Trade offer save failed: this listing is missing a cloud friend owner."
             return
         }
 
-        let offeredCollectionItems = collectionItems.filter { item in
-            offer.offeredCards.contains { $0.id == item.card.id }
-        }
-        let requestedCollectionItemID = listing.collectionItemID
         let remoteOffer = RemoteTradeOffer(
             id: offer.id,
             senderID: senderID,
@@ -1047,7 +1314,7 @@ final class LocalVaultStore: ObservableObject {
             usesSafeTrade: offer.usesSafeTrade,
             createdAt: offer.createdAt
         )
-        let offeredItems = offeredCollectionItems.map { item in
+        let remoteOfferedItems = offeredItems.map { item in
             RemoteTradeOfferItem(
                 id: UUID(),
                 tradeOfferID: offer.id,
@@ -1060,16 +1327,16 @@ final class LocalVaultStore: ObservableObject {
                 createdAt: nil
             )
         }
-        let requestedItems = offer.requestedCards.map { card in
+        let remoteRequestedItems = requestedItems.map { item in
             RemoteTradeOfferItem(
                 id: UUID(),
                 tradeOfferID: offer.id,
                 ownerID: receiverID,
-                cardID: card.id,
-                collectionItemID: requestedCollectionItemID,
+                cardID: item.card.id,
+                collectionItemID: item.id,
                 side: "requested",
                 quantity: 1,
-                estimatedValue: card.marketValue,
+                estimatedValue: item.card.marketValue,
                 createdAt: nil
             )
         }
@@ -1082,7 +1349,7 @@ final class LocalVaultStore: ObservableObject {
                     try await repositories.cards.upsertCard(card.remoteCard)
                 }
                 try await repositories.trades.upsertTradeOffer(remoteOffer)
-                try await repositories.trades.upsertTradeOfferItems(offeredItems + requestedItems)
+                try await repositories.trades.upsertTradeOfferItems(remoteOfferedItems + remoteRequestedItems)
                 await MainActor.run {
                     if lastSyncError?.contains("Trade offer save failed") == true {
                         lastSyncError = nil
@@ -1098,7 +1365,7 @@ final class LocalVaultStore: ObservableObject {
 }
 
 private struct CloudVaultSnapshot: Codable {
-    let profile: RemoteProfile?
+    var profile: RemoteProfile?
     let sets: [RemoteCardSet]
     let cards: [RemoteCard]
     let collection: [RemoteCollectionItem]
@@ -1120,27 +1387,30 @@ private struct RemoteFriendVisibleData: Codable {
 }
 
 private enum CloudVaultCache {
-    private static let fileName = "vaultdex-cloud-cache.json"
-
-    static func load() -> CloudVaultSnapshot? {
-        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+    static func load(userID: UUID) -> CloudVaultSnapshot? {
+        guard let data = try? Data(contentsOf: cacheURL(userID: userID)) else { return nil }
         return try? JSONDecoder.supabase.decode(CloudVaultSnapshot.self, from: data)
     }
 
-    static func save(_ snapshot: CloudVaultSnapshot) {
+    static func save(_ snapshot: CloudVaultSnapshot, userID: UUID) {
         do {
-            try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let url = cacheURL(userID: userID)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try JSONEncoder.supabase.encode(snapshot)
-            try data.write(to: cacheURL, options: [.atomic])
+            try data.write(to: url, options: [.atomic])
         } catch {
             VaultDexLogger.warning("Cloud cache write failed")
         }
     }
 
-    private static var cacheURL: URL {
+    static func delete(userID: UUID) {
+        try? FileManager.default.removeItem(at: cacheURL(userID: userID))
+    }
+
+    private static func cacheURL(userID: UUID) -> URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appending(path: "VaultDex")
-            .appending(path: fileName)
+            .appending(path: "vaultdex-cloud-cache-\(userID.uuidString).json")
     }
 }
 
@@ -1201,17 +1471,18 @@ private extension RemoteCard {
 
 private extension RemoteProfile {
     func localProfile(favoriteSet: CardSet) -> UserProfile {
-        UserProfile(
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        return UserProfile(
             id: id,
             displayName: displayName,
-            handle: "@\(username)",
-            location: location ?? "Cloud Vault",
-            bio: bio ?? "Synced VaultDex collector profile.",
-            collectorType: collectorType ?? "Cloud Collector",
+            handle: trimmedUsername.isEmpty ? "" : "@\(trimmedUsername)",
+            location: location ?? "",
+            bio: bio ?? "",
+            collectorType: collectorType ?? "",
             avatarSymbol: "person.crop.circle.fill",
             avatarURL: avatarURL.flatMap(URL.init(string:)),
             reputationScore: reputationScore,
-            trustBadges: trustBadges.isEmpty ? ["Cloud Synced"] : trustBadges,
+            trustBadges: trustBadges,
             completedTrades: completedTrades,
             collectorScore: collectorScore,
             favoriteSet: favoriteSet,
@@ -1254,6 +1525,22 @@ private extension String {
     }
 }
 
+private extension TradeListingKind {
+    func defaultAskText(askingCredits: Int?) -> String {
+        switch self {
+        case .trade:
+            return "Open to fair trade offers"
+        case .credits:
+            return askingCredits.map { "Asking \($0) credits" } ?? "Open to credit offers"
+        case .both:
+            if let askingCredits {
+                return "Open to trades or \((askingCredits)) credits"
+            }
+            return "Open to trades or credits"
+        }
+    }
+}
+
 private extension RemoteWishlistItem {
     func localItem(card: Card?) -> WishlistItem? {
         guard let card else { return nil }
@@ -1281,7 +1568,10 @@ private extension RemoteMarketplaceListing {
             card: card,
             condition: CardCondition(rawValue: condition) ?? .nearMint,
             variant: CardVariant(rawValue: variant ?? "normal") ?? .normal,
+            listingKind: TradeListingKind(rawValue: listingKind ?? "trade") ?? .trade,
             askingFor: askingFor ?? "Open to fair offers",
+            askingCredits: askingCredits,
+            description: description ?? "",
             listedAt: listedAt ?? .now,
             locationLabel: locationLabel ?? "Cloud listing",
             sellerReputation: sellerReputation,
@@ -1357,7 +1647,6 @@ private extension RemoteFriendship {
         cardByID: [UUID: Card],
         currentUserID: UUID
     ) -> Friend? {
-        guard let favoriteCard = cards.first else { return nil }
         let friendID = friendID(for: currentUserID)
         let displayName = profile?.displayName.nilIfBlank ?? "Cloud Friend"
         let handle = profile?.username.nilIfBlank.map { "@\($0)" } ?? "@\(friendID.uuidString.prefix(8))"
@@ -1370,7 +1659,7 @@ private extension RemoteFriendship {
             handle: handle,
             avatarSymbol: "person.2.fill",
             collectorScore: profile?.collectorScore ?? 0,
-            favoriteCard: visibleCollection.first?.card ?? favoriteCard,
+            favoriteCard: visibleCollection.first?.card ?? visibleWishlist.first?.card ?? cards.first,
             completionPercent: min(Double(visibleCollection.count) / 100.0, 1.0),
             mutualTrades: profile?.completedTrades ?? 0,
             isOnline: false,

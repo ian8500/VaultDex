@@ -20,13 +20,13 @@ enum SupabaseClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingConfiguration:
-            "Cloud Ready — sign in to sync"
+            "Cloud services are not available right now."
         case .missingSupabasePackage:
-            "Supabase Swift package is not linked to the VaultDex app target."
+            "Cloud services are not available right now."
         case .invalidResponse:
-            "Supabase returned an invalid response."
-        case let .requestFailed(statusCode, body):
-            "Supabase request failed with status \(statusCode): \(body)"
+            "Unable to connect right now. Please try again."
+        case .requestFailed:
+            "Unable to connect right now. Please try again."
         }
     }
 }

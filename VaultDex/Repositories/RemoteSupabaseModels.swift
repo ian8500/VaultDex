@@ -38,6 +38,65 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
+
+    init(
+        id: UUID,
+        username: String,
+        displayName: String,
+        location: String?,
+        bio: String?,
+        collectorType: String?,
+        avatarURL: String?,
+        avatarPath: String?,
+        reputationScore: Int,
+        trustBadges: [String],
+        completedTrades: Int,
+        collectorScore: Int,
+        profileVisibility: String?,
+        collectionVisibility: String?,
+        wishlistVisibility: String?,
+        createdAt: Date?,
+        updatedAt: Date?
+    ) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName
+        self.location = location
+        self.bio = bio
+        self.collectorType = collectorType
+        self.avatarURL = avatarURL
+        self.avatarPath = avatarPath
+        self.reputationScore = reputationScore
+        self.trustBadges = trustBadges
+        self.completedTrades = completedTrades
+        self.collectorScore = collectorScore
+        self.profileVisibility = profileVisibility
+        self.collectionVisibility = collectionVisibility
+        self.wishlistVisibility = wishlistVisibility
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        username = try container.decodeIfPresent(String.self, forKey: .username) ?? ""
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? ""
+        location = try container.decodeIfPresent(String.self, forKey: .location)
+        bio = try container.decodeIfPresent(String.self, forKey: .bio)
+        collectorType = try container.decodeIfPresent(String.self, forKey: .collectorType)
+        avatarURL = try container.decodeIfPresent(String.self, forKey: .avatarURL)
+        avatarPath = try container.decodeIfPresent(String.self, forKey: .avatarPath)
+        reputationScore = try container.decodeIfPresent(Int.self, forKey: .reputationScore) ?? 0
+        trustBadges = try container.decodeIfPresent([String].self, forKey: .trustBadges) ?? []
+        completedTrades = try container.decodeIfPresent(Int.self, forKey: .completedTrades) ?? 0
+        collectorScore = try container.decodeIfPresent(Int.self, forKey: .collectorScore) ?? 0
+        profileVisibility = try container.decodeIfPresent(String.self, forKey: .profileVisibility)
+        collectionVisibility = try container.decodeIfPresent(String.self, forKey: .collectionVisibility)
+        wishlistVisibility = try container.decodeIfPresent(String.self, forKey: .wishlistVisibility)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
 }
 
 struct RemoteCardSet: Codable, Identifiable, Hashable {
@@ -199,22 +258,36 @@ struct RemoteBinderSlot: Codable, Hashable {
 
 struct RemoteTradeListing: Codable, Identifiable, Hashable {
     let id: UUID
-    var userID: UUID
+    var ownerID: UUID
     var cardID: UUID
+    var collectionItemID: UUID?
+    var title: String
     var condition: String
     var variant: String
+    var rarity: String
+    var estimatedValue: Double
+    var listingKind: String
+    var askingCredits: Int?
+    var description: String?
     var askingFor: String
+    var sellerDisplayName: String
     var locationLabel: String?
     var sellerReputation: Int
     var isPublic: Bool
+    var status: String
     var usesSafeTrade: Bool
     var listedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, condition, variant
-        case userID = "user_id"
+        case id, title, condition, variant, rarity, status, description
+        case ownerID = "owner_id"
         case cardID = "card_id"
+        case collectionItemID = "collection_item_id"
+        case estimatedValue = "estimated_value"
+        case listingKind = "listing_kind"
+        case askingCredits = "asking_credits"
         case askingFor = "asking_for"
+        case sellerDisplayName = "seller_display_name"
         case locationLabel = "location_label"
         case sellerReputation = "seller_reputation"
         case isPublic = "is_public"
@@ -278,6 +351,9 @@ struct RemoteMarketplaceListing: Codable, Identifiable, Hashable {
     var rarity: String
     var condition: String
     var variant: String?
+    var listingKind: String?
+    var askingCredits: Int?
+    var description: String?
     var askingFor: String?
     var estimatedValue: Double
     var sellerDisplayName: String?
@@ -288,11 +364,13 @@ struct RemoteMarketplaceListing: Codable, Identifiable, Hashable {
     var listedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, rarity, condition, variant
+        case id, rarity, condition, variant, description
         case cardID = "card_id"
         case ownerID = "owner_id"
         case collectionItemID = "collection_item_id"
         case title
+        case listingKind = "listing_kind"
+        case askingCredits = "asking_credits"
         case askingFor = "asking_for"
         case estimatedValue = "estimated_value"
         case sellerDisplayName = "seller_display_name"

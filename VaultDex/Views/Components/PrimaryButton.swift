@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct PrimaryButton: View {
     let title: String
@@ -22,7 +23,8 @@ struct PrimaryButton: View {
             }
             .foregroundStyle(Color.vdNavy)
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(minHeight: 54)
+            .padding(.vertical, 2)
             .background(
                 LinearGradient(
                     colors: isEnabled ? [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep] : [Color.vdTextSecondary.opacity(0.5)],
@@ -45,8 +47,13 @@ struct PrimaryButton: View {
             )
             .shadow(color: Color.vdGold.opacity(isEnabled ? 0.34 : 0), radius: 14, x: 0, y: 6)
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            guard isEnabled else { return }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        })
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
+        .accessibilityHint("Activates \(title)")
     }
 }
 
@@ -72,7 +79,8 @@ struct SecondaryButton: View {
             }
             .foregroundStyle(Color.vdTextPrimary)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(minHeight: 50)
+            .padding(.vertical, 2)
             .background(Color.vdPanelRaised.opacity(0.86), in: RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
@@ -80,7 +88,12 @@ struct SecondaryButton: View {
             )
             .shadow(color: Color.vdGold.opacity(isEnabled ? 0.12 : 0), radius: 10, x: 0, y: 4)
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            guard isEnabled else { return }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        })
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.55)
+        .accessibilityHint("Activates \(title)")
     }
 }

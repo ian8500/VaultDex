@@ -12,12 +12,20 @@ struct VaultDexLogo: View {
             RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.vdGold, Color.vdGoldDeep],
+                        colors: [Color(hex: 0xFFF3A6), Color.vdGold, Color.vdGoldDeep],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .shadow(color: Color.vdGold.opacity(0.32), radius: size * 0.18, x: 0, y: size * 0.08)
+                .overlay(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.48), Color.clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+                )
 
             ShieldMark()
                 .fill(
@@ -37,6 +45,13 @@ struct VaultDexLogo: View {
                     RoundedRectangle(cornerRadius: size * 0.07, style: .continuous)
                         .stroke(Color.vdGold.opacity(0.9), lineWidth: max(1.5, size * 0.035))
                         .rotationEffect(.degrees(-7))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.03, style: .continuous)
+                        .fill(Color.vdGold.opacity(0.22))
+                        .frame(width: size * 0.21, height: size * 0.05)
+                        .rotationEffect(.degrees(-7))
+                        .offset(y: size * 0.10)
                 )
 
             LightningSpark()
