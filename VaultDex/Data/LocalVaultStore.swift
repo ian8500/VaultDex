@@ -957,13 +957,13 @@ final class LocalVaultStore: ObservableObject {
         }
 
         isUploadingAvatar = true
-        imageUploadMessage = nil
+        imageUploadMessage = "Uploading photo..."
         defer { isUploadingAvatar = false }
         do {
             let service = ImageUploadService(storage: repositories.storage)
             let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
             var updatedProfile = profile.replacingID(with: userID)
-            updatedProfile.avatarURL = URL(string: Self.cacheBustedAvatarURL(urlString))
+            updatedProfile.avatarURL = URL(string: urlString)
             try await repositories.profiles.upsertProfile(remoteProfile(from: updatedProfile, userID: userID))
             if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
@@ -978,12 +978,6 @@ final class LocalVaultStore: ObservableObject {
             lastSyncError = Self.imageUploadMessage
             throw error
         }
-    }
-
-    private static func cacheBustedAvatarURL(_ urlString: String) -> String {
-        guard var components = URLComponents(string: urlString) else { return urlString }
-        components.queryItems = [URLQueryItem(name: "v", value: "\(Int(Date().timeIntervalSince1970))")]
-        return components.url?.absoluteString ?? urlString
     }
 
     func uploadAvatarImageData(_ data: Data) {

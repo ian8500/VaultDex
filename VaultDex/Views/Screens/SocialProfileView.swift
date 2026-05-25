@@ -131,10 +131,10 @@ struct SocialProfileView: View {
 
             avatarUploadButton
 
-            if let message = store.imageUploadMessage, store.isUploadingAvatar || message.contains("Avatar") {
+            if let message = store.imageUploadMessage {
                 Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : "checkmark.circle.fill")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald)
+                    .foregroundStyle(message.hasPrefix("We couldn’t") ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
             }
 
             if didSaveProfile {
@@ -344,7 +344,7 @@ struct SocialProfileView: View {
                     }
                     return
                 }
-                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 1_200, quality: 0.82)
+                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 512, quality: 0.75)
                 await MainActor.run {
                     pendingAvatarData = preparedData
                     isProcessingAvatar = false
