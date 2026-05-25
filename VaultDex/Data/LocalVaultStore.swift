@@ -941,32 +941,48 @@ final class LocalVaultStore: ObservableObject {
         lastSyncError = message
     }
 
-    func uploadAvatarImageData(_ data: Data) {
-        guard runtimeMode == .supabase, let userID = repositories.clientProvider.currentSession?.userID else {
+    func uploadAvatarImageData(_ data: Data) async throws {
+        guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.imageUploadSignInMessage
-            return
+            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            isUploadingAvatar = false
+            throw ImageUploadError.missingSession
+        }
+
+        guard repositories.clientProvider.canCreateClient else {
+            lastSyncError = Self.imageUploadMessage
+            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            isUploadingAvatar = false
+            throw SupabaseClientError.missingConfiguration
         }
 
         isUploadingAvatar = true
-        imageUploadMessage = "Preparing avatar..."
+        imageUploadMessage = nil
+        defer { isUploadingAvatar = false }
+        do {
+            let service = ImageUploadService(storage: repositories.storage)
+            let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
+            var updatedProfile = profile.replacingID(with: userID)
+            updatedProfile.avatarURL = URL(string: urlString)
+            try await repositories.profiles.upsertProfile(remoteProfile(from: updatedProfile, userID: userID))
+            profile = updatedProfile
+            runtimeMode = .supabase
+            imageUploadMessage = "Profile picture saved"
+            lastSyncError = nil
+        } catch {
+            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            lastSyncError = Self.imageUploadMessage
+            throw error
+        }
+    }
+
+    func uploadAvatarImageData(_ data: Data) {
         Task {
             do {
-                let service = ImageUploadService(storage: repositories.storage)
-                let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
-                await MainActor.run {
-                    profile.avatarURL = URL(string: urlString)
-                    imageUploadMessage = "Avatar uploaded"
-                    isUploadingAvatar = false
-                    syncProfile(profile)
-                    if lastSyncError?.contains("upload") == true {
-                        lastSyncError = nil
-                    }
-                }
+                try await uploadAvatarImageData(data)
             } catch {
                 await MainActor.run {
-                    imageUploadMessage = nil
                     isUploadingAvatar = false
-                    lastSyncError = Self.imageUploadMessage
                 }
             }
         }

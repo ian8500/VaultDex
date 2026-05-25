@@ -380,7 +380,7 @@ final class SupabaseStorageRepository: VaultStorageRepository {
     }
 
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String {
-        let path = "\(userID.uuidString)/avatar-\(UUID().uuidString).jpg"
+        let path = "\(userID.uuidString)/profile.jpg"
         let request = try client.storageRequest(bucket: "avatars", path: path, method: .post, contentType: contentType, body: data)
         try await client.send(request)
         return try client.publicStorageURL(bucket: "avatars", path: path).absoluteString

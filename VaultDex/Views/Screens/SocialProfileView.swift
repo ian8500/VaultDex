@@ -11,6 +11,8 @@ struct SocialProfileView: View {
     @State private var profileMessage = ""
     @State private var usernameError = ""
     @State private var showLogoutConfirmation = false
+    @State private var pendingAvatarData: Data?
+    @State private var showAvatarUploadError = false
 
     var body: some View {
         ZStack {
@@ -35,6 +37,17 @@ struct SocialProfileView: View {
             draft = ProfileDraft(profile: store.profile)
             hasLoadedDraft = true
         }
+        .onChange(of: selectedAvatarItem) { _, newItem in
+            loadAvatar(from: newItem)
+        }
+        .alert("We couldn’t save your profile picture. Please try again.", isPresented: $showAvatarUploadError) {
+            if pendingAvatarData != nil {
+                Button("Retry") {
+                    Task { await uploadPendingAvatar() }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .confirmationDialog("Log out of VaultDex?", isPresented: $showLogoutConfirmation, titleVisibility: .visible) {
             Button("Log Out", role: .destructive) {
                 Task {
@@ -51,44 +64,7 @@ struct SocialProfileView: View {
     private var profileHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: store.profile.avatarSymbol)
-                    .font(.system(size: 32, weight: .black))
-                    .foregroundStyle(Color.vdNavy)
-                    .frame(width: 78, height: 78)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 22)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(Color.white.opacity(0.48), lineWidth: 1)
-                    )
-                    .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
-                    .overlay {
-                        if let avatarURL = store.profile.avatarURL {
-                            AsyncImage(url: avatarURL) { phase in
-                                switch phase {
-                                case let .success(image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                case .failure:
-                                    Image(systemName: store.profile.avatarSymbol)
-                                        .font(.system(size: 32, weight: .black))
-                                        .foregroundStyle(Color.vdNavy)
-                                default:
-                                    ProgressView()
-                                        .tint(Color.vdNavy)
-                                }
-                            }
-                            .frame(width: 78, height: 78)
-                            .clipShape(RoundedRectangle(cornerRadius: 22))
-                        }
-                    }
+                profileAvatar
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(store.profile.displayName)
@@ -211,9 +187,85 @@ struct SocialProfileView: View {
             .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 8))
         }
         .disabled(isUploading)
-        .onChange(of: selectedAvatarItem) { _, newItem in
-            loadAvatar(from: newItem)
+    }
+
+    private var profileAvatar: some View {
+        let avatarURL = store.profile.avatarURL
+        let avatarSymbol = store.profile.avatarSymbol
+        let initials = profileInitials
+        let isUploading = store.isUploadingAvatar
+
+        return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    if let avatarURL {
+                        AsyncImage(url: avatarURL) { phase in
+                            switch phase {
+                            case let .success(image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            case .failure:
+                                avatarPlaceholder(symbol: avatarSymbol, initials: initials)
+                            default:
+                                ProgressView()
+                                    .tint(Color.vdNavy)
+                            }
+                        }
+                    } else {
+                        avatarPlaceholder(symbol: avatarSymbol, initials: initials)
+                    }
+
+                    if isUploading {
+                        Color.vdNavy.opacity(0.42)
+                        ProgressView()
+                            .tint(Color.vdGold)
+                    }
+                }
+                .frame(width: 82, height: 82)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.48), lineWidth: 1))
+                .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
+
+                Image(systemName: "camera.fill")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 28, height: 28)
+                    .background(Color.vdGold, in: Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 1))
+            }
         }
+        .disabled(isUploading)
+        .accessibilityLabel("Choose profile picture")
+    }
+
+    @ViewBuilder
+    private func avatarPlaceholder(symbol: String, initials: String) -> some View {
+        if initials.isEmpty {
+            Image(systemName: symbol)
+                .font(.system(size: 32, weight: .black))
+                .foregroundStyle(Color.vdNavy)
+        } else {
+            Text(initials)
+                .font(.title2.weight(.black))
+                .foregroundStyle(Color.vdNavy)
+        }
+    }
+
+    private var profileInitials: String {
+        let source = store.profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = source.split(separator: " ")
+        let initials = words.prefix(2).compactMap(\.first).map(String.init).joined()
+        return initials.uppercased()
     }
 
     private var profileEditor: some View {
@@ -281,21 +333,35 @@ struct SocialProfileView: View {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
                     await MainActor.run {
-                        store.reportImagePickerError("Avatar upload failed: VaultDex could not read the selected photo.")
+                        store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                        showAvatarUploadError = true
                         selectedAvatarItem = nil
                     }
                     return
                 }
                 await MainActor.run {
-                    store.uploadAvatarImageData(data)
+                    pendingAvatarData = data
                     selectedAvatarItem = nil
                 }
+                await uploadPendingAvatar()
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("Avatar upload failed. Please try again.")
+                    store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                    showAvatarUploadError = true
                     selectedAvatarItem = nil
                 }
             }
+        }
+    }
+
+    private func uploadPendingAvatar() async {
+        guard let pendingAvatarData else { return }
+        do {
+            try await store.uploadAvatarImageData(pendingAvatarData)
+            self.pendingAvatarData = nil
+            showAvatarUploadError = false
+        } catch {
+            showAvatarUploadError = true
         }
     }
 
