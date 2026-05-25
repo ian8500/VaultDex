@@ -246,7 +246,6 @@ struct WishlistView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    matchPlaceholders
                     chaseStrip
                     allItems
                 }
@@ -330,8 +329,8 @@ struct WishlistView: View {
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star.circle.fill",
-                    title: "Track the cards you’re hunting for.",
-                    message: "Add cards from Search."
+                    title: "What cards are you hunting?",
+                    message: "Find cards in Search and add them to Wants."
                 )
             } else if filteredItems.isEmpty {
                 EmptyStateView(

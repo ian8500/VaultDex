@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct CardDetailView: View {
     @EnvironmentObject private var store: LocalVaultStore
@@ -26,6 +27,7 @@ struct CardDetailView: View {
     @State private var liveCard: Card?
     @State private var isLoadingLiveCard = false
     @State private var detailErrorMessage: String?
+    @State private var successMessage: String?
 
     private let apiService = CardAPIService()
 
@@ -57,6 +59,16 @@ struct CardDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
+            }
+
+            if let successMessage {
+                VStack {
+                    Spacer()
+                    SuccessToast(message: successMessage)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .navigationTitle(detailCard.name)
@@ -167,8 +179,6 @@ struct CardDetailView: View {
             detailMetric("Number", detailCard.number)
             detailMetric("Rarity", detailCard.rarity.displayName)
             detailMetric("Value", detailCard.marketValue.vaultCurrency)
-            detailMetric("Type", detailCard.types.isEmpty ? detailCard.cardType.displayName : detailCard.types.joined(separator: ", "))
-            detailMetric("Artist", detailCard.artist ?? "Unknown")
         }
     }
 
@@ -201,6 +211,7 @@ struct CardDetailView: View {
             ) {
                 if ownedItem == nil {
                     store.addCard(detailCard, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
+                    showSuccess("Added to My Vault")
                     syncState()
                 }
             }
@@ -212,6 +223,7 @@ struct CardDetailView: View {
             ) {
                 if savedWishlistItem == nil {
                     store.addToWishlist(detailCard, priority: wishlistPriority, preferredCondition: wishlistPreferredCondition, budget: wishlistBudget, notes: wishlistNotes)
+                    showSuccess("Added to Wants")
                     syncState()
                 }
             }
@@ -225,7 +237,25 @@ struct CardDetailView: View {
                     store.addCard(detailCard, quantity: ownedQuantity, condition: selectedCondition, variant: selectedVariant)
                 }
                 store.updateTradeAvailability(for: detailCard, isAvailable: true)
+                showSuccess("Marked for Trade")
                 syncState()
+            }
+        }
+    }
+
+    private func showSuccess(_ message: String) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+            successMessage = message
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    if successMessage == message {
+                        successMessage = nil
+                    }
+                }
             }
         }
     }

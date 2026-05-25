@@ -64,7 +64,9 @@ struct DashboardView: View {
                     } else {
                         welcomeHeader
                         vaultSummary
+                        primaryFindAction
                         quickActions
+                        nextBestActionCard
                         if isVaultEmpty {
                             dashboardEmptyState
                         } else {
@@ -79,7 +81,7 @@ struct DashboardView: View {
                 .offset(y: isLoading || hasAnimated ? 0 : 12)
             }
         }
-        .navigationTitle("Home")
+        .navigationTitle("Today")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard isLoading else { return }
@@ -261,17 +263,93 @@ struct DashboardView: View {
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Quick Actions", subtitle: nil)
-
-            LazyVGrid(columns: statColumns, spacing: 12) {
-                DashboardQuickAction(title: "Search Cards", subtitle: "Find cards", icon: "magnifyingglass", tint: .vdSky) {
-                    SearchView()
-                }
-                DashboardQuickAction(title: "Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
+            HStack(spacing: 10) {
+                DashboardQuickAction(title: "Add to Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
                     WishlistView()
+                }
+                DashboardQuickAction(title: "View Friends", subtitle: "Collectors", icon: "person.2.fill", tint: .vdSky) {
+                    FriendsView()
+                }
+                DashboardQuickAction(title: "Start Trade", subtitle: "Trade safely", icon: "arrow.left.arrow.right.circle.fill", tint: .vdGold) {
+                    TradeView()
                 }
             }
         }
+    }
+
+    private var primaryFindAction: some View {
+        NavigationLink {
+            SearchView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.title3.weight(.black))
+                Text("Find a card")
+                    .font(.headline.weight(.black))
+                Spacer()
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.title3.weight(.black))
+            }
+            .foregroundStyle(Color.vdNavy)
+            .padding(18)
+            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.44), lineWidth: 1))
+            .shadow(color: Color.vdGold.opacity(0.24), radius: 16, x: 0, y: 8)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nextBestActionCard: some View {
+        let action = nextBestAction
+        return NavigationLink {
+            action.destination
+        } label: {
+            HStack(spacing: 13) {
+                Image(systemName: action.icon)
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 52, height: 52)
+                    .background(action.tint, in: RoundedRectangle(cornerRadius: 16))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Next best action")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdTextSecondary)
+                    Text(action.title)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Text(action.message)
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+            .padding(16)
+            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(action.tint.opacity(0.28), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nextBestAction: DashboardNextAction {
+        if store.collectionItems.isEmpty {
+            return DashboardNextAction(title: "Add your first card", message: "Search the card database and start your vault.", icon: "rectangle.stack.badge.plus", tint: .vdGold, destination: AnyView(SearchView()))
+        }
+        if store.wishlistItems.isEmpty {
+            return DashboardNextAction(title: "Add cards you’re hunting", message: "Wants help friends spot fair trades.", icon: "star.fill", tint: .vdLeaf, destination: AnyView(WishlistView()))
+        }
+        if store.friends.isEmpty {
+            return DashboardNextAction(title: "Invite a collector", message: "Collecting is better with trusted friends.", icon: "person.badge.plus", tint: .vdSky, destination: AnyView(InviteFriendsView()))
+        }
+        if pendingTrades > 0 {
+            return DashboardNextAction(title: "Review trade offer", message: "Take a careful look before you accept.", icon: "tray.full.fill", tint: .vdCoral, destination: AnyView(TradeView()))
+        }
+        return DashboardNextAction(title: "Check trade matches", message: "Compare wants and vaults with friends.", icon: "scale.3d", tint: .vdGold, destination: AnyView(FriendsView()))
     }
 
     private var collectionStats: some View {
@@ -291,7 +369,7 @@ struct DashboardView: View {
         EmptyStateView(
             systemImage: "rectangle.stack.badge.plus",
             title: "Start building your vault",
-            message: "Search for a card and add it to My Vault."
+            message: "Find your first card and add it to My Vault."
         )
     }
 
@@ -411,6 +489,14 @@ private struct HeroMetric: View {
         .background(Color.vdNavy.opacity(0.28), in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
     }
+}
+
+private struct DashboardNextAction {
+    let title: String
+    let message: String
+    let icon: String
+    let tint: Color
+    let destination: AnyView
 }
 
 private struct DashboardQuickAction<Destination: View>: View {

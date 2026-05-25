@@ -10,9 +10,9 @@ enum WishlistPriority: String, CaseIterable, Identifiable, Hashable {
 
     var displayName: String {
         switch self {
-        case .low: "Low"
-        case .medium: "Medium"
-        case .high: "High"
+        case .low: "Nice to have"
+        case .medium: "Looking for"
+        case .high: "Really want"
         case .grail: "Grail"
         }
     }

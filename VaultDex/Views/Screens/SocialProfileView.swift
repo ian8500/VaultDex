@@ -131,7 +131,6 @@ struct SocialProfileView: View {
             }
 
             avatarUploadButton
-            profilePhotoUploadStatus
 
             if let message = store.imageUploadMessage {
                 Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : "checkmark.circle.fill")
@@ -281,57 +280,6 @@ struct SocialProfileView: View {
         }
         components.queryItems = [URLQueryItem(name: "v", value: "\(avatarImageRefreshToken)")]
         return components.url ?? avatarURL
-    }
-
-    private var profilePhotoUploadStatus: some View {
-        HStack(spacing: 10) {
-            Image(systemName: statusIcon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(statusTint)
-                .frame(width: 28, height: 28)
-                .background(statusTint.opacity(0.14), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Profile Photo Upload Status")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdTextSecondary)
-
-                Text(store.profilePhotoUploadStatus)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.vdTextPrimary)
-            }
-
-            Spacer()
-        }
-        .padding(12)
-        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
-    }
-
-    private var statusIcon: String {
-        switch store.profilePhotoUploadStatus {
-        case "Profile updated", "Upload successful":
-            "checkmark.circle.fill"
-        case "Upload failed":
-            "exclamationmark.triangle.fill"
-        case "No photo selected":
-            "photo"
-        default:
-            "arrow.triangle.2.circlepath"
-        }
-    }
-
-    private var statusTint: Color {
-        switch store.profilePhotoUploadStatus {
-        case "Profile updated", "Upload successful":
-            Color.vdEmerald
-        case "Upload failed":
-            Color.vdCoral
-        case "No photo selected":
-            Color.vdTextSecondary
-        default:
-            Color.vdGold
-        }
     }
 
     private var profileEditor: some View {

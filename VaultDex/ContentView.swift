@@ -13,6 +13,7 @@ struct ContentView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @State private var hasResolvedAuthenticatedLaunch = false
     @State private var continueToProfileSetupAfterError = false
+    @AppStorage("hasCompletedVaultDexOnboarding") private var hasCompletedOnboarding = false
 
     init() {
         let appearance = UITabBarAppearance()
@@ -57,6 +58,10 @@ struct ContentView: View {
             } else if needsProfileSetup || (continueToProfileSetupAfterError && shouldShowProfileLoadError) {
                 NavigationStack {
                     ProfileSetupView()
+                }
+            } else if !hasCompletedOnboarding {
+                OnboardingFlowView {
+                    hasCompletedOnboarding = true
                 }
             } else {
                 mainTabs
@@ -153,6 +158,87 @@ struct ContentView: View {
 
         hasResolvedAuthenticatedLaunch = true
     }
+}
+
+private struct OnboardingFlowView: View {
+    let onFinish: () -> Void
+    @State private var stepIndex = 0
+
+    private let steps: [OnboardingStep] = [
+        OnboardingStep(title: "Welcome to VaultDex", message: "A calm place to find, save and trade cards with care.", systemImage: "sparkles"),
+        OnboardingStep(title: "Find your first card", message: "Search live card data and spot the card you love.", systemImage: "magnifyingglass"),
+        OnboardingStep(title: "Add it to My Vault", message: "Keep your collection organised with value estimates.", systemImage: "lock.shield.fill"),
+        OnboardingStep(title: "Add a card to Wants", message: "Track the cards you are hunting for next.", systemImage: "star.fill"),
+        OnboardingStep(title: "Invite a friend", message: "Compare collections with collectors you trust.", systemImage: "person.2.fill"),
+        OnboardingStep(title: "Start trading safely", message: "Use wants, values and safety reminders before trading.", systemImage: "arrow.left.arrow.right.circle.fill")
+    ]
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(spacing: 24) {
+                Spacer()
+                VaultDexLogo(size: 86)
+
+                VStack(spacing: 14) {
+                    Image(systemName: steps[stepIndex].systemImage)
+                        .font(.system(size: 34, weight: .black))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(width: 76, height: 76)
+                        .background(Color.vdGold, in: Circle())
+
+                    Text(steps[stepIndex].title)
+                        .font(.system(.largeTitle, design: .rounded, weight: .black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text(steps[stepIndex].message)
+                        .font(.headline)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(24)
+                .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 26))
+                .overlay(RoundedRectangle(cornerRadius: 26).stroke(Color.vdGold.opacity(0.25), lineWidth: 1))
+
+                HStack(spacing: 7) {
+                    ForEach(steps.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(index == stepIndex ? Color.vdGold : Color.vdStroke.opacity(0.7))
+                            .frame(width: index == stepIndex ? 28 : 8, height: 8)
+                            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: stepIndex)
+                    }
+                }
+
+                PrimaryButton(title: stepIndex == steps.count - 1 ? "Start Collecting" : "Next", systemImage: "arrow.right.circle.fill") {
+                    if stepIndex == steps.count - 1 {
+                        onFinish()
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                            stepIndex += 1
+                        }
+                    }
+                }
+
+                Button("Skip") {
+                    onFinish()
+                }
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+
+                Spacer()
+            }
+            .padding(22)
+        }
+    }
+}
+
+private struct OnboardingStep {
+    let title: String
+    let message: String
+    let systemImage: String
 }
 
 private struct AuthenticatedLoadingView: View {

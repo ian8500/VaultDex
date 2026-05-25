@@ -1,9 +1,13 @@
 import SwiftUI
+import UIKit
 
 struct SearchView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = SearchViewModel()
     @State private var showFilters = false
+    @State private var successMessage: String?
+
+    private let popularFilters = ["Charizard", "Pikachu", "Eevee", "Mew", "Holo", "Full Art"]
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -18,6 +22,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     VaultSectionHeader(title: "Find cards", subtitle: nil)
                     searchField
+                    popularQuickFilters
                     filterButton
 
                     if showFilters {
@@ -82,6 +87,16 @@ struct SearchView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
+
+            if let successMessage {
+                VStack {
+                    Spacer()
+                    SuccessToast(message: successMessage)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.large)
@@ -132,6 +147,27 @@ struct SearchView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
         )
+    }
+
+    private var popularQuickFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(popularFilters, id: \.self) { filter in
+                    Button {
+                        viewModel.query = filter
+                        runSearch()
+                    } label: {
+                        Text(filter)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(Color.vdNavy)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.vdGold.opacity(0.92), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     private var filterButton: some View {
@@ -304,6 +340,7 @@ struct SearchView: View {
             ) {
                 if item == nil {
                     store.addCard(card)
+                    showSuccess("Added to My Vault")
                 }
             }
 
@@ -316,6 +353,7 @@ struct SearchView: View {
                     store.removeFromWishlist(card)
                 } else {
                     store.addToWishlist(card, priority: .medium, budget: card.marketValue)
+                    showSuccess("Added to Wants")
                 }
             }
 
@@ -326,8 +364,26 @@ struct SearchView: View {
             ) {
                 if store.collectionItem(for: card) == nil {
                     store.addCard(card)
+                    showSuccess("Added to My Vault")
                 }
                 store.updateTradeAvailability(for: card, isAvailable: true)
+            }
+        }
+    }
+
+    private func showSuccess(_ message: String) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+            successMessage = message
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    if successMessage == message {
+                        successMessage = nil
+                    }
+                }
             }
         }
     }
@@ -382,5 +438,20 @@ struct SearchView: View {
             }
             await viewModel.search(store: store)
         }
+    }
+}
+
+struct SuccessToast: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "checkmark.circle.fill")
+            .font(.headline.weight(.black))
+            .foregroundStyle(Color.vdNavy)
+            .frame(maxWidth: .infinity)
+            .padding(15)
+            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.45), lineWidth: 1))
+            .shadow(color: Color.vdGold.opacity(0.28), radius: 18, x: 0, y: 8)
     }
 }

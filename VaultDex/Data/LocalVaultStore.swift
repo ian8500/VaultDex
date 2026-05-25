@@ -965,7 +965,7 @@ final class LocalVaultStore: ObservableObject {
 
         isUploadingAvatar = true
         imageUploadMessage = "Uploading photo..."
-        profilePhotoUploadStatus = "Uploading to Supabase Storage"
+        profilePhotoUploadStatus = "Uploading photo..."
         defer { isUploadingAvatar = false }
         do {
             let service = ImageUploadService(storage: repositories.storage)
