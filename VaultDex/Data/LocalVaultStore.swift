@@ -12,6 +12,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var runtimeMode: VaultRuntimeMode
     @Published private(set) var isLoadingCloudData = false
     @Published private(set) var imageUploadMessage: String?
+    @Published private(set) var profilePhotoUploadStatus = "No photo selected"
     @Published private(set) var isSavingProfile = false
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
@@ -941,10 +942,15 @@ final class LocalVaultStore: ObservableObject {
         lastSyncError = message
     }
 
+    func updateProfilePhotoUploadStatus(_ status: String) {
+        profilePhotoUploadStatus = status
+    }
+
     func uploadAvatarImageData(_ data: Data) async throws {
         guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.imageUploadSignInMessage
             imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            profilePhotoUploadStatus = "Upload failed"
             isUploadingAvatar = false
             throw ImageUploadError.missingSession
         }
@@ -952,32 +958,50 @@ final class LocalVaultStore: ObservableObject {
         guard repositories.clientProvider.canCreateClient else {
             lastSyncError = Self.imageUploadMessage
             imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            profilePhotoUploadStatus = "Upload failed"
             isUploadingAvatar = false
             throw SupabaseClientError.missingConfiguration
         }
 
         isUploadingAvatar = true
         imageUploadMessage = "Uploading photo..."
+        profilePhotoUploadStatus = "Uploading to Supabase Storage"
         defer { isUploadingAvatar = false }
         do {
             let service = ImageUploadService(storage: repositories.storage)
             let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
-            var updatedProfile = profile.replacingID(with: userID)
-            updatedProfile.avatarURL = URL(string: urlString)
-            try await repositories.profiles.upsertProfile(remoteProfile(from: updatedProfile, userID: userID))
+            profilePhotoUploadStatus = "Upload successful"
+            profilePhotoUploadStatus = "Saving avatar URL to profile"
+            try await updateProfileAvatarURL(urlString, userID: userID)
             if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
             } else {
+                var updatedProfile = profile.replacingID(with: userID)
+                updatedProfile.avatarURL = URL(string: urlString)
                 profile = updatedProfile
             }
             runtimeMode = .supabase
             imageUploadMessage = "Profile picture saved"
+            profilePhotoUploadStatus = "Profile updated"
             lastSyncError = nil
         } catch {
             imageUploadMessage = "We couldn’t save your profile picture. Please try again."
+            profilePhotoUploadStatus = "Upload failed"
             lastSyncError = Self.imageUploadMessage
             throw error
         }
+    }
+
+    private func updateProfileAvatarURL(_ urlString: String, userID: UUID) async throws {
+        let data = try JSONSerialization.data(withJSONObject: ["avatar_url": urlString])
+        let request = try repositories.clientProvider.restRequest(
+            table: "profiles",
+            method: .patch,
+            queryItems: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            body: data,
+            prefer: "return=minimal"
+        )
+        try await repositories.clientProvider.send(request)
     }
 
     func uploadAvatarImageData(_ data: Data) {
