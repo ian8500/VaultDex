@@ -115,12 +115,6 @@ struct ContentView: View {
             FriendsView()
         case .trade:
             TradeView()
-        case .scan:
-            CardScannerView()
-        case .profile:
-            SocialProfileView()
-        case .market:
-            MarketPlaceholderView()
         }
     }
 
@@ -165,9 +159,6 @@ private enum VaultDockDestination: String, CaseIterable, Identifiable {
     case wants
     case friends
     case trade
-    case scan
-    case profile
-    case market
 
     var id: String { rawValue }
 
@@ -179,9 +170,6 @@ private enum VaultDockDestination: String, CaseIterable, Identifiable {
         case .wants: "Wants"
         case .friends: "Friends"
         case .trade: "Trade"
-        case .scan: "Scan"
-        case .profile: "Profile"
-        case .market: "Market"
         }
     }
 
@@ -193,14 +181,7 @@ private enum VaultDockDestination: String, CaseIterable, Identifiable {
         case .wants: "star.fill"
         case .friends: "person.2.fill"
         case .trade: "arrow.left.arrow.right.circle.fill"
-        case .scan: "camera.viewfinder"
-        case .profile: "person.crop.circle.fill"
-        case .market: "storefront.fill"
         }
-    }
-
-    var isProminent: Bool {
-        self == .scan
     }
 }
 
@@ -210,7 +191,7 @@ private struct PremiumNavigationDock: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ForEach(VaultDockDestination.allCases) { destination in
                         DockButton(
                             destination: destination,
@@ -225,20 +206,20 @@ private struct PremiumNavigationDock: View {
                         .id(destination.id)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(.ultraThinMaterial)
 
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.vdNavy.opacity(0.34), Color.vdPanel.opacity(0.18)],
+                                colors: [Color.vdNavy.opacity(0.40), Color.vdPanel.opacity(0.20)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -246,12 +227,12 @@ private struct PremiumNavigationDock: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(Color.vdGold.opacity(0.24), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
-            .shadow(color: Color.vdGold.opacity(0.08), radius: 14, x: 0, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .shadow(color: Color.black.opacity(0.18), radius: 20, x: 0, y: 9)
+            .shadow(color: Color.vdGold.opacity(0.10), radius: 16, x: 0, y: 5)
             .onAppear {
                 proxy.scrollTo(selectedDestination.id, anchor: .center)
             }
@@ -275,7 +256,7 @@ private struct DockButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: destination.systemImage)
-                    .font(.system(size: destination.isProminent ? 18 : 16, weight: .black))
+                    .font(.system(size: 17, weight: .black))
                     .symbolRenderingMode(.hierarchical)
 
                 Text(destination.title)
@@ -285,9 +266,9 @@ private struct DockButton: View {
                     .allowsTightening(true)
             }
             .foregroundStyle(isSelected ? Color.vdNavy : Color.vdTextPrimary)
-            .frame(minWidth: destination.isProminent ? 96 : 82)
-            .frame(height: 48)
-            .padding(.horizontal, isSelected ? 8 : 4)
+            .frame(minWidth: 88)
+            .frame(height: 50)
+            .padding(.horizontal, isSelected ? 9 : 5)
             .background {
                 buttonBackground
                     .clipShape(Capsule())
@@ -296,8 +277,8 @@ private struct DockButton: View {
                 Capsule()
                     .stroke(isSelected ? Color.white.opacity(0.44) : Color.white.opacity(0.08), lineWidth: 1)
             )
-            .shadow(color: isSelected ? Color.vdGold.opacity(0.24) : Color.clear, radius: 12, x: 0, y: 5)
-            .scaleEffect(isSelected ? 1.03 : 1)
+            .shadow(color: isSelected ? Color.vdGold.opacity(0.30) : Color.clear, radius: 14, x: 0, y: 6)
+            .scaleEffect(isSelected ? 1.05 : 1)
             .contentShape(Capsule())
             .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }
@@ -311,12 +292,6 @@ private struct DockButton: View {
         if isSelected {
             LinearGradient(
                 colors: [Color(hex: 0xFFF06A), Color.vdGold],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else if destination.isProminent {
-            LinearGradient(
-                colors: [Color.vdGold.opacity(0.18), Color.vdGold.opacity(0.08)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

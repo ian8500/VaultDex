@@ -304,9 +304,6 @@ struct DashboardView: View {
             DashboardQuickAction(title: "Wants", subtitle: "Add to Wants", icon: "star.fill", tint: .vdLeaf) {
                 WishlistView()
             }
-            DashboardQuickAction(title: "Scan", subtitle: "Scan a card", icon: "camera.viewfinder", tint: .vdGold) {
-                CardScannerView()
-            }
             DashboardQuickAction(title: "Friends", subtitle: "View Friends", icon: "person.2.fill", tint: .vdSky) {
                 FriendsView()
             }

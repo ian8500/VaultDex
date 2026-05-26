@@ -261,11 +261,26 @@ struct VaultView: View {
             }
 
             if store.collectionItems.isEmpty {
-                EmptyStateView(
-                    systemImage: "rectangle.stack.badge.plus",
-                    title: "Your vault is empty. Add your first card.",
-                    message: "Search for a card or import your collection."
-                )
+                VStack(spacing: 14) {
+                    EmptyStateView(
+                        systemImage: "rectangle.stack.badge.plus",
+                        title: "Your vault is empty",
+                        message: "Search or scan to add your first card."
+                    )
+
+                    NavigationLink {
+                        CardScannerView()
+                    } label: {
+                        Label("Scan your first card", systemImage: "camera.viewfinder")
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(Color.vdNavy)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
+                            .shadow(color: Color.vdGold.opacity(0.20), radius: 14, x: 0, y: 7)
+                    }
+                    .buttonStyle(.plain)
+                }
             } else if filteredItems.isEmpty {
                 EmptyStateView(
                     systemImage: "line.3.horizontal.decrease.circle",

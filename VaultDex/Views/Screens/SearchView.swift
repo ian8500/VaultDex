@@ -117,14 +117,34 @@ struct SearchView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("Search")
-                .font(.system(.largeTitle, design: .rounded, weight: .black))
-                .foregroundStyle(Color.vdTextPrimary)
-            Text("Live card data from the Pokémon TCG database")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.vdTextSecondary)
-                .lineLimit(2)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Search")
+                    .font(.system(.largeTitle, design: .rounded, weight: .black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Text("Find cards fast")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            NavigationLink {
+                CardScannerView()
+            } label: {
+                Label("Scan", systemImage: "camera.viewfinder")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(Color.vdNavy)
+                    .padding(.horizontal, 13)
+                    .frame(height: 42)
+                    .background(Color.vdGold, in: Capsule())
+                    .shadow(color: Color.vdGold.opacity(0.20), radius: 12, x: 0, y: 5)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Scan card")
         }
     }
 
