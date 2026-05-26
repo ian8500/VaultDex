@@ -31,7 +31,7 @@ final class SearchViewModel: ObservableObject {
     @Published var selectedRarity: CardRarity?
     @Published var selectedSet: CardSet?
     @Published var selectedType: CardType?
-    @Published var sortOption: SearchSortOption = .name
+    @Published var sortOption: SearchSortOption = .newest
     @Published private(set) var apiCards: [Card] = []
     @Published private(set) var apiSets: [CardSet] = []
     @Published private(set) var isLoading = false
@@ -43,7 +43,7 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var totalResults: Int?
 
     private let apiService: CardAPIService
-    private let pageSize = 24
+    private let pageSize = 12
 
     init(apiService: CardAPIService = CardAPIService()) {
         self.apiService = apiService
@@ -81,7 +81,7 @@ final class SearchViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             apiCards = sort(response.data.map(\.localCard))
             totalResults = response.totalCount
-            canLoadMore = response.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
+            canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
             guard !Task.isCancelled else { return }
@@ -113,7 +113,7 @@ final class SearchViewModel: ObservableObject {
             let newCards = response.data.map(\.localCard).filter { seenIDs.insert($0.id).inserted }
             apiCards = sort(apiCards + newCards)
             totalResults = response.totalCount
-            canLoadMore = response.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
+            canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
             errorMessage = "Unable to load more cards right now. Please try again."
@@ -153,7 +153,12 @@ final class SearchViewModel: ObservableObject {
                 || card.subtypes.contains { $0.localizedCaseInsensitiveContains(query) }
 
             let matchesRarity = selectedRarity == nil || card.rarity == selectedRarity
-            let matchesSet = selectedSet == nil || card.set == selectedSet
+            let matchesSet = selectedSet.map { selectedSet in
+                card.set == selectedSet
+                    || card.set.externalID == selectedSet.externalID
+                    || card.set.code == selectedSet.code
+                    || card.set.id == selectedSet.id
+            } ?? true
             let matchesType = selectedType == nil || card.cardType == selectedType
             return matchesQuery && matchesRarity && matchesSet && matchesType
         })

@@ -250,7 +250,19 @@ struct SearchView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(Color.vdGold)
+
+                Text("Loading cards…")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 4)
+
             ForEach(0..<5, id: \.self) { _ in
                 SearchSkeletonRow()
             }
@@ -262,7 +274,7 @@ struct SearchView: View {
         VStack(spacing: 16) {
             EmptyStateView(
                 systemImage: "wifi.exclamationmark",
-                title: "Couldn’t load cards",
+                title: "We couldn’t load cards right now.",
                 message: "Please check your connection and try again."
             )
 

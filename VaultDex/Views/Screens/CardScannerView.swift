@@ -1,10 +1,12 @@
 import SwiftUI
 import UIKit
 import Vision
+import AVFoundation
 
 struct CardScannerView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @State private var isCameraPresented = false
+    @State private var cameraPermission: ScannerCameraPermission = .unknown
     @State private var isSearching = false
     @State private var detectedText = ""
     @State private var manualSearchText = ""
@@ -43,6 +45,9 @@ struct CardScannerView: View {
         }
         .navigationTitle("Scan Card")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            refreshCameraPermission()
+        }
         .sheet(isPresented: $isCameraPresented) {
             CardCameraPicker { image in
                 isCameraPresented = false
@@ -121,6 +126,10 @@ struct CardScannerView: View {
                 startScan()
             }
 
+            if cameraPermission == .denied {
+                cameraPermissionPanel
+            }
+
             if !detectedText.isEmpty {
                 Text("Detected: \(detectedText)")
                     .font(.caption.weight(.semibold))
@@ -138,6 +147,48 @@ struct CardScannerView: View {
         .padding(16)
         .background(Color.vdPanel.opacity(0.70), in: RoundedRectangle(cornerRadius: 24))
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.08), lineWidth: 1))
+    }
+
+    private var cameraPermissionPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Camera access is needed to scan cards.", systemImage: "camera.badge.ellipsis")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(Color.vdTextPrimary)
+
+            Text("You can still search manually, or enable camera access in Settings.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                Button {
+                    openSettings()
+                } label: {
+                    Label("Open Settings", systemImage: "gearshape.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    message = "Use manual search below to find the card."
+                } label: {
+                    Label("Search manually", systemImage: "magnifyingglass")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(Color.vdCoral.opacity(0.10), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.vdCoral.opacity(0.22), lineWidth: 1))
     }
 
     private var manualSearch: some View {
@@ -214,12 +265,51 @@ struct CardScannerView: View {
 
     private func startScan() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+        guard ScannerCameraViewController.hasUsableCamera else {
+            cameraPermission = .unavailable
             message = "Camera is not available here. Use manual search instead."
             return
         }
-        message = nil
-        isCameraPresented = true
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            cameraPermission = .granted
+            message = nil
+            isCameraPresented = true
+        case .notDetermined:
+            message = "Checking camera access..."
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                Task { @MainActor in
+                    cameraPermission = granted ? .granted : .denied
+                    message = granted ? nil : nil
+                    isCameraPresented = granted
+                }
+            }
+        case .denied, .restricted:
+            cameraPermission = .denied
+            message = nil
+        @unknown default:
+            cameraPermission = .denied
+            message = nil
+        }
+    }
+
+    private func refreshCameraPermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            cameraPermission = .granted
+        case .notDetermined:
+            cameraPermission = .unknown
+        case .denied, .restricted:
+            cameraPermission = .denied
+        @unknown default:
+            cameraPermission = .denied
+        }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     private func handleCapturedImage(_ image: UIImage) {
@@ -325,6 +415,13 @@ private func scanBestSearchText(from lines: [String]) -> String {
         .compactMap { $0 }
         .joined(separator: " ")
         .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private enum ScannerCameraPermission {
+    case unknown
+    case granted
+    case denied
+    case unavailable
 }
 
 private struct ScanMatchRow: View {
@@ -494,50 +591,114 @@ private struct CardCameraPicker: UIViewControllerRepresentable {
     let onImage: (UIImage) -> Void
     let onCancel: () -> Void
 
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.cameraCaptureMode = .photo
-        picker.delegate = context.coordinator
-        picker.cameraOverlayView = ScannerOverlayView()
-        picker.allowsEditing = false
-        return picker
+    func makeUIViewController(context: Context) -> ScannerCameraViewController {
+        ScannerCameraViewController(onImage: onImage, onCancel: onCancel)
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onImage: onImage, onCancel: onCancel)
-    }
-
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let onImage: (UIImage) -> Void
-        let onCancel: () -> Void
-
-        init(onImage: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
-            self.onImage = onImage
-            self.onCancel = onCancel
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                onImage(image)
-            } else {
-                onCancel()
-            }
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onCancel()
-        }
-    }
+    func updateUIViewController(_ uiViewController: ScannerCameraViewController, context: Context) {}
 }
 
-private final class ScannerOverlayView: UIView {
-    override init(frame: CGRect) {
-        super.init(frame: UIScreen.main.bounds)
-        backgroundColor = .clear
-        isUserInteractionEnabled = false
+private final class ScannerCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
+    static var hasUsableCamera: Bool {
+        preferredCameraDevice() != nil
+    }
+
+    private let onImage: (UIImage) -> Void
+    private let onCancel: () -> Void
+    private let session = AVCaptureSession()
+    private let photoOutput = AVCapturePhotoOutput()
+    private let sessionQueue = DispatchQueue(label: "VaultDex.Scanner.Session")
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var didConfigureSession = false
+
+    init(onImage: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
+        self.onImage = onImage
+        self.onCancel = onCancel
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .fullScreen
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        configurePreview()
+        configureOverlayControls()
+
+        sessionQueue.async { [weak self] in
+            self?.configureSession()
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        sessionQueue.async { [weak self] in
+            guard let self, self.didConfigureSession, !self.session.isRunning else { return }
+            self.session.startRunning()
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        sessionQueue.async { [weak self] in
+            guard let self, self.session.isRunning else { return }
+            self.session.stopRunning()
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+        if let connection = previewLayer?.connection, connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
+        }
+    }
+
+    private func configurePreview() {
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(layer)
+        previewLayer = layer
+    }
+
+    private func configureSession() {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
+              let device = Self.preferredCameraDevice()
+        else {
+            DispatchQueue.main.async { [weak self] in self?.onCancel() }
+            return
+        }
+
+        do {
+            let input = try AVCaptureDeviceInput(device: device)
+            session.beginConfiguration()
+            session.sessionPreset = .photo
+            if session.canAddInput(input) {
+                session.addInput(input)
+            }
+            if session.canAddOutput(photoOutput) {
+                session.addOutput(photoOutput)
+            }
+            session.commitConfiguration()
+            didConfigureSession = true
+        } catch {
+            DispatchQueue.main.async { [weak self] in self?.onCancel() }
+        }
+    }
+
+    private static func preferredCameraDevice() -> AVCaptureDevice? {
+        AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            ?? AVCaptureDevice.default(for: .video)
+    }
+
+    private func configureOverlayControls() {
+        let overlay = UIView()
+        overlay.backgroundColor = .clear
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(overlay)
 
         let label = UILabel()
         label.text = "Align card name and number"
@@ -553,23 +714,70 @@ private final class ScannerOverlayView: UIView {
         frameView.backgroundColor = UIColor.clear
         frameView.translatesAutoresizingMaskIntoConstraints = false
 
-        addSubview(frameView)
-        addSubview(label)
+        let shutterButton = UIButton(type: .system)
+        shutterButton.setImage(UIImage(systemName: "camera.circle.fill"), for: .normal)
+        shutterButton.tintColor = UIColor(red: 1.0, green: 0.78, blue: 0.12, alpha: 1)
+        shutterButton.translatesAutoresizingMaskIntoConstraints = false
+        shutterButton.addTarget(self, action: #selector(capturePhoto), for: .touchUpInside)
+
+        let cancelButton = UIButton(type: .system)
+        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .bold)
+        cancelButton.tintColor = .white
+        cancelButton.translatesAutoresizingMaskIntoConstraints = false
+        cancelButton.addTarget(self, action: #selector(cancel), for: .touchUpInside)
+
+        overlay.addSubview(frameView)
+        overlay.addSubview(label)
+        overlay.addSubview(shutterButton)
+        overlay.addSubview(cancelButton)
 
         NSLayoutConstraint.activate([
-            frameView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            frameView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -18),
-            frameView.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.78),
+            overlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            overlay.topAnchor.constraint(equalTo: view.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            frameView.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            frameView.centerYAnchor.constraint(equalTo: overlay.centerYAnchor, constant: -18),
+            frameView.widthAnchor.constraint(equalTo: overlay.widthAnchor, multiplier: 0.78),
             frameView.heightAnchor.constraint(equalTo: frameView.widthAnchor, multiplier: 1.38),
-            label.centerXAnchor.constraint(equalTo: centerXAnchor),
+            label.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
             label.topAnchor.constraint(equalTo: frameView.bottomAnchor, constant: 18),
-            label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 24),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -24)
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: overlay.leadingAnchor, constant: 24),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: overlay.trailingAnchor, constant: -24),
+
+            shutterButton.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            shutterButton.bottomAnchor.constraint(equalTo: overlay.safeAreaLayoutGuide.bottomAnchor, constant: -26),
+            shutterButton.widthAnchor.constraint(equalToConstant: 74),
+            shutterButton.heightAnchor.constraint(equalToConstant: 74),
+
+            cancelButton.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 20),
+            cancelButton.topAnchor.constraint(equalTo: overlay.safeAreaLayoutGuide.topAnchor, constant: 16)
         ])
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    @objc private func capturePhoto() {
+        let settings = AVCapturePhotoSettings()
+        if let connection = photoOutput.connection(with: .video), connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
+        }
+        photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+
+    @objc private func cancel() {
+        onCancel()
+    }
+
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        guard error == nil,
+              let data = photo.fileDataRepresentation(),
+              let image = UIImage(data: data)
+        else {
+            onCancel()
+            return
+        }
+        onImage(image)
     }
 }
 

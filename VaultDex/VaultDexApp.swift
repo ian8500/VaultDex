@@ -13,6 +13,12 @@ struct VaultDexApp: App {
     @StateObject private var authService: AuthService
 
     init() {
+        URLCache.shared = URLCache(
+            memoryCapacity: 64 * 1024 * 1024,
+            diskCapacity: 256 * 1024 * 1024,
+            diskPath: "VaultDexImageCache"
+        )
+
         let config = SupabaseConfig.current
         let repositories = VaultRepositoryContainer.live(config: config)
         _store = StateObject(

@@ -4,6 +4,7 @@ final class CardAPIService {
     private let baseURL: URL
     private let apiKey: String?
     private let urlSession: URLSession
+    private let cardSelectFields = "id,name,set,number,rarity,types,subtypes,artist,images,tcgplayer,cardmarket"
 
     init(
         baseURL: URL = URL(string: "https://api.pokemontcg.io/v2")!,
@@ -37,33 +38,119 @@ final class CardAPIService {
         page: Int,
         pageSize: Int
     ) async throws -> PokemonTCGListResponse<PokemonTCGCard> {
+        print("API request started")
+
+        do {
+            let response = try await searchCardsResponse(
+                query: query,
+                rarity: rarity,
+                type: type,
+                setID: setID,
+                sort: sort,
+                page: page,
+                pageSize: pageSize
+            )
+            print("number of cards decoded: \(response.data.count)")
+            return response
+        } catch {
+            print("API request failed")
+            throw error
+        }
+    }
+
+    private func searchCardsResponse(
+        query: String,
+        rarity: CardRarity?,
+        type: CardType?,
+        setID: String?,
+        sort: SearchSortOption,
+        page: Int,
+        pageSize: Int
+    ) async throws -> PokemonTCGListResponse<PokemonTCGCard> {
         var queryItems = [
             URLQueryItem(name: "page", value: "\(page)"),
             URLQueryItem(name: "pageSize", value: "\(pageSize)"),
-            URLQueryItem(name: "orderBy", value: sort.apiOrderBy)
+            URLQueryItem(name: "select", value: cardSelectFields)
         ]
 
-        let queryParts = buildQueryParts(query: query, rarity: rarity, type: type, setID: setID)
-        if !queryParts.isEmpty {
-            queryItems.append(URLQueryItem(name: "q", value: queryParts.joined(separator: " ")))
+        let filterParts = buildFilterParts(rarity: rarity, type: type, setID: setID)
+        let textQueries = buildTextQueries(query: query)
+
+        if textQueries.isEmpty {
+            if !filterParts.isEmpty {
+                queryItems.append(URLQueryItem(name: "q", value: filterParts.joined(separator: " ")))
+            } else {
+                queryItems.append(URLQueryItem(name: "orderBy", value: sort.apiOrderBy))
+            }
+            return try await request("cards", queryItems: queryItems, decode: PokemonTCGListResponse<PokemonTCGCard>.self)
         }
 
-        return try await request("cards", queryItems: queryItems, decode: PokemonTCGListResponse<PokemonTCGCard>.self)
+        return try await requestMergedCardSearches(
+            baseQueryItems: queryItems,
+            textQueries: textQueries,
+            filterParts: filterParts,
+            pageSize: pageSize
+        )
     }
 
-    private func buildQueryParts(
-        query: String,
+    private func requestMergedCardSearches(
+        baseQueryItems: [URLQueryItem],
+        textQueries: [String],
+        filterParts: [String],
+        pageSize: Int
+    ) async throws -> PokemonTCGListResponse<PokemonTCGCard> {
+        var responses: [PokemonTCGListResponse<PokemonTCGCard>] = []
+        var firstError: Error?
+
+        await withTaskGroup(of: Result<PokemonTCGListResponse<PokemonTCGCard>, Error>.self) { group in
+            for textQuery in textQueries {
+                var queryItems = baseQueryItems
+                queryItems.append(URLQueryItem(name: "q", value: ([textQuery] + filterParts).joined(separator: " ")))
+                group.addTask {
+                    do {
+                        return .success(try await self.request("cards", queryItems: queryItems, decode: PokemonTCGListResponse<PokemonTCGCard>.self))
+                    } catch {
+                        return .failure(error)
+                    }
+                }
+            }
+
+            for await result in group {
+                switch result {
+                case let .success(response):
+                    responses.append(response)
+                case let .failure(error):
+                    firstError = firstError ?? error
+                }
+            }
+        }
+
+        guard !responses.isEmpty else {
+            throw firstError ?? CardAPIError.invalidResponse
+        }
+
+        var seenIDs = Set<String>()
+        let mergedCards = responses
+            .flatMap(\.data)
+            .filter { seenIDs.insert($0.id).inserted }
+            .prefix(pageSize)
+            .map { $0 }
+
+        return PokemonTCGListResponse(
+            data: mergedCards,
+            page: responses.compactMap(\.page).min(),
+            pageSize: pageSize,
+            count: mergedCards.count,
+            totalCount: responses.compactMap(\.totalCount).reduce(0, +)
+        )
+    }
+
+    private func buildFilterParts(
         rarity: CardRarity?,
         type: CardType?,
         setID: String?
     ) -> [String] {
         var parts: [String] = []
-
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedQuery.isEmpty {
-            let escaped = apiEscaped(trimmedQuery)
-            parts.append("(name:*\(escaped)* OR set.name:*\(escaped)* OR number:\(escaped) OR rarity:*\(escaped)* OR types:\(escaped) OR subtypes:*\(escaped)*)")
-        }
 
         if let rarityQuery = rarity?.apiQuery {
             parts.append(rarityQuery)
@@ -80,12 +167,33 @@ final class CardAPIService {
         return parts
     }
 
+    private func buildTextQueries(query: String) -> [String] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return [] }
+
+        let escaped = apiEscaped(trimmedQuery)
+        let quoted = "\"\(escaped)\""
+        let token = trimmedQuery.contains(" ") ? quoted : escaped
+        var queries = [
+            "name:\(token)",
+            "set.name:\(token)",
+            "rarity:\(token)",
+            "types:\(token)",
+            "subtypes:\(token)"
+        ]
+
+        if trimmedQuery.rangeOfCharacter(from: .decimalDigits) != nil {
+            queries.insert("number:\(escaped)", at: 2)
+        }
+
+        return queries
+    }
+
     private func apiEscaped(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: ":", with: "\\:")
-            .replacingOccurrences(of: " ", with: "\\ ")
     }
 
     func fetchCard(id: String) async throws -> PokemonTCGCard {
@@ -102,7 +210,7 @@ final class CardAPIService {
         try await request("cards", queryItems: [
             URLQueryItem(name: "q", value: "set.id:\(setID)"),
             URLQueryItem(name: "pageSize", value: "250"),
-            URLQueryItem(name: "orderBy", value: "number")
+            URLQueryItem(name: "select", value: cardSelectFields)
         ], decode: PokemonTCGListResponse<PokemonTCGCard>.self).data
     }
 
@@ -150,16 +258,39 @@ final class CardAPIService {
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("VaultDex/1.0", forHTTPHeaderField: "User-Agent")
         if let apiKey, !apiKey.isEmpty {
             request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
         }
 
-        let (data, response) = try await urlSession.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { throw CardAPIError.invalidResponse }
-        guard 200..<300 ~= httpResponse.statusCode else {
-            throw CardAPIError.requestFailed(httpResponse.statusCode, String(data: data, encoding: .utf8) ?? "")
+        var lastError: Error?
+        for attempt in 0..<3 {
+            do {
+                let (data, response) = try await urlSession.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else { throw CardAPIError.invalidResponse }
+                guard 200..<300 ~= httpResponse.statusCode else {
+                    throw CardAPIError.requestFailed(httpResponse.statusCode, String(data: data, encoding: .utf8) ?? "")
+                }
+                return try JSONDecoder.pokemonTCG.decode(T.self, from: data)
+            } catch {
+                lastError = error
+                guard attempt < 2, Self.isTransient(error) else { break }
+                try? await Task.sleep(nanoseconds: UInt64(350_000_000 * (attempt + 1)))
+            }
         }
-        return try JSONDecoder.pokemonTCG.decode(T.self, from: data)
+        throw lastError ?? CardAPIError.invalidResponse
+    }
+
+    private static func isTransient(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        return [
+            NSURLErrorTimedOut,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorCannotFindHost,
+            NSURLErrorDNSLookupFailed
+        ].contains(nsError.code)
     }
 }
 
@@ -409,10 +540,10 @@ private extension CardRarity {
         switch self {
         case .common: "rarity:Common"
         case .uncommon: "rarity:Uncommon"
-        case .rare: "rarity:*Rare*"
-        case .epic: "rarity:*Double*"
-        case .legendary: "(rarity:*Holo* OR rarity:*Ultra* OR rarity:*Illustration*)"
-        case .mythic: "(rarity:*Secret* OR rarity:*Rainbow*)"
+        case .rare: "rarity:Rare"
+        case .epic: "rarity:\"Double Rare\""
+        case .legendary: "rarity:\"Rare Holo\""
+        case .mythic: "rarity:\"Rare Secret\""
         }
     }
 }
