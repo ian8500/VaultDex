@@ -44,7 +44,7 @@ struct SocialProfileView: View {
         .onChange(of: selectedAvatarItem) { _, newItem in
             loadAvatar(from: newItem)
         }
-        .alert("Couldn’t save photo", isPresented: $showAvatarUploadError) {
+        .alert("We couldn't save your profile picture.", isPresented: $showAvatarUploadError) {
             if pendingAvatarData != nil {
                 Button("Retry") {
                     Task { await uploadPendingAvatar() }
@@ -96,10 +96,14 @@ struct SocialProfileView: View {
             avatarUploadButton
 
             if let message = store.imageUploadMessage {
-                Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : (message == "Saved" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"))
+                Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : (message == "Profile picture saved." ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"))
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(message == "Couldn’t save photo" ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
+                    .foregroundStyle(message.hasPrefix("We couldn't") ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
             }
+
+            Label(store.profilePhotoUploadStatus, systemImage: "waveform.path.ecg")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
 
             if didSaveProfile {
                 Label(profileMessage.isEmpty ? "Changes saved" : profileMessage, systemImage: "checkmark.circle.fill")
@@ -385,7 +389,17 @@ struct SocialProfileView: View {
                 guard let data = try await item.loadTransferable(type: Data.self),
                       UIImage(data: data) != nil else {
                     await MainActor.run {
-                        store.reportImagePickerError("Couldn’t save photo")
+                        store.reportImagePickerError("We couldn't use that image.")
+                        isProcessingAvatar = false
+                        showAvatarUploadError = true
+                        selectedAvatarItem = nil
+                    }
+                    return
+                }
+                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 512, quality: 0.75)
+                guard !preparedData.isEmpty else {
+                    await MainActor.run {
+                        store.reportImagePickerError("We couldn't use that image.")
                         isProcessingAvatar = false
                         showAvatarUploadError = true
                         selectedAvatarItem = nil
@@ -393,10 +407,7 @@ struct SocialProfileView: View {
                     return
                 }
                 await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("Compressing photo")
-                }
-                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 512, quality: 0.75)
-                await MainActor.run {
+                    store.updateProfilePhotoUploadStatus("Image compressed")
                     pendingAvatarData = preparedData
                     isProcessingAvatar = false
                     selectedAvatarItem = nil
@@ -404,7 +415,7 @@ struct SocialProfileView: View {
                 await uploadPendingAvatar()
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("Couldn’t save photo")
+                    store.reportImagePickerError("We couldn't use that image.")
                     isProcessingAvatar = false
                     showAvatarUploadError = true
                     selectedAvatarItem = nil

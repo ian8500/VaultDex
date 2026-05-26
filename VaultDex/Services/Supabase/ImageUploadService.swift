@@ -46,6 +46,7 @@ struct ImageUploadService {
     }
 
     func uploadAvatar(userID: UUID, imageData: Data) async throws -> String {
+        guard !imageData.isEmpty else { throw ImageUploadError.compressionFailed }
         return try await storage.uploadAvatar(userID: userID, data: imageData, contentType: "image/jpeg")
     }
 
@@ -64,7 +65,7 @@ struct ImageUploadService {
         #if canImport(UIKit)
         guard let image = UIImage(data: data) else { throw ImageUploadError.unreadableImage }
         let fittedImage = image.resizedToFit(maxPixelDimension: maxPixelDimension)
-        guard let jpegData = fittedImage.jpegData(compressionQuality: quality) else {
+        guard let jpegData = fittedImage.jpegData(compressionQuality: quality), !jpegData.isEmpty else {
             throw ImageUploadError.compressionFailed
         }
         return jpegData

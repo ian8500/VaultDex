@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(Supabase)
+import Supabase
+#endif
+
 class SupabaseTableRepository {
     let client: SupabaseClientProvider
 
@@ -410,6 +414,15 @@ final class SupabaseStorageRepository: VaultStorageRepository {
 
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String {
         let path = "\(userID.uuidString)/profile.jpg"
+        #if canImport(Supabase)
+        let storage = try client.requireSDKClient().storage.from("avatars")
+        try await storage.upload(
+            path,
+            data: data,
+            options: FileOptions(contentType: contentType, upsert: true)
+        )
+        return try storage.getPublicURL(path: path).absoluteString
+        #else
         let request = try client.storageRequest(
             bucket: "avatars",
             path: path,
@@ -432,6 +445,7 @@ final class SupabaseStorageRepository: VaultStorageRepository {
             try await client.send(overwriteRequest)
         }
         return try client.publicStorageURL(bucket: "avatars", path: path).absoluteString
+        #endif
     }
 
     func uploadCardPhoto(userID: UUID, collectionItemID: UUID, side: CardPhotoSide, data: Data, contentType: String) async throws -> String {

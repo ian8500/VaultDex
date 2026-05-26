@@ -96,7 +96,10 @@ final class LocalVaultStore: ObservableObject {
     private static let imageUploadMessage = "Unable to upload that image right now. Please try again."
     private static let imageUploadSignInMessage = "Sign in before uploading images."
     private static let saveFailedMessage = "Couldn’t save. Please try again."
-    private static let photoSaveFailedMessage = "Couldn’t save photo"
+    private static let imageUseFailedMessage = "We couldn't use that image."
+    private static let photoUploadFailedMessage = "We couldn't upload your photo."
+    private static let photoSaveFailedMessage = "We couldn't save your profile picture."
+    private static let photoSavedMessage = "Profile picture saved."
 
     func useDemoMode(repository: DemoVaultRepository = .shared) {
         runtimeMode = .demo
@@ -1046,6 +1049,7 @@ final class LocalVaultStore: ObservableObject {
 
     func reportImagePickerError(_ message: String) {
         imageUploadMessage = message
+        profilePhotoUploadStatus = message
         isUploadingAvatar = false
         uploadingCardPhotoSide = nil
         lastSyncError = message
@@ -1132,29 +1136,35 @@ final class LocalVaultStore: ObservableObject {
         }
 
         isUploadingAvatar = true
-        imageUploadMessage = "Uploading..."
-        profilePhotoUploadStatus = "Uploading..."
+        imageUploadMessage = "Uploading photo..."
+        profilePhotoUploadStatus = "Uploading photo..."
         defer { isUploadingAvatar = false }
         do {
             let service = ImageUploadService(storage: repositories.storage)
             let publicURLString = try await service.uploadAvatar(userID: userID, imageData: data)
-            let cacheBustedURLString = cacheBustedAvatarURL(publicURLString)
-            try await updateProfileAvatarURL(cacheBustedURLString, userID: userID)
+            imageUploadMessage = "Upload complete"
+            profilePhotoUploadStatus = "Upload complete"
+            try await updateProfileAvatarURL(publicURLString, userID: userID)
+            imageUploadMessage = "URL saved"
+            profilePhotoUploadStatus = "URL saved"
             if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
+                imageUploadMessage = "Profile reloaded"
+                profilePhotoUploadStatus = "Profile reloaded"
             } else {
                 var updatedProfile = profile.replacingID(with: userID)
-                updatedProfile.avatarURL = URL(string: cacheBustedURLString)
+                updatedProfile.avatarURL = URL(string: publicURLString)
                 profile = updatedProfile
             }
             runtimeMode = .supabase
             updateCachedCloudStateIfPossible(userID: userID)
-            imageUploadMessage = "Saved"
-            profilePhotoUploadStatus = "Saved"
+            imageUploadMessage = Self.photoSavedMessage
+            profilePhotoUploadStatus = Self.photoSavedMessage
             lastSyncError = nil
         } catch {
-            imageUploadMessage = Self.photoSaveFailedMessage
-            profilePhotoUploadStatus = Self.photoSaveFailedMessage
+            let message = data.isEmpty ? Self.imageUseFailedMessage : Self.photoUploadFailedMessage
+            imageUploadMessage = message
+            profilePhotoUploadStatus = message
             lastSyncError = Self.imageUploadMessage
             throw error
         }
@@ -1173,12 +1183,6 @@ final class LocalVaultStore: ObservableObject {
             prefer: "return=minimal"
         )
         try await repositories.clientProvider.send(request)
-    }
-
-    private func cacheBustedAvatarURL(_ urlString: String) -> String {
-        guard var components = URLComponents(string: urlString) else { return urlString }
-        components.queryItems = [URLQueryItem(name: "v", value: "\(Int(Date().timeIntervalSince1970))")]
-        return components.url?.absoluteString ?? urlString
     }
 
     func uploadAvatarImageData(_ data: Data) {
