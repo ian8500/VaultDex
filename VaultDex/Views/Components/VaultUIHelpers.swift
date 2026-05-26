@@ -1,5 +1,18 @@
 import SwiftUI
 
+private struct BottomDockSpacingModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.bottom, 132)
+    }
+}
+
+extension View {
+    func bottomDockSpacing() -> some View {
+        modifier(BottomDockSpacingModifier())
+    }
+}
+
 struct VaultSectionHeader: View {
     let title: String
     let subtitle: String?
@@ -8,13 +21,17 @@ struct VaultSectionHeader: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.headline)
-            .foregroundStyle(Color.vdTextPrimary)
-            .shadow(color: Color.vdGold.opacity(0.16), radius: 8, x: 0, y: 2)
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+                .shadow(color: Color.vdGold.opacity(0.16), radius: 8, x: 0, y: 2)
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -104,6 +121,7 @@ struct MetricPill: View {
                 .font(.caption)
                 .foregroundStyle(Color.vdTextSecondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.82)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

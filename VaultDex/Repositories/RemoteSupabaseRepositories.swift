@@ -99,6 +99,35 @@ final class SupabaseProfileRepository: SupabaseTableRepository, ProfileRepositor
     }
 }
 
+final class SupabaseVerificationRepository: SupabaseTableRepository, VerificationRepository {
+    func fetchCurrentRequest(userID: UUID) async throws -> RemoteVerificationRequest? {
+        try await fetchRows(from: "verification_requests", queryItems: [
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "order", value: "submitted_at.desc"),
+            URLQueryItem(name: "limit", value: "1")
+        ]).first
+    }
+
+    func fetchPendingRequests() async throws -> [RemoteVerificationRequest] {
+        try await fetchRows(from: "verification_requests", queryItems: [
+            URLQueryItem(name: "status", value: "eq.pending"),
+            URLQueryItem(name: "order", value: "submitted_at.asc")
+        ])
+    }
+
+    func submitRequest(_ request: RemoteVerificationRequest) async throws {
+        try await upsert(request, into: "verification_requests", onConflict: "id")
+    }
+
+    func updateRequestStatus(id: UUID, status: String, adminNote: String?) async throws {
+        var fields: [String: String] = ["status": status]
+        if let adminNote {
+            fields["admin_note"] = adminNote
+        }
+        try await patch(fields, table: "verification_requests", id: id)
+    }
+}
+
 final class SupabaseCardCatalogRepository: SupabaseTableRepository, CardCatalogRepository {
     func fetchSets() async throws -> [RemoteCardSet] {
         try await fetchRows(from: "card_sets", queryItems: [URLQueryItem(name: "order", value: "release_year.desc")])
@@ -381,8 +410,27 @@ final class SupabaseStorageRepository: VaultStorageRepository {
 
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String {
         let path = "\(userID.uuidString)/profile.jpg"
-        let request = try client.storageRequest(bucket: "avatars", path: path, method: .post, contentType: contentType, body: data)
-        try await client.send(request)
+        let request = try client.storageRequest(
+            bucket: "avatars",
+            path: path,
+            method: .post,
+            contentType: contentType,
+            body: data,
+            upsert: true
+        )
+        do {
+            try await client.send(request)
+        } catch SupabaseClientError.requestFailed(let statusCode, _) where statusCode == 400 || statusCode == 409 {
+            let overwriteRequest = try client.storageRequest(
+                bucket: "avatars",
+                path: path,
+                method: .put,
+                contentType: contentType,
+                body: data,
+                upsert: true
+            )
+            try await client.send(overwriteRequest)
+        }
         return try client.publicStorageURL(bucket: "avatars", path: path).absoluteString
     }
 

@@ -26,7 +26,7 @@ struct TradeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Trade")

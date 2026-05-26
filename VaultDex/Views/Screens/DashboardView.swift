@@ -84,7 +84,7 @@ struct DashboardView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
-                .padding(.bottom, 32)
+                .bottomDockSpacing()
                 .opacity(isLoading || hasAnimated ? 1 : 0)
                 .offset(y: isLoading || hasAnimated ? 0 : 12)
             }
@@ -733,17 +733,14 @@ private struct FeaturedDashboardCard: View {
                 )
 
             if let imageURL = item.card.smallImageURL ?? item.card.largeImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        Image(systemName: "rectangle.stack.fill")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(Color.vdGold)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.vdGold)
                 }
             } else {
                 Image(systemName: "rectangle.stack.fill")

@@ -8,7 +8,7 @@ struct SearchView: View {
     @State private var successMessage: String?
     @State private var searchTask: Task<Void, Never>?
 
-    private let popularFilters = ["Charizard", "Pikachu", "Eevee", "Mew", "Holo", "Full Art"]
+    private let popularFilters = ["Pikachu", "Charizard", "Eevee", "Mew", "Snorlax", "Holo", "Full Art"]
 
     var body: some View {
         ZStack {
@@ -78,7 +78,7 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
 
             if let successMessage {
@@ -141,7 +141,6 @@ struct SearchView: View {
             if !viewModel.query.isEmpty {
                 Button {
                     viewModel.query = ""
-                    runSearch()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Color.vdTextSecondary)
@@ -163,7 +162,6 @@ struct SearchView: View {
                 ForEach(popularFilters, id: \.self) { filter in
                     Button {
                         viewModel.query = filter
-                        runSearch()
                     } label: {
                         Text(filter)
                             .font(.caption.weight(.black))
@@ -475,7 +473,7 @@ struct SearchView: View {
         searchTask?.cancel()
         searchTask = Task {
             if debounce {
-                try? await Task.sleep(for: .milliseconds(350))
+                try? await Task.sleep(for: .milliseconds(400))
             }
             guard !Task.isCancelled else { return }
             await viewModel.search(store: store)
@@ -566,17 +564,14 @@ private struct SearchResultRow: View {
                 .fill(Color.vdPanelRaised.opacity(0.84))
 
             if let imageURL = card.smallImageURL ?? card.largeImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        Image(systemName: "rectangle.stack.fill")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(Color.vdGold)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.vdGold)
                 }
             } else {
                 Image(systemName: "rectangle.stack.fill")

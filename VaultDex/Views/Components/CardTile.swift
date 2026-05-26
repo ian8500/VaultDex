@@ -112,17 +112,14 @@ struct CardTile: View {
             }
 
             if let imageURL = card.smallImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .padding(8)
-                            .transition(.opacity)
-                    default:
-                        EmptyView()
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .padding(8)
+                        .transition(.opacity)
+                } placeholder: {
+                    EmptyView()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

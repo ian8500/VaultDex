@@ -1,5 +1,9 @@
 import Foundation
 
+private enum VaultStoreError: Error {
+    case notSignedIn
+}
+
 @MainActor
 final class LocalVaultStore: ObservableObject {
     private static let fallbackSet = CardSet(name: "VaultDex", code: "VDX", releaseYear: 2026, totalCards: 0)
@@ -21,6 +25,10 @@ final class LocalVaultStore: ObservableObject {
     @Published var sets: [CardSet]
     @Published var cards: [Card]
     @Published var profile: UserProfile
+    @Published var verificationRequest: RemoteVerificationRequest?
+    @Published private(set) var isSubmittingVerificationRequest = false
+    @Published private(set) var verificationMessage: String?
+    @Published var pendingVerificationRequests: [RemoteVerificationRequest] = []
     @Published var collectionItems: [CollectionItem]
     @Published var wishlistItems: [WishlistItem]
     @Published var events: [VaultEvent]
@@ -49,6 +57,7 @@ final class LocalVaultStore: ObservableObject {
             sets = []
             cards = []
             profile = Self.emptyProfile
+            verificationRequest = nil
             collectionItems = []
             wishlistItems = []
             events = []
@@ -62,6 +71,7 @@ final class LocalVaultStore: ObservableObject {
             sets = repository.sets
             cards = repository.cards
             profile = repository.profile
+            verificationRequest = nil
             collectionItems = repository.collectionItems
             wishlistItems = repository.wishlistItems
             events = repository.events
@@ -78,7 +88,7 @@ final class LocalVaultStore: ObservableObject {
         runtimeMode == .demo
     }
 
-    private static let cloudConnectionMessage = "Unable to connect to VaultDex Cloud. Please try again."
+    private static let cloudConnectionMessage = "Unable to connect right now. Please try again."
     private static let collectionSyncMessage = "Unable to sync your vault right now. Please try again."
     private static let wantsSyncMessage = "Unable to sync your wants right now. Please try again."
     private static let friendsSyncMessage = "Unable to sync friends right now. Please try again."
@@ -86,6 +96,7 @@ final class LocalVaultStore: ObservableObject {
     private static let imageUploadMessage = "Unable to upload that image right now. Please try again."
     private static let imageUploadSignInMessage = "Sign in before uploading images."
     private static let saveFailedMessage = "Couldn’t save. Please try again."
+    private static let photoSaveFailedMessage = "Couldn’t save photo"
 
     func useDemoMode(repository: DemoVaultRepository = .shared) {
         runtimeMode = .demo
@@ -98,6 +109,9 @@ final class LocalVaultStore: ObservableObject {
         lastSyncError = nil
         imageUploadMessage = nil
         saveStatusMessage = nil
+        verificationRequest = nil
+        pendingVerificationRequests = []
+        verificationMessage = nil
         sets = []
         cards = []
         collectionItems = []
@@ -133,7 +147,7 @@ final class LocalVaultStore: ObservableObject {
 
     func loadCloudDataIfPossible(session: SupabaseSession?) async {
         guard repositories.config.isConfigured, repositories.clientProvider.canCreateClient else {
-            loadCachedOrDemo(reason: "Supabase is unavailable on this build.")
+            loadCachedOrDemo(reason: Self.cloudConnectionMessage)
             return
         }
 
@@ -1041,6 +1055,61 @@ final class LocalVaultStore: ObservableObject {
         profilePhotoUploadStatus = status
     }
 
+    func loadVerificationRequest() async {
+        guard let userID = repositories.clientProvider.currentSession?.userID else {
+            verificationRequest = nil
+            return
+        }
+
+        do {
+            verificationRequest = try await repositories.verification.fetchCurrentRequest(userID: userID)
+            verificationMessage = nil
+        } catch {
+            verificationMessage = nil
+        }
+    }
+
+    func submitVerificationRequest(fullName: String, dateOfBirth: String?, note: String?) async throws {
+        guard let userID = repositories.clientProvider.currentSession?.userID else {
+            verificationMessage = Self.saveFailedMessage
+            throw VaultStoreError.notSignedIn
+        }
+
+        isSubmittingVerificationRequest = true
+        verificationMessage = nil
+        defer { isSubmittingVerificationRequest = false }
+
+        let request = RemoteVerificationRequest(
+            id: UUID(),
+            userID: userID,
+            status: "pending",
+            fullName: fullName.trimmingCharacters(in: .whitespacesAndNewlines),
+            dateOfBirth: dateOfBirth?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank,
+            verificationNote: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank,
+            submittedAt: nil,
+            reviewedAt: nil,
+            reviewedBy: nil,
+            adminNote: nil
+        )
+
+        do {
+            try await repositories.verification.submitRequest(request)
+            verificationRequest = try await repositories.verification.fetchCurrentRequest(userID: userID) ?? request
+            verificationMessage = "Verification request sent"
+        } catch {
+            verificationMessage = Self.saveFailedMessage
+            throw error
+        }
+    }
+
+    func loadPendingVerificationRequests() async {
+        do {
+            pendingVerificationRequests = try await repositories.verification.fetchPendingRequests()
+        } catch {
+            pendingVerificationRequests = []
+        }
+    }
+
     func clearSaveStatusMessage() {
         saveStatusMessage = nil
     }
@@ -1048,52 +1117,54 @@ final class LocalVaultStore: ObservableObject {
     func uploadAvatarImageData(_ data: Data) async throws {
         guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.imageUploadSignInMessage
-            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
-            profilePhotoUploadStatus = "Upload failed"
+            imageUploadMessage = Self.photoSaveFailedMessage
+            profilePhotoUploadStatus = Self.photoSaveFailedMessage
             isUploadingAvatar = false
             throw ImageUploadError.missingSession
         }
 
         guard repositories.clientProvider.canCreateClient else {
             lastSyncError = Self.imageUploadMessage
-            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
-            profilePhotoUploadStatus = "Upload failed"
+            imageUploadMessage = Self.photoSaveFailedMessage
+            profilePhotoUploadStatus = Self.photoSaveFailedMessage
             isUploadingAvatar = false
             throw SupabaseClientError.missingConfiguration
         }
 
         isUploadingAvatar = true
-        imageUploadMessage = "Uploading photo..."
-        profilePhotoUploadStatus = "Uploading photo..."
+        imageUploadMessage = "Uploading..."
+        profilePhotoUploadStatus = "Uploading..."
         defer { isUploadingAvatar = false }
         do {
             let service = ImageUploadService(storage: repositories.storage)
-            let urlString = try await service.uploadAvatar(userID: userID, imageData: data)
-            profilePhotoUploadStatus = "Upload successful"
-            profilePhotoUploadStatus = "Saving avatar URL to profile"
-            try await updateProfileAvatarURL(urlString, userID: userID)
+            let publicURLString = try await service.uploadAvatar(userID: userID, imageData: data)
+            let cacheBustedURLString = cacheBustedAvatarURL(publicURLString)
+            try await updateProfileAvatarURL(cacheBustedURLString, userID: userID)
             if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
             } else {
                 var updatedProfile = profile.replacingID(with: userID)
-                updatedProfile.avatarURL = URL(string: urlString)
+                updatedProfile.avatarURL = URL(string: cacheBustedURLString)
                 profile = updatedProfile
             }
             runtimeMode = .supabase
             updateCachedCloudStateIfPossible(userID: userID)
-            imageUploadMessage = "Profile picture saved"
-            profilePhotoUploadStatus = "Profile updated"
+            imageUploadMessage = "Saved"
+            profilePhotoUploadStatus = "Saved"
             lastSyncError = nil
         } catch {
-            imageUploadMessage = "We couldn’t save your profile picture. Please try again."
-            profilePhotoUploadStatus = "Upload failed"
+            imageUploadMessage = Self.photoSaveFailedMessage
+            profilePhotoUploadStatus = Self.photoSaveFailedMessage
             lastSyncError = Self.imageUploadMessage
             throw error
         }
     }
 
     private func updateProfileAvatarURL(_ urlString: String, userID: UUID) async throws {
-        let data = try JSONSerialization.data(withJSONObject: ["avatar_url": urlString])
+        let data = try JSONSerialization.data(withJSONObject: [
+            "avatar_url": urlString,
+            "avatar_path": "\(userID.uuidString)/profile.jpg"
+        ])
         let request = try repositories.clientProvider.restRequest(
             table: "profiles",
             method: .patch,
@@ -1102,6 +1173,12 @@ final class LocalVaultStore: ObservableObject {
             prefer: "return=minimal"
         )
         try await repositories.clientProvider.send(request)
+    }
+
+    private func cacheBustedAvatarURL(_ urlString: String) -> String {
+        guard var components = URLComponents(string: urlString) else { return urlString }
+        components.queryItems = [URLQueryItem(name: "v", value: "\(Int(Date().timeIntervalSince1970))")]
+        return components.url?.absoluteString ?? urlString
     }
 
     func uploadAvatarImageData(_ data: Data) {
@@ -1185,6 +1262,10 @@ final class LocalVaultStore: ObservableObject {
     }
 
     func cacheViewedCard(_ card: Card) {
+        Task {
+            await CardCacheService.shared.cacheRecentlyViewed(card)
+        }
+
         guard runtimeMode == .supabase else { return }
         Task {
             do {
@@ -1870,7 +1951,7 @@ private extension RemoteMarketplaceListing {
             id: id,
             ownerID: ownerID,
             collectionItemID: collectionItemID,
-            ownerName: sellerDisplayName ?? "Cloud Collector",
+            ownerName: sellerDisplayName ?? "Collector",
             ownerHandle: ownerID == currentUserID ? "@me" : "@collector",
             card: card,
             condition: CardCondition(rawValue: condition) ?? .nearMint,
@@ -1880,7 +1961,7 @@ private extension RemoteMarketplaceListing {
             askingCredits: askingCredits,
             description: description ?? "",
             listedAt: listedAt ?? .now,
-            locationLabel: locationLabel ?? "Cloud listing",
+            locationLabel: locationLabel ?? "Listing",
             sellerReputation: sellerReputation,
             isFeatured: rarity == "mythic" || rarity == "legendary",
             isSaved: isSaved ?? false,
@@ -1909,7 +1990,7 @@ private extension RemoteTradeOffer {
             id: id,
             senderID: senderID,
             receiverID: receiverID,
-            partnerName: partner?.displayName.nilIfBlank ?? (senderID == currentUserID ? "Cloud Collector" : "Trade Partner"),
+            partnerName: partner?.displayName.nilIfBlank ?? (senderID == currentUserID ? "Collector" : "Trade Partner"),
             partnerHandle: partner?.username.nilIfBlank.map { "@\($0)" } ?? (senderID == currentUserID ? "@sent" : "@received"),
             offeredCards: offeredFromItems.isEmpty ? offeredCardIDs.compactMap { cards[$0] } : offeredFromItems,
             requestedCards: requestedFromItems.isEmpty ? requestedCardIDs.compactMap { cards[$0] } : requestedFromItems,
@@ -1978,7 +2059,7 @@ private extension RemoteFriendship {
         currentUserID: UUID
     ) -> Friend? {
         let friendID = friendID(for: currentUserID)
-        let displayName = profile?.displayName.nilIfBlank ?? "Cloud Friend"
+        let displayName = profile?.displayName.nilIfBlank ?? "Friend"
         let handle = profile?.username.nilIfBlank.map { "@\($0)" } ?? "@\(friendID.uuidString.prefix(8))"
         let visibleCollection = visibleData?.collection.compactMap { $0.localItem(card: cardByID[$0.cardID]) } ?? []
         let visibleWishlist = visibleData?.wishlist.compactMap { $0.localItem(card: cardByID[$0.cardID]) } ?? []
@@ -2013,7 +2094,7 @@ private extension RemoteFriendRequest {
             id: id,
             requesterID: requesterID,
             addresseeID: addresseeID,
-            displayName: profile?.displayName.nilIfBlank ?? "Cloud Collector",
+            displayName: profile?.displayName.nilIfBlank ?? "Collector",
             handleOrEmail: profile?.username.nilIfBlank.map { "@\($0)" } ?? "@\(fallbackID.uuidString.prefix(8))",
             avatarSymbol: direction == .incoming ? "person.crop.circle.badge.plus" : "paperplane.fill",
             direction: direction,

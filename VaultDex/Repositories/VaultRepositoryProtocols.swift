@@ -11,6 +11,13 @@ protocol ProfileRepository {
     func upsertProfile(_ profile: RemoteProfile) async throws
 }
 
+protocol VerificationRepository {
+    func fetchCurrentRequest(userID: UUID) async throws -> RemoteVerificationRequest?
+    func fetchPendingRequests() async throws -> [RemoteVerificationRequest]
+    func submitRequest(_ request: RemoteVerificationRequest) async throws
+    func updateRequestStatus(id: UUID, status: String, adminNote: String?) async throws
+}
+
 protocol CardCatalogRepository {
     func fetchSets() async throws -> [RemoteCardSet]
     func fetchCards(search: String?) async throws -> [RemoteCard]

@@ -46,8 +46,7 @@ struct ImageUploadService {
     }
 
     func uploadAvatar(userID: UUID, imageData: Data) async throws -> String {
-        let compressed = try Self.compressedJPEGData(from: imageData, maxPixelDimension: 512, quality: 0.75)
-        return try await storage.uploadAvatar(userID: userID, data: compressed, contentType: "image/jpeg")
+        return try await storage.uploadAvatar(userID: userID, data: imageData, contentType: "image/jpeg")
     }
 
     func uploadCardPhoto(userID: UUID, collectionItemID: UUID, side: CardPhotoSide, imageData: Data) async throws -> String {

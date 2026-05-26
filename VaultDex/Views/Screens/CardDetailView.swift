@@ -58,7 +58,7 @@ struct CardDetailView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
 
             if let successMessage {
@@ -130,27 +130,15 @@ struct CardDetailView: View {
                 )
 
             if let imageURL = detailCard.largeImageURL ?? detailCard.smallImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .padding(18)
-                            .transition(.opacity)
-                    case .failure:
-                        CardTile(
-                            card: detailCard,
-                            quantity: ownedItem?.quantity,
-                            condition: ownedItem?.condition,
-                            variant: ownedItem?.variant,
-                            isAvailableForTrade: ownedItem?.isAvailableForTrade ?? false
-                        )
-                        .padding(12)
-                    default:
-                        ProgressView()
-                            .tint(Color.vdGold)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .padding(18)
+                        .transition(.opacity)
+                } placeholder: {
+                    ProgressView()
+                        .tint(Color.vdGold)
                 }
             } else {
                 CardTile(

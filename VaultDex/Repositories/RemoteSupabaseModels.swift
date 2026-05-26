@@ -99,6 +99,31 @@ struct RemoteProfile: Codable, Identifiable, Hashable {
     }
 }
 
+struct RemoteVerificationRequest: Codable, Identifiable, Hashable {
+    let id: UUID
+    var userID: UUID
+    var status: String
+    var fullName: String
+    var dateOfBirth: String?
+    var verificationNote: String?
+    var submittedAt: Date?
+    var reviewedAt: Date?
+    var reviewedBy: UUID?
+    var adminNote: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status
+        case userID = "user_id"
+        case fullName = "full_name"
+        case dateOfBirth = "date_of_birth"
+        case verificationNote = "verification_note"
+        case submittedAt = "submitted_at"
+        case reviewedAt = "reviewed_at"
+        case reviewedBy = "reviewed_by"
+        case adminNote = "admin_note"
+    }
+}
+
 struct RemoteCardSet: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String

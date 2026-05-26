@@ -7,6 +7,7 @@ import Supabase
 enum SupabaseHTTPMethod: String {
     case get = "GET"
     case post = "POST"
+    case put = "PUT"
     case patch = "PATCH"
     case delete = "DELETE"
 }
@@ -200,20 +201,36 @@ final class SupabaseClientProvider {
         return request
     }
 
-    func storageRequest(bucket: String, path: String, method: SupabaseHTTPMethod, contentType: String? = nil, body: Data? = nil) throws -> URLRequest {
+    func storageRequest(
+        bucket: String,
+        path: String,
+        method: SupabaseHTTPMethod,
+        contentType: String? = nil,
+        body: Data? = nil,
+        upsert: Bool = true
+    ) throws -> URLRequest {
         guard let baseURL = config.url, let anonKey = config.anonKey, isRemoteEnabled else {
             throw SupabaseClientError.missingConfiguration
         }
 
         let cleanPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let url = baseURL.appending(path: "storage/v1/object/\(bucket)/\(cleanPath)")
+        var url = baseURL
+        url.append(path: "storage/v1/object")
+        url.append(path: bucket)
+        cleanPath.split(separator: "/").forEach { component in
+            url.append(path: String(component))
+        }
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         request.httpBody = body
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(session?.accessToken ?? anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue(contentType ?? "application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.setValue("true", forHTTPHeaderField: "x-upsert")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("3600", forHTTPHeaderField: "Cache-Control")
+        if upsert {
+            request.setValue("true", forHTTPHeaderField: "x-upsert")
+        }
         return request
     }
 

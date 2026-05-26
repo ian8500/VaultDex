@@ -41,18 +41,23 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var currentPage = 1
     @Published private(set) var canLoadMore = false
     @Published private(set) var totalResults: Int?
+    @Published private(set) var isShowingCachedResults = false
 
     private let apiService: CardAPIService
+    private let cacheService: CardCacheService
     private let pageSize = 12
+    private var didPrewarmPopularSearches = false
 
-    init(apiService: CardAPIService = CardAPIService()) {
+    init(apiService: CardAPIService = CardAPIService(), cacheService: CardCacheService = .shared) {
         self.apiService = apiService
+        self.cacheService = cacheService
     }
 
     func loadInitialResults(store: LocalVaultStore) async {
         guard !didLoadAPI else { return }
         await search(store: store)
         await loadSets()
+        Task { await prewarmPopularSearches(store: store) }
     }
 
     func search(store: LocalVaultStore) async {
@@ -60,7 +65,28 @@ final class SearchViewModel: ObservableObject {
         currentPage = 1
         canLoadMore = false
         totalResults = nil
-        isLoading = true
+        errorMessage = nil
+        isShowingCachedResults = false
+
+        let key = await cacheKey(page: currentPage)
+        if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
+            apiCards = sort(cached.cards)
+            totalResults = cached.totalResults
+            canLoadMore = cached.cards.count == pageSize
+            didLoadAPI = true
+            isShowingCachedResults = true
+        } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let recentlyViewed = await cacheService.recentlyViewedCards()
+            if !recentlyViewed.isEmpty {
+                apiCards = sort(Array(recentlyViewed.prefix(pageSize)))
+                totalResults = recentlyViewed.count
+                canLoadMore = false
+                didLoadAPI = true
+                isShowingCachedResults = true
+            }
+        }
+
+        isLoading = apiCards.isEmpty
         errorMessage = nil
         defer {
             isLoading = false
@@ -79,13 +105,18 @@ final class SearchViewModel: ObservableObject {
                 pageSize: pageSize
             )
             guard !Task.isCancelled else { return }
-            apiCards = sort(response.data.map(\.localCard))
+            let cards = response.data.map(\.localCard)
+            apiCards = sort(cards)
             totalResults = response.totalCount
             canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
+            isShowingCachedResults = false
+            await cacheService.saveSearch(cards: cards, totalResults: response.totalCount, key: key)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
             guard !Task.isCancelled else { return }
-            apiCards = []
+            if apiCards.isEmpty {
+                apiCards = []
+            }
             errorMessage = "Unable to load cards right now. Please try again."
         }
     }
@@ -99,6 +130,18 @@ final class SearchViewModel: ObservableObject {
         do {
             await ExchangeRateService.shared.refreshRatesIfNeeded()
             let nextPage = currentPage + 1
+            let key = await cacheKey(page: nextPage)
+            if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
+                currentPage = nextPage
+                var seenIDs = Set(apiCards.map(\.id))
+                let cachedCards = cached.cards.filter { seenIDs.insert($0.id).inserted }
+                apiCards = sort(apiCards + cachedCards)
+                totalResults = cached.totalResults ?? totalResults
+                canLoadMore = cached.cards.count == pageSize
+                isShowingCachedResults = true
+                return
+            }
+
             let response = try await apiService.searchCards(
                 query: query,
                 rarity: selectedRarity,
@@ -114,6 +157,7 @@ final class SearchViewModel: ObservableObject {
             apiCards = sort(apiCards + newCards)
             totalResults = response.totalCount
             canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
+            await cacheService.saveSearch(cards: response.data.map(\.localCard), totalResults: response.totalCount, key: key)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
             errorMessage = "Unable to load more cards right now. Please try again."
@@ -197,6 +241,56 @@ final class SearchViewModel: ObservableObject {
             cards.sorted {
                 if $0.set.releaseYear != $1.set.releaseYear { return $0.set.releaseYear > $1.set.releaseYear }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+    }
+
+    private func cacheKey(page: Int) async -> String {
+        await cacheService.searchCacheKey(
+            query: query,
+            rarity: selectedRarity,
+            type: selectedType,
+            setID: selectedSet?.externalID ?? selectedSet?.code,
+            sort: sortOption,
+            page: page,
+            pageSize: pageSize
+        )
+    }
+
+    private func prewarmPopularSearches(store: LocalVaultStore) async {
+        guard !didPrewarmPopularSearches else { return }
+        didPrewarmPopularSearches = true
+
+        let searches = await cacheService.popularDefaultSearches()
+        for popularQuery in searches {
+            let key = await cacheService.searchCacheKey(
+                query: popularQuery,
+                rarity: nil,
+                type: nil,
+                setID: nil,
+                sort: .name,
+                page: 1,
+                pageSize: 6
+            )
+            if await cacheService.cachedSearch(for: key) != nil {
+                continue
+            }
+
+            do {
+                let response = try await apiService.searchCards(
+                    query: popularQuery,
+                    rarity: nil,
+                    type: nil,
+                    setID: nil,
+                    sort: .name,
+                    page: 1,
+                    pageSize: 6
+                )
+                let cards = response.data.map(\.localCard)
+                await cacheService.saveSearch(cards: cards, totalResults: response.totalCount, key: key)
+                await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
+            } catch {
+                continue
             }
         }
     }

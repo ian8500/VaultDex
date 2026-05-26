@@ -22,7 +22,7 @@ struct ImportCollectionView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Import Collection")
@@ -253,7 +253,7 @@ struct WishlistView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 30)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Wants")
@@ -611,7 +611,7 @@ struct FriendsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Friends")
@@ -851,7 +851,7 @@ struct FriendsWantsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 30)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Friends’ Wants")
@@ -1353,7 +1353,7 @@ struct BinderDesignerView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("My Binder")
@@ -1745,7 +1745,7 @@ struct CompletionTrackerView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Completion")
@@ -1892,7 +1892,7 @@ struct EventsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Events")
@@ -2104,7 +2104,7 @@ struct InviteFriendsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Invite")
@@ -2210,7 +2210,7 @@ struct AccountDeletionView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Delete Account")
@@ -2602,7 +2602,7 @@ private struct FriendProfileView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle(friend.displayName)
@@ -3341,7 +3341,7 @@ private struct BinderCardPickerView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
-                    .padding(.bottom, 28)
+                    .bottomDockSpacing()
                 }
             }
             .navigationTitle("Slot #\(slot.index)")

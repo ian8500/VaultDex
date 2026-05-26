@@ -93,9 +93,10 @@ struct ContentView: View {
         }
         .safeAreaInset(edge: .bottom) {
             PremiumNavigationDock(selectedDestination: $selectedDestination)
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .padding(.bottom, 10)
+                .background(Color.clear)
         }
     }
 
@@ -225,19 +226,19 @@ private struct PremiumNavigationDock: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 9)
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(.ultraThinMaterial)
 
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.vdNavy.opacity(0.88), Color.vdPanel.opacity(0.76)],
+                                colors: [Color.vdNavy.opacity(0.34), Color.vdPanel.opacity(0.18)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -245,11 +246,12 @@ private struct PremiumNavigationDock: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.vdGold.opacity(0.24), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.28), radius: 22, x: 0, y: 10)
-            .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
+            .shadow(color: Color.vdGold.opacity(0.08), radius: 14, x: 0, y: 4)
             .onAppear {
                 proxy.scrollTo(selectedDestination.id, anchor: .center)
             }
@@ -284,7 +286,7 @@ private struct DockButton: View {
             }
             .foregroundStyle(isSelected ? Color.vdNavy : Color.vdTextPrimary)
             .frame(minWidth: destination.isProminent ? 96 : 82)
-            .frame(height: 52)
+            .frame(height: 48)
             .padding(.horizontal, isSelected ? 8 : 4)
             .background {
                 buttonBackground
@@ -294,8 +296,8 @@ private struct DockButton: View {
                 Capsule()
                     .stroke(isSelected ? Color.white.opacity(0.44) : Color.white.opacity(0.08), lineWidth: 1)
             )
-            .shadow(color: isSelected ? Color.vdGold.opacity(0.30) : Color.clear, radius: 14, x: 0, y: 6)
-            .scaleEffect(isSelected ? 1.05 : 1)
+            .shadow(color: isSelected ? Color.vdGold.opacity(0.24) : Color.clear, radius: 12, x: 0, y: 5)
+            .scaleEffect(isSelected ? 1.03 : 1)
             .contentShape(Capsule())
             .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }
@@ -314,12 +316,12 @@ private struct DockButton: View {
             )
         } else if destination.isProminent {
             LinearGradient(
-                colors: [Color.vdGold.opacity(0.22), Color.vdGold.opacity(0.10)],
+                colors: [Color.vdGold.opacity(0.18), Color.vdGold.opacity(0.08)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         } else {
-            Color.white.opacity(0.06)
+            Color.vdNavy.opacity(0.16)
         }
     }
 }

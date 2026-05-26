@@ -5,6 +5,7 @@ struct VaultRepositoryContainer {
     let clientProvider: SupabaseClientProvider
     let auth: AuthRepository
     let profiles: ProfileRepository
+    let verification: VerificationRepository
     let cards: CardCatalogRepository
     let collection: CollectionRepository
     let wishlist: WishlistRepository
@@ -23,6 +24,7 @@ struct VaultRepositoryContainer {
             clientProvider: client,
             auth: SupabaseAuthRepository(client: client),
             profiles: SupabaseProfileRepository(client: client),
+            verification: SupabaseVerificationRepository(client: client),
             cards: SupabaseCardCatalogRepository(client: client),
             collection: SupabaseCollectionRepository(client: client),
             wishlist: SupabaseWishlistRepository(client: client),
@@ -36,4 +38,3 @@ struct VaultRepositoryContainer {
         )
     }
 }
-

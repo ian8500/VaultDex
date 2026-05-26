@@ -24,17 +24,13 @@ struct SocialProfileView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     profileHeader
-                    profileProgressSummary
-                    achievementBadges
-                    showcase
-                    setProgress
+                    verificationStatus
                     profileEditor
-                    socialStats
                     logoutSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Collector Profile")
@@ -43,11 +39,12 @@ struct SocialProfileView: View {
             guard !hasLoadedDraft else { return }
             draft = ProfileDraft(profile: store.profile)
             hasLoadedDraft = true
+            Task { await store.loadVerificationRequest() }
         }
         .onChange(of: selectedAvatarItem) { _, newItem in
             loadAvatar(from: newItem)
         }
-        .alert("We couldn’t save your profile picture. Please try again.", isPresented: $showAvatarUploadError) {
+        .alert("Couldn’t save photo", isPresented: $showAvatarUploadError) {
             if pendingAvatarData != nil {
                 Button("Retry") {
                     Task { await uploadPendingAvatar() }
@@ -83,63 +80,25 @@ struct SocialProfileView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.vdGold)
 
-                    Text(store.profile.location + " · " + store.profile.collectorType)
+                    Text(profileSubtitle)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.vdTextSecondary)
-
-                    Text("Collector-style profile card")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(Color.vdNavy)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(Color.vdGold.opacity(0.92), in: Capsule())
+                        .lineLimit(2)
 
                     Text(store.profile.bio)
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-
-            HStack(spacing: 8) {
-                if store.profile.trustBadges.isEmpty {
-                    Label("New collector", systemImage: "sparkles")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(Color.vdNavy)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(Color.vdGold.opacity(0.92), in: Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
-                } else {
-                    ForEach(store.profile.trustBadges.prefix(3), id: \.self) { badge in
-                        Label(badge, systemImage: "checkmark.seal.fill")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(Color.vdNavy)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(Color.vdLeaf.opacity(0.92), in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
-                    }
-                }
-            }
-
-            PrimaryButton(title: "Save Profile Changes", systemImage: "checkmark.seal.fill") {
-                Task { await saveProfile() }
-            }
-            .disabled(store.isSavingProfile)
-
-            if store.isSavingProfile {
-                Label("Saving profile...", systemImage: "icloud.and.arrow.up")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdGold)
             }
 
             avatarUploadButton
 
             if let message = store.imageUploadMessage {
-                Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : "checkmark.circle.fill")
+                Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : (message == "Saved" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"))
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(message.hasPrefix("We couldn’t") ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
+                    .foregroundStyle(message == "Couldn’t save photo" ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
             }
 
             if didSaveProfile {
@@ -172,6 +131,68 @@ struct SocialProfileView: View {
         .shadow(color: Color.vdGold.opacity(0.10), radius: 18, x: 0, y: 8)
     }
 
+    private var verificationStatus: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: verificationDisplay.systemImage)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(verificationDisplay.tint)
+                    .frame(width: 44, height: 44)
+                    .background(verificationDisplay.tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 14))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ID verification")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+
+                    Text(verificationDisplay.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+
+                Spacer()
+            }
+
+            if store.verificationRequest?.status.lowercased() != "pending",
+               store.verificationRequest?.status.lowercased() != "verified" {
+                NavigationLink {
+                    VerificationRequestView()
+                } label: {
+                    Label("Request verification", systemImage: "person.text.rectangle.fill")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(Color.vdPanel.opacity(0.76), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.vdGold.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private var verificationDisplay: VerificationStatusDisplay {
+        guard let request = store.verificationRequest else {
+            return VerificationStatusDisplay(title: "Not verified", systemImage: "checkmark.shield", tint: .vdTextSecondary)
+        }
+
+        switch request.status.lowercased() {
+        case "pending":
+            return VerificationStatusDisplay(title: "Pending review", systemImage: "clock.badge.checkmark.fill", tint: .vdGold)
+        case "verified", "approved":
+            return VerificationStatusDisplay(title: "Verified", systemImage: "checkmark.shield.fill", tint: .vdEmerald)
+        case "rejected":
+            return VerificationStatusDisplay(title: "Rejected", systemImage: "exclamationmark.shield.fill", tint: .vdCoral)
+        default:
+            return VerificationStatusDisplay(title: "Not verified", systemImage: "checkmark.shield", tint: .vdTextSecondary)
+        }
+    }
+
     private var avatarUploadButton: some View {
         let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
@@ -185,13 +206,17 @@ struct SocialProfileView: View {
                         .font(.headline.weight(.bold))
                 }
 
-                Text(isUploading ? "Saving Photo..." : "Upload Avatar Photo")
+                Text(isUploading ? "Uploading..." : "Upload Avatar Photo")
                     .font(.headline.weight(.bold))
             }
-            .foregroundStyle(Color.vdNavy)
+            .foregroundStyle(Color.vdGold)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
-            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+            )
         }
         .disabled(isUploading)
     }
@@ -215,18 +240,13 @@ struct SocialProfileView: View {
                         )
 
                     if let avatarURL {
-                        AsyncImage(url: avatarURL) { phase in
-                            switch phase {
-                            case let .success(image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            case .failure:
-                                avatarPlaceholder(symbol: avatarSymbol, initials: initials)
-                            default:
-                                ProgressView()
-                                    .tint(Color.vdNavy)
-                            }
+                        CachedAsyncImage(url: avatarURL) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } placeholder: {
+                            ProgressView()
+                                .tint(Color.vdNavy)
                         }
                     } else {
                         avatarPlaceholder(symbol: avatarSymbol, initials: initials)
@@ -275,6 +295,12 @@ struct SocialProfileView: View {
         return initials.uppercased()
     }
 
+    private var profileSubtitle: String {
+        let location = store.profile.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let collectorType = store.profile.collectorType.trimmingCharacters(in: .whitespacesAndNewlines)
+        return location.isEmpty ? collectorType : "\(location) · \(collectorType)"
+    }
+
     private var displayAvatarURL: URL? {
         guard avatarImageRefreshToken > 0,
               let avatarURL = store.profile.avatarURL,
@@ -288,10 +314,9 @@ struct SocialProfileView: View {
 
     private var profileEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VaultSectionHeader(title: "Collector Profile", subtitle: "Complete your collector profile.")
+            VaultSectionHeader(title: "Edit profile", subtitle: nil)
 
             VStack(spacing: 12) {
-                ProfileTextField(title: "Avatar symbol", text: $draft.avatarSymbol, systemImage: "photo.badge.plus")
                 ProfileTextField(title: "Username", text: $draft.handle, systemImage: "at")
                 ProfileTextField(title: "Display name", text: $draft.displayName, systemImage: "person.text.rectangle")
                 ProfileTextField(title: "Location", text: $draft.location, systemImage: "location.fill")
@@ -315,10 +340,16 @@ struct SocialProfileView: View {
                 }
             }
 
-            Text("Choose a profile photo or keep your collector symbol.")
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: "Save Profile", systemImage: "checkmark.seal.fill") {
+                Task { await saveProfile() }
+            }
+            .disabled(store.isSavingProfile)
+
+            if store.isSavingProfile {
+                Label("Saving profile...", systemImage: "icloud.and.arrow.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+            }
         }
     }
 
@@ -354,7 +385,7 @@ struct SocialProfileView: View {
                 guard let data = try await item.loadTransferable(type: Data.self),
                       UIImage(data: data) != nil else {
                     await MainActor.run {
-                        store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                        store.reportImagePickerError("Couldn’t save photo")
                         isProcessingAvatar = false
                         showAvatarUploadError = true
                         selectedAvatarItem = nil
@@ -373,7 +404,7 @@ struct SocialProfileView: View {
                 await uploadPendingAvatar()
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("We couldn’t save your profile picture. Please try again.")
+                    store.reportImagePickerError("Couldn’t save photo")
                     isProcessingAvatar = false
                     showAvatarUploadError = true
                     selectedAvatarItem = nil
@@ -457,22 +488,6 @@ struct SocialProfileView: View {
             SecondaryButton(title: "Log Out", systemImage: "rectangle.portrait.and.arrow.right") {
                 showLogoutConfirmation = true
             }
-
-            NavigationLink {
-                AccountDeletionView()
-            } label: {
-                Label("Delete Account", systemImage: "person.crop.circle.badge.xmark")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.vdCoral)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color.vdCoral.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.vdCoral.opacity(0.34), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -743,6 +758,121 @@ struct SocialProfileView: View {
     }
 }
 
+private struct VerificationStatusDisplay {
+    let title: String
+    let systemImage: String
+    let tint: Color
+}
+
+struct VerificationRequestView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: LocalVaultStore
+    @State private var fullName = ""
+    @State private var includeDateOfBirth = false
+    @State private var dateOfBirth = Date()
+    @State private var note = ""
+    @State private var message = ""
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Request verification", systemImage: "checkmark.shield.fill")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color.vdTextPrimary)
+
+                        Text("Verification requests are reviewed by VaultDex admin.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.vdTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(18)
+                    .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 20))
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.vdGold.opacity(0.22), lineWidth: 1))
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        ProfileTextField(title: "Full name", text: $fullName, systemImage: "person.text.rectangle")
+                            .textContentType(.name)
+
+                        Toggle(isOn: $includeDateOfBirth.animation(.easeInOut(duration: 0.2))) {
+                            Text("Add date of birth")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.vdTextPrimary)
+                        }
+                        .tint(Color.vdGold)
+                        .padding(14)
+                        .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 12))
+
+                        if includeDateOfBirth {
+                            DatePicker("Date of birth", selection: $dateOfBirth, displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .padding(14)
+                                .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Short note", systemImage: "text.alignleft")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.vdTextSecondary)
+
+                            TextEditor(text: $note)
+                                .frame(minHeight: 100)
+                                .scrollContentBackground(.hidden)
+                                .padding(10)
+                                .foregroundStyle(Color.vdTextPrimary)
+                                .background(Color.vdPanelRaised.opacity(0.84), in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.vdStroke.opacity(0.7), lineWidth: 1))
+                        }
+
+                        PrimaryButton(title: store.isSubmittingVerificationRequest ? "Sending..." : "Submit request", systemImage: "paperplane.fill") {
+                            Task { await submit() }
+                        }
+                        .disabled(store.isSubmittingVerificationRequest || fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if !message.isEmpty {
+                            Text(message)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(message == "Request sent" ? Color.vdEmerald : Color.vdCoral)
+                        }
+                    }
+                }
+                .padding(20)
+                .bottomDockSpacing()
+            }
+        }
+        .navigationTitle("Verification")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func submit() async {
+        message = ""
+        do {
+            try await store.submitVerificationRequest(
+                fullName: fullName,
+                dateOfBirth: includeDateOfBirth ? Self.dateFormatter.string(from: dateOfBirth) : nil,
+                note: note
+            )
+            message = "Request sent"
+            dismiss()
+        } catch {
+            message = "Couldn’t send request. Please try again."
+        }
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_GB")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+}
+
 struct ProfileSetupView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @State private var draft = ProfileDraft()
@@ -956,6 +1086,7 @@ struct SettingsView: View {
     @State private var showWishlistBadges = true
     @State private var requireSafeTradeForHighValue = true
     @State private var parentManagedAccount = false
+    @State private var showDeveloperAdmin = false
 
     var body: some View {
         ZStack {
@@ -967,10 +1098,11 @@ struct SettingsView: View {
                     privacyControls
                     tradeControls
                     legalLinks
+                    developerAdminArea
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Settings")
@@ -1056,6 +1188,82 @@ struct SettingsView: View {
             PlaceholderLinkRow(title: "Privacy policy", systemImage: "hand.raised.fill")
         }
     }
+
+    private var developerAdminArea: some View {
+        DisclosureGroup(isExpanded: $showDeveloperAdmin) {
+            NavigationLink {
+                VerificationAdminPlaceholderView()
+            } label: {
+                Label("Verification requests", systemImage: "checkmark.shield.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+        } label: {
+            Label("Developer / Admin", systemImage: "wrench.and.screwdriver.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+        }
+        .tint(Color.vdGold)
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct VerificationAdminPlaceholderView: View {
+    @EnvironmentObject private var store: LocalVaultStore
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VaultSectionHeader(title: "Pending verification", subtitle: "Admin review placeholder.")
+
+                    if store.pendingVerificationRequests.isEmpty {
+                        EmptyStateView(
+                            systemImage: "checkmark.shield",
+                            title: "No pending requests",
+                            message: "New ID verification requests will appear here for admin review."
+                        )
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(store.pendingVerificationRequests) { request in
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(request.fullName)
+                                        .font(.headline.weight(.bold))
+                                        .foregroundStyle(Color.vdTextPrimary)
+
+                                    Text("Submitted for review")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.vdTextSecondary)
+
+                                    HStack(spacing: 10) {
+                                        SecondaryButton(title: "Approve", systemImage: "checkmark.circle.fill") {}
+                                        SecondaryButton(title: "Reject", systemImage: "xmark.circle.fill") {}
+                                    }
+                                }
+                                .padding(16)
+                                .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+                .bottomDockSpacing()
+            }
+        }
+        .navigationTitle("Admin")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.loadPendingVerificationRequests()
+        }
+    }
 }
 
 struct SafetyCentreView: View {
@@ -1081,7 +1289,7 @@ struct SafetyCentreView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Safety Centre")

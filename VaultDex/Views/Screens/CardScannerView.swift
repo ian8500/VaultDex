@@ -14,6 +14,7 @@ struct CardScannerView: View {
     @State private var selectedCard: Card?
     @State private var message: String?
     @State private var successMessage: String?
+    @State private var scanOverlayMessage = "Centre the card"
 
     private let apiService = CardAPIService()
 
@@ -30,7 +31,7 @@ struct CardScannerView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 30)
+                .bottomDockSpacing()
             }
 
             if let successMessage {
@@ -105,7 +106,7 @@ struct CardScannerView: View {
                         .font(.system(size: 42, weight: .black))
                         .foregroundStyle(Color.vdGold)
 
-                    Text("Line up the card name and number")
+                    Text(scanOverlayMessage)
                         .font(.headline.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
                         .multilineTextAlignment(.center)
@@ -124,6 +125,10 @@ struct CardScannerView: View {
 
             PrimaryButton(title: "Scan Card", systemImage: "camera.viewfinder") {
                 startScan()
+            }
+
+            SecondaryButton(title: "Search manually", systemImage: "magnifyingglass") {
+                message = "Use manual search below to find the card."
             }
 
             if cameraPermission == .denied {
@@ -265,6 +270,7 @@ struct CardScannerView: View {
 
     private func startScan() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        scanOverlayMessage = "Hold steady"
         guard ScannerCameraViewController.hasUsableCamera else {
             cameraPermission = .unavailable
             message = "Camera is not available here. Use manual search instead."
@@ -315,72 +321,133 @@ struct CardScannerView: View {
     private func handleCapturedImage(_ image: UIImage) {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         isSearching = true
-        message = "Reading card text..."
+        scanOverlayMessage = "Scanning..."
+        message = "Scanning..."
         Task {
-            let text = await recognizeText(in: image)
+            let recognition = await recognizeCardText(in: image)
             await MainActor.run {
-                detectedText = text
-                manualSearchText = text
+                detectedText = recognition.displayText
+                manualSearchText = recognition.primaryQuery
             }
-            await searchCards(using: text)
+            await searchCards(using: recognition)
         }
     }
 
-    private func recognizeText(in image: UIImage) async -> String {
+    private func recognizeCardText(in image: UIImage) async -> ScanRecognitionResult {
         await Task.detached(priority: .userInitiated) {
-            guard let cgImage = image.cgImage else { return "" }
+            guard let cgImage = image.cgImage else { return .empty }
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
             request.minimumTextHeight = 0.018
+            request.recognitionLanguages = ["en-US"]
+            request.customWords = [
+                "Pikachu", "Charizard", "Eevee", "Mew", "Snorlax",
+                "Bulbasaur", "Charmander", "Squirtle", "Dragonite",
+                "Mewtwo", "Gengar", "Lucario"
+            ]
 
             let handler = VNImageRequestHandler(cgImage: cgImage, orientation: CGImagePropertyOrientation(image.imageOrientation))
             do {
                 try handler.perform([request])
-                let lines = request.results?
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty } ?? []
-                return scanBestSearchText(from: lines)
+                let observations = request.results ?? []
+                let candidates = observations.compactMap { observation -> ScanTextCandidate? in
+                    guard let candidate = observation.topCandidates(1).first else { return nil }
+                    let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { return nil }
+                    return ScanTextCandidate(text: text, confidence: candidate.confidence, boundingBox: observation.boundingBox)
+                }
+                return ScanRecognitionResult(candidates: candidates)
             } catch {
-                return ""
+                return .empty
             }
         }
         .value
     }
 
     private func searchCards(using text: String) async {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else {
+        await searchCards(using: ScanRecognitionResult(manualText: text))
+    }
+
+    private func searchCards(using recognition: ScanRecognitionResult) async {
+        let queries = recognition.searchQueries
+        guard !queries.isEmpty else {
             await MainActor.run {
                 isSearching = false
                 matches = []
                 message = "We couldn’t read enough text. Try manual search."
+                scanOverlayMessage = "Centre the card"
             }
             return
         }
 
         await MainActor.run {
             isSearching = true
+            scanOverlayMessage = "Scanning..."
             message = nil
         }
 
         do {
             await ExchangeRateService.shared.refreshRatesIfNeeded()
-            let response = try await apiService.searchCards(query: cleaned, page: 1, pageSize: 12)
-            await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
+            var uniqueCards: [PokemonTCGCard] = []
+            var seenIDs = Set<String>()
+
+            for query in queries.prefix(5) {
+                guard !Task.isCancelled else { return }
+                let response = try await apiService.searchCards(query: query, page: 1, pageSize: 8)
+                for card in response.data where seenIDs.insert(card.id).inserted {
+                    uniqueCards.append(card)
+                }
+                if uniqueCards.count >= 12 {
+                    break
+                }
+            }
+
+            await apiService.cache(cards: uniqueCards, using: store.repositories.clientProvider)
             await MainActor.run {
-                matches = response.data.map(\.localCard)
+                matches = rankScannedMatches(uniqueCards.map(\.localCard), recognition: recognition)
                 isSearching = false
-                message = matches.isEmpty ? "No matches found. Try a simpler card name or number." : nil
+                if matches.isEmpty {
+                    message = "No matches found. Try a simpler card name or number."
+                    scanOverlayMessage = "Centre the card"
+                } else {
+                    message = recognition.isLowConfidence ? "We found a few possible matches" : "Choose the correct card"
+                    scanOverlayMessage = "Hold steady"
+                }
             }
         } catch {
             await MainActor.run {
                 matches = []
                 isSearching = false
                 message = "Couldn’t search right now. Try again or use manual search."
+                scanOverlayMessage = "Centre the card"
             }
         }
+    }
+
+    private func rankScannedMatches(_ cards: [Card], recognition: ScanRecognitionResult) -> [Card] {
+        let tokens = Set(recognition.searchQueries.flatMap { $0.lowercased().split(separator: " ").map(String.init) })
+        return cards
+            .sorted { left, right in
+                score(card: left, tokens: tokens, recognition: recognition) > score(card: right, tokens: tokens, recognition: recognition)
+            }
+            .prefix(12)
+            .map { $0 }
+    }
+
+    private func score(card: Card, tokens: Set<String>, recognition: ScanRecognitionResult) -> Int {
+        let name = card.name.lowercased()
+        let number = card.number.lowercased()
+        var score = 0
+        for token in tokens where token.count >= 2 {
+            if name.contains(token) { score += 6 }
+            if number.contains(token) { score += 4 }
+            if card.set.name.lowercased().contains(token) { score += 2 }
+        }
+        if recognition.cardNumber?.lowercased() == number {
+            score += 10
+        }
+        return score
     }
 
     private func showSuccess(_ text: String) {
@@ -401,20 +468,148 @@ struct CardScannerView: View {
     }
 }
 
-private func scanBestSearchText(from lines: [String]) -> String {
-    let noise = ["pokemon", "trainer", "stage", "basic", "evolves", "weakness", "resistance", "retreat", "illustrated"]
-    let numberLine = lines.first { $0.range(of: #"^\s*\d{1,3}/\d{1,3}\s*$"#, options: .regularExpression) != nil }
-    let nameLine = lines.first { line in
-        let lower = line.lowercased()
-        return line.count >= 3
-            && line.count <= 34
-            && line.rangeOfCharacter(from: .letters) != nil
-            && !noise.contains { lower.contains($0) }
+private struct ScanTextCandidate {
+    let text: String
+    let confidence: Float
+    let boundingBox: CGRect
+}
+
+private struct ScanRecognitionResult {
+    let lines: [ScanTextCandidate]
+    let likelyName: String?
+    let cardNumber: String?
+    let setNumber: String?
+    let averageConfidence: Float
+
+    static let empty = ScanRecognitionResult(candidates: [])
+
+    init(manualText: String) {
+        let trimmed = manualText.trimmingCharacters(in: .whitespacesAndNewlines)
+        lines = trimmed.isEmpty ? [] : [ScanTextCandidate(text: trimmed, confidence: 1, boundingBox: .zero)]
+        likelyName = trimmed
+        cardNumber = Self.extractCardNumber(from: trimmed)
+        setNumber = Self.extractSetNumber(from: trimmed)
+        averageConfidence = trimmed.isEmpty ? 0 : 1
     }
-    return [nameLine, numberLine]
-        .compactMap { $0 }
-        .joined(separator: " ")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    init(candidates: [ScanTextCandidate]) {
+        let cleaned = candidates
+            .map { candidate in
+                ScanTextCandidate(
+                    text: Self.cleanOCRLine(candidate.text),
+                    confidence: candidate.confidence,
+                    boundingBox: candidate.boundingBox
+                )
+            }
+            .filter { !$0.text.isEmpty }
+
+        lines = cleaned
+        averageConfidence = cleaned.isEmpty ? 0 : cleaned.reduce(Float(0)) { $0 + $1.confidence } / Float(cleaned.count)
+        cardNumber = cleaned.compactMap { Self.extractCardNumber(from: $0.text) }.first
+        setNumber = cleaned.compactMap { Self.extractSetNumber(from: $0.text) }.first
+        likelyName = Self.extractLikelyName(from: cleaned)
+    }
+
+    var primaryQuery: String {
+        searchQueries.first ?? ""
+    }
+
+    var displayText: String {
+        let text = [likelyName, cardNumber, setNumber]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { return text }
+        return lines.prefix(4).map(\.text).joined(separator: " ")
+    }
+
+    var isLowConfidence: Bool {
+        averageConfidence < 0.62 || likelyName == nil
+    }
+
+    var searchQueries: [String] {
+        var queries: [String] = []
+
+        if let likelyName, let cardNumber {
+            queries.append("\(likelyName) \(cardNumber)")
+        }
+        if let likelyName {
+            queries.append(likelyName)
+        }
+        if let cardNumber {
+            queries.append(cardNumber)
+        }
+        if let setNumber {
+            queries.append(setNumber)
+        }
+
+        for line in lines.prefix(6).map(\.text) where line.count >= 3 {
+            queries.append(line)
+        }
+
+        var seen = Set<String>()
+        return queries
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    private static func extractLikelyName(from lines: [ScanTextCandidate]) -> String? {
+        let noise = [
+            "pokemon", "trainer", "stage", "basic", "evolves", "weakness", "resistance",
+            "retreat", "illustrated", "illus", "copyright", "switch", "during", "damage",
+            "attach", "energy", "opponent", "bench", "active", "discard", "shuffle"
+        ]
+
+        return lines
+            .filter { candidate in
+                let lower = candidate.text.lowercased()
+                return candidate.text.count >= 3
+                    && candidate.text.count <= 34
+                    && candidate.text.rangeOfCharacter(from: .letters) != nil
+                    && candidate.text.range(of: #"^\d+(/\d+)?$"#, options: .regularExpression) == nil
+                    && !noise.contains { lower.contains($0) }
+            }
+            .sorted { left, right in
+                let leftScore = nameScore(left)
+                let rightScore = nameScore(right)
+                if leftScore != rightScore { return leftScore > rightScore }
+                return left.boundingBox.maxY > right.boundingBox.maxY
+            }
+            .first?
+            .text
+    }
+
+    private static func nameScore(_ candidate: ScanTextCandidate) -> Float {
+        var score = candidate.confidence * 10
+        if candidate.boundingBox.maxY > 0.68 { score += 4 }
+        if candidate.text.split(separator: " ").count <= 4 { score += 2 }
+        if candidate.text.range(of: #"\d"#, options: .regularExpression) != nil { score -= 3 }
+        return score
+    }
+
+    private static func extractCardNumber(from text: String) -> String? {
+        if let range = text.range(of: #"\b\d{1,4}/\d{1,4}\b"#, options: .regularExpression) {
+            return String(text[range])
+        }
+        if let range = text.range(of: #"\b[A-Z]{1,4}\d{1,4}\b"#, options: .regularExpression) {
+            return String(text[range])
+        }
+        return nil
+    }
+
+    private static func extractSetNumber(from text: String) -> String? {
+        if let range = text.range(of: #"\b\d{1,4}\b"#, options: .regularExpression) {
+            return String(text[range])
+        }
+        return nil
+    }
+
+    private static func cleanOCRLine(_ line: String) -> String {
+        line
+            .replacingOccurrences(of: #"[^A-Za-z0-9éÉ'’.\- /]"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 private enum ScannerCameraPermission {
@@ -469,16 +664,13 @@ private struct ScanCardThumbnail: View {
                 .fill(Color.vdPanelRaised.opacity(0.82))
 
             if let url = card.smallImageURL ?? card.largeImageURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        Image(systemName: "rectangle.portrait.fill")
-                            .foregroundStyle(Color.vdGold)
-                    }
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Image(systemName: "rectangle.portrait.fill")
+                        .foregroundStyle(Color.vdGold)
                 }
             } else {
                 Image(systemName: "rectangle.portrait.fill")
@@ -535,15 +727,12 @@ private struct CardDetailSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let imageURL = card.largeImageURL ?? card.smallImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    default:
-                        CardTile(card: card)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } placeholder: {
+                    CardTile(card: card)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 300)
@@ -701,10 +890,11 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
         view.addSubview(overlay)
 
         let label = UILabel()
-        label.text = "Align card name and number"
+        label.text = "Centre the card\nHold steady"
         label.textColor = .white
         label.font = .systemFont(ofSize: 17, weight: .bold)
         label.textAlignment = .center
+        label.numberOfLines = 2
         label.translatesAutoresizingMaskIntoConstraints = false
 
         let frameView = UIView()
@@ -758,6 +948,7 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
     }
 
     @objc private func capturePhoto() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let settings = AVCapturePhotoSettings()
         if let connection = photoOutput.connection(with: .video), connection.isVideoRotationAngleSupported(90) {
             connection.videoRotationAngle = 90

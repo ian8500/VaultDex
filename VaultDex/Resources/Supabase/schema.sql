@@ -22,6 +22,7 @@ alter table public.profiles add column if not exists profile_visibility text not
 alter table public.profiles add column if not exists collection_visibility text not null default 'friends';
 alter table public.profiles add column if not exists wishlist_visibility text not null default 'friends';
 alter table public.profiles add column if not exists allow_friend_trade_requests boolean not null default true;
+alter table public.profiles add column if not exists is_admin boolean not null default false;
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
 alter table public.profiles add column if not exists updated_at timestamptz not null default now();
 alter table public.profiles alter column username drop not null;
@@ -324,6 +325,32 @@ create table if not exists public.safety_reports (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.verification_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'verified', 'rejected')),
+  full_name text not null,
+  date_of_birth date,
+  verification_note text,
+  submitted_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  admin_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.verification_requests add column if not exists status text not null default 'pending';
+alter table public.verification_requests add column if not exists full_name text not null default '';
+alter table public.verification_requests add column if not exists date_of_birth date;
+alter table public.verification_requests add column if not exists verification_note text;
+alter table public.verification_requests add column if not exists submitted_at timestamptz not null default now();
+alter table public.verification_requests add column if not exists reviewed_at timestamptz;
+alter table public.verification_requests add column if not exists reviewed_by uuid references public.profiles(id) on delete set null;
+alter table public.verification_requests add column if not exists admin_note text;
+alter table public.verification_requests add column if not exists created_at timestamptz not null default now();
+alter table public.verification_requests add column if not exists updated_at timestamptz not null default now();
+
 alter table public.card_sets add column if not exists created_at timestamptz not null default now();
 alter table public.card_sets add column if not exists updated_at timestamptz not null default now();
 alter table public.cards add column if not exists created_at timestamptz not null default now();
@@ -350,8 +377,11 @@ alter table public.app_events add column if not exists created_at timestamptz no
 alter table public.app_events add column if not exists updated_at timestamptz not null default now();
 alter table public.safety_reports add column if not exists created_at timestamptz not null default now();
 alter table public.safety_reports add column if not exists updated_at timestamptz not null default now();
+alter table public.verification_requests add column if not exists created_at timestamptz not null default now();
+alter table public.verification_requests add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists profiles_username_idx on public.profiles(username);
+create index if not exists profiles_is_admin_idx on public.profiles(is_admin);
 create index if not exists profiles_created_at_idx on public.profiles(created_at);
 create index if not exists card_sets_created_at_idx on public.card_sets(created_at);
 create index if not exists cards_set_id_idx on public.cards(set_id);
@@ -415,6 +445,10 @@ create index if not exists safety_reports_marketplace_listing_idx on public.safe
 create index if not exists safety_reports_trade_offer_idx on public.safety_reports(trade_offer_id);
 create index if not exists safety_reports_status_idx on public.safety_reports(status);
 create index if not exists safety_reports_created_at_idx on public.safety_reports(created_at);
+create index if not exists verification_requests_user_id_idx on public.verification_requests(user_id);
+create index if not exists verification_requests_status_idx on public.verification_requests(status);
+create index if not exists verification_requests_submitted_at_idx on public.verification_requests(submitted_at);
+create index if not exists verification_requests_reviewed_by_idx on public.verification_requests(reviewed_by);
 
 alter table public.profiles enable row level security;
 alter table public.card_sets enable row level security;
@@ -432,6 +466,7 @@ alter table public.reputation_events enable row level security;
 alter table public.credit_ledger enable row level security;
 alter table public.app_events enable row level security;
 alter table public.safety_reports enable row level security;
+alter table public.verification_requests enable row level security;
 
 create or replace function public.handle_updated_at()
 returns trigger
@@ -475,3 +510,5 @@ drop trigger if exists app_events_updated_at on public.app_events;
 create trigger app_events_updated_at before update on public.app_events for each row execute function public.handle_updated_at();
 drop trigger if exists safety_reports_updated_at on public.safety_reports;
 create trigger safety_reports_updated_at before update on public.safety_reports for each row execute function public.handle_updated_at();
+drop trigger if exists verification_requests_updated_at on public.verification_requests;
+create trigger verification_requests_updated_at before update on public.verification_requests for each row execute function public.handle_updated_at();

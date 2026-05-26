@@ -14,6 +14,7 @@ alter table public.reputation_events enable row level security;
 alter table public.credit_ledger enable row level security;
 alter table public.app_events enable row level security;
 alter table public.safety_reports enable row level security;
+alter table public.verification_requests enable row level security;
 
 drop policy if exists "public read avatar storage" on storage.objects;
 create policy "public read avatar storage"
@@ -125,6 +126,69 @@ on public.profiles
 for delete
 to authenticated
 using (id = auth.uid());
+
+drop policy if exists "users read own verification requests" on public.verification_requests;
+create policy "users read own verification requests"
+on public.verification_requests
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
+
+drop policy if exists "users create own verification requests" on public.verification_requests;
+create policy "users create own verification requests"
+on public.verification_requests
+for insert
+to authenticated
+with check (
+  user_id = auth.uid()
+  and status = 'pending'
+  and reviewed_at is null
+  and reviewed_by is null
+);
+
+drop policy if exists "users update pending verification requests" on public.verification_requests;
+create policy "users update pending verification requests"
+on public.verification_requests
+for update
+to authenticated
+using (user_id = auth.uid() and status = 'pending')
+with check (
+  user_id = auth.uid()
+  and status = 'pending'
+  and reviewed_at is null
+  and reviewed_by is null
+);
+
+drop policy if exists "admins review verification requests" on public.verification_requests;
+create policy "admins review verification requests"
+on public.verification_requests
+for update
+to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+)
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
+
+drop policy if exists "users delete own pending verification requests" on public.verification_requests;
+create policy "users delete own pending verification requests"
+on public.verification_requests
+for delete
+to authenticated
+using (user_id = auth.uid() and status = 'pending');
 
 drop policy if exists "card sets are readable" on public.card_sets;
 create policy "card sets are readable"

@@ -27,7 +27,7 @@ struct VaultView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .padding(.bottom, 28)
+                .bottomDockSpacing()
             }
         }
         .navigationTitle("Vault")
@@ -389,16 +389,13 @@ private struct CardArtworkThumbnail: View {
                 .fill(Color.vdPanelRaised.opacity(0.9))
 
             if let url = card.smallImageURL ?? card.largeImageURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    default:
-                        Image(systemName: "rectangle.portrait.fill")
-                            .foregroundStyle(Color.vdGold)
-                    }
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } placeholder: {
+                    Image(systemName: "rectangle.portrait.fill")
+                        .foregroundStyle(Color.vdGold)
                 }
                 .padding(4)
             } else {
