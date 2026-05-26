@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @EnvironmentObject private var store: LocalVaultStore
@@ -58,7 +59,7 @@ struct DashboardView: View {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 26) {
                     if isLoading {
                         loadingState
                     } else {
@@ -75,8 +76,8 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.top, 18)
+                .padding(.bottom, 32)
                 .opacity(isLoading || hasAnimated ? 1 : 0)
                 .offset(y: isLoading || hasAnimated ? 0 : 12)
             }
@@ -113,16 +114,16 @@ struct DashboardView: View {
     }
 
     private var welcomeHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VaultDexLogo(size: 58)
+        HStack(alignment: .center, spacing: 12) {
+            VaultDexLogo(size: 46)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Welcome back")
-                    .font(.subheadline.weight(.bold))
+                    .font(.callout.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
 
                 Text(store.profile.displayName)
-                    .font(.system(.title2, design: .rounded, weight: .black))
+                    .font(.system(.title3, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -133,21 +134,44 @@ struct DashboardView: View {
             NavigationLink {
                 SocialProfileView()
             } label: {
-                Image(systemName: store.profile.avatarSymbol)
-                    .font(.system(size: 20, weight: .black))
-                    .foregroundStyle(Color.vdNavy)
-                    .frame(width: 44, height: 44)
-                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.4), lineWidth: 1)
-                    )
-                    .shadow(color: Color.vdGold.opacity(0.24), radius: 12, x: 0, y: 6)
-                    .accessibilityLabel("Open profile")
+                profileAvatar
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableScaleStyle())
         }
-        .padding(.top, 4)
+    }
+
+    private var profileAvatar: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.vdGold)
+
+            if let avatarURL = store.profile.avatarURL {
+                AsyncImage(url: avatarURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Image(systemName: store.profile.avatarSymbol)
+                            .font(.system(size: 19, weight: .black))
+                            .foregroundStyle(Color.vdNavy)
+                    }
+                }
+            } else {
+                Image(systemName: store.profile.avatarSymbol)
+                    .font(.system(size: 19, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.36), lineWidth: 1)
+        )
+        .shadow(color: Color.vdGold.opacity(0.18), radius: 10, x: 0, y: 5)
+        .accessibilityLabel("Open profile")
     }
 
     private var vaultSummary: some View {
@@ -160,6 +184,8 @@ struct DashboardView: View {
                 Text(store.totalCopiesOwned == 1 ? "1 card saved" : "\(store.totalCopiesOwned) cards saved")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer()
@@ -171,19 +197,22 @@ struct DashboardView: View {
                 Text(store.estimatedCollectionValue.compactVaultCurrency)
                     .font(.system(.title3, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdGold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
         }
-        .padding(18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 17)
         .background(
             LinearGradient(
-                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.82)],
+                colors: [Color.vdPanelRaised.opacity(0.88), Color.vdPanel.opacity(0.70)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 22)
+            in: RoundedRectangle(cornerRadius: 24)
         )
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
-        .shadow(color: Color.vdGold.opacity(0.10), radius: 16, x: 0, y: 8)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 12)
     }
 
     private var heroCard: some View {
@@ -262,19 +291,18 @@ struct DashboardView: View {
     }
 
     private var quickActions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                DashboardQuickAction(title: "Add to Wants", subtitle: "Cards to hunt", icon: "star.fill", tint: .vdLeaf) {
-                    WishlistView()
-                }
-                DashboardQuickAction(title: "View Friends", subtitle: "Collectors", icon: "person.2.fill", tint: .vdSky) {
-                    FriendsView()
-                }
-                DashboardQuickAction(title: "Start Trade", subtitle: "Trade safely", icon: "arrow.left.arrow.right.circle.fill", tint: .vdGold) {
-                    TradeView()
-                }
+        HStack(spacing: 12) {
+            DashboardQuickAction(title: "Wants", subtitle: "Add to Wants", icon: "star.fill", tint: .vdLeaf) {
+                WishlistView()
+            }
+            DashboardQuickAction(title: "Friends", subtitle: "View Friends", icon: "person.2.fill", tint: .vdSky) {
+                FriendsView()
+            }
+            DashboardQuickAction(title: "Trade", subtitle: "Start Trade", icon: "arrow.left.arrow.right.circle.fill", tint: .vdGold) {
+                TradeView()
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var primaryFindAction: some View {
@@ -291,12 +319,21 @@ struct DashboardView: View {
                     .font(.title3.weight(.black))
             }
             .foregroundStyle(Color.vdNavy)
-            .padding(18)
-            .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.44), lineWidth: 1))
-            .shadow(color: Color.vdGold.opacity(0.24), radius: 16, x: 0, y: 8)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 66)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: 0xFFF06A), Color.vdGold],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 22)
+            )
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.42), lineWidth: 1))
+            .shadow(color: Color.vdGold.opacity(0.26), radius: 18, x: 0, y: 10)
         }
-        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded { lightHaptic() })
+        .buttonStyle(PressableScaleStyle())
     }
 
     private var nextBestActionCard: some View {
@@ -304,24 +341,27 @@ struct DashboardView: View {
         return NavigationLink {
             action.destination
         } label: {
-            HStack(spacing: 13) {
+            HStack(spacing: 12) {
                 Image(systemName: action.icon)
-                    .font(.system(size: 22, weight: .black))
+                    .font(.system(size: 18, weight: .black))
                     .foregroundStyle(Color.vdNavy)
-                    .frame(width: 52, height: 52)
-                    .background(action.tint, in: RoundedRectangle(cornerRadius: 16))
+                    .frame(width: 42, height: 42)
+                    .background(action.tint.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Next best action")
+                    Text("Next step")
                         .font(.caption.weight(.black))
                         .foregroundStyle(Color.vdTextSecondary)
                     Text(action.title)
-                        .font(.headline.weight(.black))
+                        .font(.subheadline.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
                     Text(action.message)
                         .font(.caption)
                         .foregroundStyle(Color.vdTextSecondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
 
                 Spacer()
@@ -329,11 +369,18 @@ struct DashboardView: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdTextSecondary)
             }
-            .padding(16)
-            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(action.tint.opacity(0.28), lineWidth: 1))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(Color.vdPanel.opacity(0.64), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.07), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 7)
         }
-        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded { lightHaptic() })
+        .buttonStyle(PressableScaleStyle())
+    }
+
+    private func lightHaptic() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private var nextBestAction: DashboardNextAction {
@@ -518,31 +565,48 @@ private struct DashboardQuickAction<Destination: View>: View {
         NavigationLink {
             destination
         } label: {
-            HStack(spacing: 11) {
+            VStack(spacing: 9) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .black))
+                    .font(.system(size: 18, weight: .black))
                     .foregroundStyle(Color.vdNavy)
-                    .frame(width: 42, height: 42)
-                    .background(tint.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+                    .frame(width: 50, height: 50)
+                    .background(
+                        LinearGradient(
+                            colors: [tint.opacity(0.98), tint.opacity(0.78)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 17)
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 17).stroke(Color.white.opacity(0.24), lineWidth: 1))
+                    .shadow(color: tint.opacity(0.16), radius: 10, x: 0, y: 5)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(Color.vdTextPrimary)
-                    Text(subtitle)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.vdTextSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
+                Text(title)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
             }
-            .padding(13)
-            .background(Color.vdPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(tint.opacity(0.28), lineWidth: 1))
-            .shadow(color: tint.opacity(0.10), radius: 10, x: 0, y: 5)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(Color.vdPanel.opacity(0.56), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.07), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .accessibilityLabel(subtitle)
         }
-        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        })
+        .buttonStyle(PressableScaleStyle())
+    }
+}
+
+private struct PressableScaleStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 

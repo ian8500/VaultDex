@@ -109,6 +109,14 @@ struct ContentView: View {
             .accessibilityLabel("Vault")
 
             NavigationStack {
+                WishlistView()
+            }
+            .tabItem {
+                Label("Wants", systemImage: "star.fill")
+            }
+            .accessibilityLabel("Wants")
+
+            NavigationStack {
                 FriendsView()
             }
             .tabItem {

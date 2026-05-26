@@ -68,6 +68,10 @@ final class AuthService: ObservableObject {
             isConfigured: clientProvider.config.isConfigured,
             session: initialSession
         )
+
+        if initialSession == nil, clientProvider.hasExpiredStoredSession {
+            Task { await refreshExpiredStoredSessionIfPossible() }
+        }
     }
 
     var shouldShowLogin: Bool {
@@ -162,7 +166,34 @@ final class AuthService: ObservableObject {
     }
 
     func currentSession() -> SupabaseSession? {
-        session
+        if session?.isExpired() == true {
+            session = nil
+            clientProvider.updateSession(nil)
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
+        }
+        return session
+    }
+
+    private func refreshExpiredStoredSessionIfPossible() async {
+        guard !isDemoModeEnabled, clientProvider.config.isConfigured, clientProvider.canCreateClient else {
+            clientProvider.clearExpiredStoredSession()
+            status = isDemoModeEnabled ? .demoMode : .cloudReady
+            return
+        }
+
+        do {
+            if let refreshedSession = try await clientProvider.refreshExpiredStoredSession() {
+                session = refreshedSession
+                status = .cloudSignedIn
+            } else {
+                session = nil
+                status = .cloudReady
+            }
+        } catch {
+            session = nil
+            clientProvider.clearExpiredStoredSession()
+            status = .cloudReady
+        }
     }
 
     private func signUpWithSDK(email: String, password: String) async throws {

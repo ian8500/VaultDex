@@ -77,6 +77,31 @@ struct FriendWant: Identifiable, Hashable {
     }
 }
 
+struct FriendWantSpot: Identifiable, Hashable {
+    let id: UUID
+    let friendID: UUID
+    let cardID: UUID
+    let spottedByUserID: UUID?
+    var note: String
+    let createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        friendID: UUID,
+        cardID: UUID,
+        spottedByUserID: UUID? = nil,
+        note: String,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.friendID = friendID
+        self.cardID = cardID
+        self.spottedByUserID = spottedByUserID
+        self.note = note
+        self.createdAt = createdAt
+    }
+}
+
 enum FriendRequestDirection: String, CaseIterable, Identifiable, Hashable {
     case incoming
     case outgoing

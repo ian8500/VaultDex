@@ -237,6 +237,7 @@ struct WishlistView: View {
     @EnvironmentObject private var store: LocalVaultStore
     @StateObject private var viewModel = WishlistViewModel()
     @State private var selectedPriority: WishlistPriority?
+    @State private var searchText = ""
     @State private var editingItem: WishlistItem?
 
     var body: some View {
@@ -244,14 +245,15 @@ struct WishlistView: View {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 20) {
                     header
-                    chaseStrip
-                    allItems
+                    searchAndActions
+                    friendsHuntingSection
+                    prioritySections
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.top, 16)
+                .padding(.bottom, 30)
             }
         }
         .navigationTitle("Wants")
@@ -263,112 +265,166 @@ struct WishlistView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Wants")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color.vdTextPrimary)
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Wants")
+                    .font(.system(.largeTitle, design: .rounded, weight: .black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
 
-                    Text("Track the cards you’re hunting for.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.vdTextSecondary)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 6) {
-                    StatusPill(title: "\(store.wishlistItems.count) Cards", tint: .vdGold)
-                    Text(viewModel.targetValue(in: store).vaultCurrency)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.vdTextSecondary)
-                }
+                Text("Cards you’re hunting for")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(1)
             }
+
+            Spacer()
+
+            NavigationLink {
+                SearchView()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 44, height: 44)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 15))
+                    .accessibilityLabel("Add Want")
+            }
+            .buttonStyle(.plain)
         }
-        .padding(18)
-        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
-        )
     }
 
-    @ViewBuilder
-    private var chaseStrip: some View {
-        if !viewModel.highPriorityItems(in: store).isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                VaultSectionHeader(title: "Grail Board", subtitle: nil)
+    private var searchAndActions: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(viewModel.highPriorityItems(in: store)) { item in
-                            NavigationLink {
-                                CardDetailView(card: item.card)
-                            } label: {
-                                CardTile(card: item.card, style: .compact)
-                                    .frame(width: 220)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                TextField("Search your wants", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(Color.vdTextPrimary)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.vdTextSecondary)
                     }
-                    .scrollTargetLayout()
+                    .buttonStyle(.plain)
                 }
-                .scrollTargetBehavior(.viewAligned)
+            }
+            .padding(14)
+            .background(Color.vdPanel.opacity(0.70), in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08), lineWidth: 1))
+
+            HStack(spacing: 10) {
+                priorityFilter
+
+                NavigationLink {
+                    SearchView()
+                } label: {
+                    Label("Add Want", systemImage: "star.fill")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private var allItems: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VaultSectionHeader(title: "All Wants", subtitle: nil)
-                Spacer()
-                priorityFilter
-            }
+    private var friendsHuntingSection: some View {
+        NavigationLink {
+            FriendsWantsView()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 44, height: 44)
+                    .background(Color.vdSky, in: RoundedRectangle(cornerRadius: 15))
 
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Friends are hunting")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Text("View friends’ wants")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+            .padding(14)
+            .background(Color.vdPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.07), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var prioritySections: some View {
+        VStack(alignment: .leading, spacing: 18) {
             if store.wishlistItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star.circle.fill",
-                    title: "What cards are you hunting?",
-                    message: "Find cards in Search and add them to Wants."
+                    title: "No wants yet",
+                    message: "Add cards you’re hunting for so friends can spot them."
                 )
             } else if filteredItems.isEmpty {
                 EmptyStateView(
                     systemImage: "line.3.horizontal.decrease.circle",
-                    title: "No wants match this filter.",
+                    title: "No wants found",
                     message: "Clear the filter or choose another priority."
                 )
             } else {
-                VStack(spacing: 12) {
-                    ForEach(filteredItems) { item in
-                        NavigationLink {
-                            CardDetailView(card: item.card)
-                        } label: {
-                            WishlistRow(item: item)
-                        }
-                        .contextMenu {
-                            Button("Edit Want", systemImage: "slider.horizontal.3") {
-                                editingItem = item
-                            }
-                            Button("Remove from Wants", systemImage: "star.slash", role: .destructive) {
-                                store.removeFromWishlist(item.card)
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                store.removeFromWishlist(item.card)
-                            } label: {
-                                Label("Remove", systemImage: "star.slash")
-                            }
+                ForEach(priorityOrder, id: \.self) { priority in
+                    let items = filteredItems.filter { $0.priority == priority }
+                    if !items.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            VaultSectionHeader(title: priority.displayName, subtitle: "\(items.count)")
 
-                            Button {
-                                editingItem = item
-                            } label: {
-                                Label("Edit", systemImage: "slider.horizontal.3")
+                            VStack(spacing: 10) {
+                                ForEach(items) { item in
+                                    NavigationLink {
+                                        CardDetailView(card: item.card)
+                                    } label: {
+                                        WishlistRow(item: item)
+                                    }
+                                    .contextMenu {
+                                        Button("Edit Want", systemImage: "slider.horizontal.3") {
+                                            editingItem = item
+                                        }
+                                        Button("Remove from Wants", systemImage: "star.slash", role: .destructive) {
+                                            store.removeFromWishlist(item.card)
+                                        }
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            store.removeFromWishlist(item.card)
+                                        } label: {
+                                            Label("Remove", systemImage: "star.slash")
+                                        }
+
+                                        Button {
+                                            editingItem = item
+                                        } label: {
+                                            Label("Edit", systemImage: "slider.horizontal.3")
+                                        }
+                                        .tint(.vdGold)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
-                            .tint(.vdGold)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -396,16 +452,24 @@ struct WishlistView: View {
             Label(selectedPriority?.displayName ?? "Filter", systemImage: selectedPriority == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(Color.vdGold)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(Color.vdGold.opacity(0.12), in: Capsule())
-                .overlay(Capsule().stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(Color.vdGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
 
     private var filteredItems: [WishlistItem] {
-        let items = store.wishlistItems.sorted { first, second in
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let items = store.wishlistItems.filter { item in
+            guard !trimmedSearch.isEmpty else { return true }
+            return item.card.name.lowercased().contains(trimmedSearch)
+                || item.card.set.name.lowercased().contains(trimmedSearch)
+                || item.card.set.code.lowercased().contains(trimmedSearch)
+                || item.card.rarity.displayName.lowercased().contains(trimmedSearch)
+        }
+        .sorted { first, second in
             if first.priority.sortRank != second.priority.sortRank {
                 return first.priority.sortRank > second.priority.sortRank
             }
@@ -413,6 +477,10 @@ struct WishlistView: View {
         }
         guard let selectedPriority else { return items }
         return items.filter { $0.priority == selectedPriority }
+    }
+
+    private var priorityOrder: [WishlistPriority] {
+        [.grail, .high, .medium, .low]
     }
 }
 
@@ -534,6 +602,7 @@ struct FriendsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    friendsWantsShortcut
                     addFriendCard
                     if !store.friendRequests.isEmpty {
                         requestList
@@ -583,6 +652,40 @@ struct FriendsView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.78), lineWidth: 1)
         )
+    }
+
+    private var friendsWantsShortcut: some View {
+        NavigationLink {
+            FriendsWantsView()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "star.bubble.fill")
+                    .font(.system(size: 21, weight: .black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(width: 52, height: 52)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 17))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Friends’ Wants")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                    Text("Quickly check what friends are hunting for.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+            .padding(15)
+            .background(Color.vdPanel.opacity(0.70), in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     private var addFriendCard: some View {
@@ -718,6 +821,467 @@ struct FriendsView: View {
 
             PrimaryButton(title: "Add friend", systemImage: "person.badge.plus") {
                 isAddFriendFocused = true
+            }
+        }
+    }
+}
+
+struct FriendsWantsView: View {
+    @EnvironmentObject private var store: LocalVaultStore
+    @State private var searchText = ""
+    @State private var selectedFriendID: UUID?
+    @State private var selectedRarity: CardRarity?
+    @State private var selectedPriority: WishlistPriority?
+    @State private var selectedSetCode: String?
+    @State private var isShowModeEnabled = false
+    @State private var spottedDraft: FriendWantSpotDraft?
+    @State private var spots: [FriendWantSpot] = []
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    searchBar
+                    filterRow
+                    showModeToggle
+                    wantsList
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 30)
+            }
+        }
+        .navigationTitle("Friends’ Wants")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $spottedDraft) { draft in
+            FriendWantSpotSheet(draft: draft) { note in
+                spots.append(
+                    FriendWantSpot(
+                        friendID: draft.row.friend.id,
+                        cardID: draft.row.item.card.id,
+                        note: note
+                    )
+                )
+                spottedDraft = nil
+            } onCancel: {
+                spottedDraft = nil
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Friends’ Wants")
+                .font(.system(.largeTitle, design: .rounded, weight: .black))
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+
+            Text("Scan what trusted collectors are hunting for.")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(2)
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.vdTextSecondary)
+
+            TextField("Search cards, friends or sets", text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .foregroundStyle(Color.vdTextPrimary)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.70), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08), lineWidth: 1))
+    }
+
+    private var filterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                filterMenu(
+                    title: selectedFriendName ?? "Friend",
+                    icon: "person.fill",
+                    isActive: selectedFriendID != nil
+                ) {
+                    Button("All friends") { selectedFriendID = nil }
+                    ForEach(store.friends) { friend in
+                        Button(friend.displayName) { selectedFriendID = friend.id }
+                    }
+                }
+
+                filterMenu(
+                    title: selectedPriority?.displayName ?? "Priority",
+                    icon: "star.fill",
+                    isActive: selectedPriority != nil
+                ) {
+                    Button("All priorities") { selectedPriority = nil }
+                    ForEach(WishlistPriority.allCases.reversed()) { priority in
+                        Button(priority.displayName) { selectedPriority = priority }
+                    }
+                }
+
+                filterMenu(
+                    title: selectedRarity?.displayName ?? "Rarity",
+                    icon: "sparkles",
+                    isActive: selectedRarity != nil
+                ) {
+                    Button("All rarities") { selectedRarity = nil }
+                    ForEach(CardRarity.allCases) { rarity in
+                        Button(rarity.displayName) { selectedRarity = rarity }
+                    }
+                }
+
+                filterMenu(
+                    title: selectedSetCode ?? "Set",
+                    icon: "rectangle.3.group.fill",
+                    isActive: selectedSetCode != nil
+                ) {
+                    Button("All sets") { selectedSetCode = nil }
+                    ForEach(availableSetCodes, id: \.self) { code in
+                        Button(code) { selectedSetCode = code }
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func filterMenu<Content: View>(title: String, icon: String, isActive: Bool, @ViewBuilder content: () -> Content) -> some View {
+        Menu {
+            content()
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.black))
+                .foregroundStyle(isActive ? Color.vdNavy : Color.vdGold)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(isActive ? Color.vdGold : Color.vdGold.opacity(0.12), in: Capsule())
+                .overlay(Capsule().stroke(Color.vdGold.opacity(0.28), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var showModeToggle: some View {
+        Toggle(isOn: $isShowModeEnabled) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Show mode")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                Text("Bigger cards and quick spotting for card shows.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(2)
+            }
+        }
+        .toggleStyle(SwitchToggleStyle(tint: Color.vdGold))
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.07), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var wantsList: some View {
+        if store.friends.isEmpty {
+            EmptyStateView(
+                systemImage: "person.2.badge.plus",
+                title: "No friends yet",
+                message: "Add collectors to compare wants, view collections and start fair trades."
+            )
+        } else if allRows.isEmpty {
+            EmptyStateView(
+                systemImage: "star.slash",
+                title: "No shared wants yet",
+                message: "Friends’ visible wants will appear here."
+            )
+        } else if filteredRows.isEmpty {
+            EmptyStateView(
+                systemImage: "line.3.horizontal.decrease.circle",
+                title: "No wants found",
+                message: "Try another search or filter."
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 18) {
+                ForEach(groupedRows, id: \.friend.id) { group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(title: group.friend.displayName, subtitle: "\(group.rows.count)")
+
+                        VStack(spacing: 10) {
+                            ForEach(group.rows) { row in
+                                FriendWantDiscoveryRow(
+                                    row: row,
+                                    showMode: isShowModeEnabled,
+                                    youOwn: store.collectionItem(for: row.item.card) != nil,
+                                    isSpotted: spots.contains { $0.friendID == row.friend.id && $0.cardID == row.item.card.id }
+                                ) {
+                                    spottedDraft = FriendWantSpotDraft(row: row)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var allRows: [FriendWantDiscoveryRowModel] {
+        store.friends.flatMap { friend in
+            friend.wishlist.map { item in
+                FriendWantDiscoveryRowModel(friend: friend, item: item)
+            }
+        }
+    }
+
+    private var filteredRows: [FriendWantDiscoveryRowModel] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return allRows.filter { row in
+            let matchesSearch = trimmed.isEmpty
+                || row.friend.displayName.lowercased().contains(trimmed)
+                || row.friend.handle.lowercased().contains(trimmed)
+                || row.item.card.name.lowercased().contains(trimmed)
+                || row.item.card.set.name.lowercased().contains(trimmed)
+                || row.item.card.set.code.lowercased().contains(trimmed)
+
+            let matchesFriend = selectedFriendID == nil || row.friend.id == selectedFriendID
+            let matchesPriority = selectedPriority == nil || row.item.priority == selectedPriority
+            let matchesRarity = selectedRarity == nil || row.item.card.rarity == selectedRarity
+            let matchesSet = selectedSetCode == nil || row.item.card.set.code == selectedSetCode
+
+            return matchesSearch && matchesFriend && matchesPriority && matchesRarity && matchesSet
+        }
+        .sorted {
+            if $0.friend.displayName != $1.friend.displayName {
+                return $0.friend.displayName < $1.friend.displayName
+            }
+            if $0.item.priority.sortRank != $1.item.priority.sortRank {
+                return $0.item.priority.sortRank > $1.item.priority.sortRank
+            }
+            return $0.item.card.name < $1.item.card.name
+        }
+    }
+
+    private var groupedRows: [(friend: Friend, rows: [FriendWantDiscoveryRowModel])] {
+        store.friends.compactMap { friend in
+            let rows = filteredRows.filter { $0.friend.id == friend.id }
+            guard !rows.isEmpty else { return nil }
+            return (friend, rows)
+        }
+    }
+
+    private var selectedFriendName: String? {
+        guard let selectedFriendID else { return nil }
+        return store.friends.first { $0.id == selectedFriendID }?.displayName
+    }
+
+    private var availableSetCodes: [String] {
+        Array(Set(allRows.map { $0.item.card.set.code })).sorted()
+    }
+}
+
+private struct FriendWantDiscoveryRowModel: Identifiable, Hashable {
+    let friend: Friend
+    let item: WishlistItem
+
+    var id: String {
+        friend.id.uuidString + "-" + item.id.uuidString
+    }
+}
+
+private struct FriendWantDiscoveryRow: View {
+    let row: FriendWantDiscoveryRowModel
+    let showMode: Bool
+    let youOwn: Bool
+    let isSpotted: Bool
+    let onSpot: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            cardImage
+                .frame(width: showMode ? 86 : 58, height: showMode ? 120 : 80)
+
+            VStack(alignment: .leading, spacing: showMode ? 8 : 5) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.item.card.name)
+                            .font(showMode ? .headline.weight(.black) : .subheadline.weight(.black))
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .lineLimit(showMode ? 2 : 1)
+                            .minimumScaleFactor(0.84)
+
+                        Text("\(row.item.card.set.name) #\(row.item.card.number)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.vdTextSecondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    StatusPill(title: row.item.priority.displayName, tint: row.item.priority == .grail ? .vdGold : .vdSky)
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: row.friend.avatarSymbol)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                        .frame(width: 26, height: 26)
+                        .background(Color.vdGold.opacity(0.12), in: Circle())
+
+                    Text(row.friend.displayName)
+                        .font((showMode ? Font.subheadline : Font.caption).weight(.bold))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 6)
+                }
+
+                if !showMode {
+                    Text("\(row.item.card.rarity.displayName) · \(row.item.budget.vaultCurrency)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(1)
+                }
+
+                if !row.item.notes.isEmpty {
+                    Text(row.item.notes)
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(showMode ? 1 : 2)
+                }
+
+                actionRow
+            }
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(row.item.priority == .grail ? Color.vdGold.opacity(0.35) : Color.white.opacity(0.07), lineWidth: 1))
+        .shadow(color: row.item.priority == .grail ? Color.vdGold.opacity(0.10) : Color.black.opacity(0.10), radius: 12, x: 0, y: 7)
+    }
+
+    private var cardImage: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.vdPanelRaised.opacity(0.78))
+
+            if let imageURL = row.item.card.smallImageURL ?? row.item.card.largeImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Image(systemName: "rectangle.stack.fill")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Color.vdGold)
+                    }
+                }
+            } else {
+                Image(systemName: "rectangle.stack.fill")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            if youOwn {
+                StatusPill(title: "You have this", tint: .vdEmerald)
+
+                NavigationLink {
+                    TradeView()
+                } label: {
+                    Text("Offer trade")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.vdGold, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if showMode {
+                Button(action: onSpot) {
+                    Label(isSpotted ? "Spotted" : "Spotted", systemImage: isSpotted ? "checkmark.circle.fill" : "eye.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(isSpotted ? Color.vdEmerald : Color.vdGold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background((isSpotted ? Color.vdEmerald : Color.vdGold).opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct FriendWantSpotDraft: Identifiable {
+    let id = UUID()
+    let row: FriendWantDiscoveryRowModel
+}
+
+private struct FriendWantSpotSheet: View {
+    let draft: FriendWantSpotDraft
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+    @State private var note = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                VStack(alignment: .leading, spacing: 18) {
+                    Text(draft.row.item.card.name)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+
+                    Text("Where did you see it?")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+
+                    TextField("Found at stall/table", text: $note, axis: .vertical)
+                        .lineLimit(3...5)
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .padding(14)
+                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+
+                    PrimaryButton(title: "Save Spotted", systemImage: "checkmark.circle.fill") {
+                        onSave(note.trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+
+                    Spacer()
+                }
+                .padding(20)
+            }
+            .navigationTitle("Spotted")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
             }
         }
     }
@@ -1994,6 +2558,7 @@ private struct FriendProfileView: View {
     @State private var selectedTab: FriendProfileTab
     @State private var isRemoveConfirmationPresented = false
     @State private var actionMessage: String?
+    @State private var friendWantsSearch = ""
 
     init(friend: Friend, initialTab: FriendProfileTab = .collection) {
         self.friend = friend
@@ -2125,17 +2690,45 @@ private struct FriendProfileView: View {
                 subtitle: "\(friend.wishlist.count) cards"
             )
 
-            if friend.wishlist.isEmpty {
-                EmptyStateView(systemImage: "star.slash", title: "No visible wants", message: "Wanted cards will appear here when shared.")
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(friend.wishlist) { item in
-                        NavigationLink {
-                            CardDetailView(card: item.card)
+            if !friend.wishlist.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+
+                    TextField("Search wants", text: $friendWantsSearch)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .foregroundStyle(Color.vdTextPrimary)
+
+                    if !friendWantsSearch.isEmpty {
+                        Button {
+                            friendWantsSearch = ""
                         } label: {
-                            FriendWishlistRow(item: item, youOwn: store.collectionItem(for: item.card) != nil)
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.vdTextSecondary)
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+                .padding(13)
+                .background(Color.vdPanel.opacity(0.68), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.07), lineWidth: 1))
+            }
+
+            if friend.wishlist.isEmpty {
+                EmptyStateView(systemImage: "star.slash", title: "No visible wants", message: "Wanted cards will appear here when shared.")
+            } else if filteredFriendWishlist.isEmpty {
+                EmptyStateView(systemImage: "line.3.horizontal.decrease.circle", title: "No wants found", message: "Try another search.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(filteredFriendWishlist) { item in
+                        FriendWishlistActionRow(
+                            item: item,
+                            youOwn: store.collectionItem(for: item.card) != nil
+                        ) {
+                            actionMessage = "Trade suggestion started for \(item.card.name)."
+                        }
                     }
                 }
             }
@@ -2163,6 +2756,23 @@ private struct FriendProfileView: View {
             PrimaryButton(title: "Suggest Trade", systemImage: "arrow.left.arrow.right.circle.fill") {
                 actionMessage = "Trade suggestions will appear when both collectors have matching cards."
             }
+        }
+    }
+
+    private var filteredFriendWishlist: [WishlistItem] {
+        let trimmed = friendWantsSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return friend.wishlist.filter { item in
+            guard !trimmed.isEmpty else { return true }
+            return item.card.name.lowercased().contains(trimmed)
+                || item.card.set.name.lowercased().contains(trimmed)
+                || item.card.set.code.lowercased().contains(trimmed)
+                || item.card.rarity.displayName.lowercased().contains(trimmed)
+        }
+        .sorted {
+            if $0.priority.sortRank != $1.priority.sortRank {
+                return $0.priority.sortRank > $1.priority.sortRank
+            }
+            return $0.card.name < $1.card.name
         }
     }
 
@@ -2415,6 +3025,44 @@ private struct FriendWishlistRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
         )
+    }
+}
+
+private struct FriendWishlistActionRow: View {
+    let item: WishlistItem
+    let youOwn: Bool
+    let onSuggestTrade: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            NavigationLink {
+                CardDetailView(card: item.card)
+            } label: {
+                FriendWishlistRow(item: item, youOwn: youOwn)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                if youOwn {
+                    StatusPill(title: "I have this", tint: .vdEmerald)
+                }
+
+                Button(action: onSuggestTrade) {
+                    Label(youOwn ? "Suggest trade" : "Offer trade", systemImage: "arrow.left.arrow.right.circle.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.vdGold, in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 2)
+        }
+        .padding(10)
+        .background(Color.vdPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 18))
     }
 }
 

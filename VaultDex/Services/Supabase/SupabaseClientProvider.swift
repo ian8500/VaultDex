@@ -37,6 +37,11 @@ struct SupabaseSession: Equatable {
     let userID: UUID
     let email: String?
     let expiresAt: Date?
+
+    func isExpired(leeway: TimeInterval = 60) -> Bool {
+        guard let expiresAt else { return false }
+        return expiresAt <= Date().addingTimeInterval(leeway)
+    }
 }
 
 extension SupabaseSession: Codable {}
@@ -67,12 +72,20 @@ final class SupabaseClientProvider {
     let config: SupabaseConfig
     private let urlSession: URLSession
     private var session: SupabaseSession?
+    private var expiredStoredSession: SupabaseSession?
     private var demoModeEnabled: Bool
 
     init(config: SupabaseConfig = .current, urlSession: URLSession = SupabaseClientProvider.makeStableURLSession()) {
         self.config = SupabaseConfig.current
         self.urlSession = urlSession
-        self.session = SupabaseSessionStore.load()
+        let storedSession = SupabaseSessionStore.load()
+        if storedSession?.isExpired() == true {
+            self.session = nil
+            self.expiredStoredSession = storedSession
+        } else {
+            self.session = storedSession
+            self.expiredStoredSession = nil
+        }
         self.demoModeEnabled = SupabaseConfig.current.demoMode
     }
 
@@ -104,6 +117,7 @@ final class SupabaseClientProvider {
     var sdkClient: SupabaseClient? {
         guard let url = config.url, let key = config.publishableKey else { return nil }
         let options = SupabaseClientOptions(
+            auth: .init(emitLocalSessionAsInitialSession: true),
             global: .init(session: urlSession)
         )
         return SupabaseClient(supabaseURL: url, supabaseKey: key, options: options)
@@ -116,12 +130,41 @@ final class SupabaseClientProvider {
     #endif
 
     var currentSession: SupabaseSession? {
-        session
+        guard session?.isExpired() != true else { return nil }
+        return session
+    }
+
+    var hasExpiredStoredSession: Bool {
+        expiredStoredSession != nil
     }
 
     func updateSession(_ session: SupabaseSession?) {
         self.session = session
+        expiredStoredSession = nil
         SupabaseSessionStore.save(session)
+    }
+
+    func clearExpiredStoredSession() {
+        expiredStoredSession = nil
+        SupabaseSessionStore.save(nil)
+    }
+
+    func refreshExpiredStoredSession() async throws -> SupabaseSession? {
+        guard let refreshToken = expiredStoredSession?.refreshToken, isRemoteEnabled else {
+            clearExpiredStoredSession()
+            return nil
+        }
+
+        #if canImport(Supabase)
+        let client = try requireSDKClient()
+        let refreshed = try await client.auth.refreshSession(refreshToken: refreshToken)
+        let newSession = SupabaseSession(refreshed)
+        updateSession(newSession)
+        return newSession
+        #else
+        clearExpiredStoredSession()
+        return nil
+        #endif
     }
 
     func setDemoModeEnabled(_ isEnabled: Bool) {
