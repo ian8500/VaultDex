@@ -45,7 +45,7 @@ final class SearchViewModel: ObservableObject {
 
     private let apiService: CardAPIService
     private let cacheService: CardCacheService
-    private let pageSize = 12
+    private let pageSize = 8
     private var didPrewarmPopularSearches = false
 
     init(apiService: CardAPIService = CardAPIService(), cacheService: CardCacheService = .shared) {
@@ -55,9 +55,9 @@ final class SearchViewModel: ObservableObject {
 
     func loadInitialResults(store: LocalVaultStore) async {
         guard !didLoadAPI else { return }
-        await search(store: store)
         await loadSets()
-        Task { await prewarmPopularSearches(store: store) }
+        await loadCachedDiscovery()
+        didLoadAPI = true
     }
 
     func search(store: LocalVaultStore) async {
@@ -67,6 +67,16 @@ final class SearchViewModel: ObservableObject {
         totalResults = nil
         errorMessage = nil
         isShowingCachedResults = false
+
+        let hasSearchInput = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedRarity != nil
+            || selectedType != nil
+            || selectedSet != nil
+        guard hasSearchInput else {
+            await loadCachedDiscovery()
+            didLoadAPI = true
+            return
+        }
 
         let key = await cacheKey(page: currentPage)
         if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
@@ -117,7 +127,7 @@ final class SearchViewModel: ObservableObject {
             if apiCards.isEmpty {
                 apiCards = []
             }
-            errorMessage = "Unable to load cards right now. Please try again."
+            errorMessage = Self.friendlySearchError(for: error)
         }
     }
 
@@ -160,7 +170,7 @@ final class SearchViewModel: ObservableObject {
             await cacheService.saveSearch(cards: response.data.map(\.localCard), totalResults: response.totalCount, key: key)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
-            errorMessage = "Unable to load more cards right now. Please try again."
+            errorMessage = Self.friendlySearchError(for: error)
         }
     }
 
@@ -255,6 +265,53 @@ final class SearchViewModel: ObservableObject {
             page: page,
             pageSize: pageSize
         )
+    }
+
+    private func loadCachedDiscovery() async {
+        let recentCards = await cacheService.recentlyViewedCards()
+        if !recentCards.isEmpty {
+            apiCards = sort(Array(recentCards.prefix(pageSize)))
+            totalResults = recentCards.count
+            canLoadMore = false
+            isShowingCachedResults = true
+            errorMessage = nil
+            return
+        }
+
+        for popularQuery in await cacheService.popularDefaultSearches() {
+            let key = await cacheService.searchCacheKey(
+                query: popularQuery,
+                rarity: nil,
+                type: nil,
+                setID: nil,
+                sort: .name,
+                page: 1,
+                pageSize: pageSize
+            )
+            if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
+                apiCards = sort(cached.cards)
+                totalResults = cached.totalResults
+                canLoadMore = false
+                isShowingCachedResults = true
+                errorMessage = nil
+                return
+            }
+        }
+
+        apiCards = []
+        totalResults = nil
+        canLoadMore = false
+        isShowingCachedResults = false
+        errorMessage = nil
+    }
+
+    private static func friendlySearchError(for error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain,
+           nsError.code == NSURLErrorTimedOut || nsError.code == NSURLErrorNetworkConnectionLost {
+            return "Cards are taking longer than expected."
+        }
+        return "Unable to load cards right now. Please try again."
     }
 
     private func prewarmPopularSearches(store: LocalVaultStore) async {

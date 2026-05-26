@@ -272,11 +272,11 @@ struct SearchView: View {
         VStack(spacing: 16) {
             EmptyStateView(
                 systemImage: "wifi.exclamationmark",
-                title: "We couldn’t load cards right now.",
-                message: "Please check your connection and try again."
+                title: viewModel.errorMessage ?? "Cards are taking longer than expected.",
+                message: "Try again, or tap a quick search above."
             )
 
-            PrimaryButton(title: "Retry", systemImage: "arrow.clockwise") {
+            PrimaryButton(title: "Try again", systemImage: "arrow.clockwise") {
                 runSearch()
             }
         }
@@ -286,8 +286,8 @@ struct SearchView: View {
     private var emptyState: some View {
         EmptyStateView(
             systemImage: "magnifyingglass",
-            title: "No cards found",
-            message: "Try a card name, set, number, rarity or type."
+            title: viewModel.query.isEmpty ? "Find a card" : "No cards found",
+            message: viewModel.query.isEmpty ? "Search by name or tap a quick chip." : "Try a name, set, number, rarity or type."
         )
         .padding(.top, 32)
     }
