@@ -54,12 +54,19 @@ struct DashboardView: View {
         store.collectionItems.isEmpty
     }
 
+    private var cardsAddedThisWeek: Int {
+        guard let startOfWeek = Calendar.current.date(byAdding: .day, value: -7, to: .now) else { return 0 }
+        return store.collectionItems
+            .filter { $0.acquiredAt >= startOfWeek }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
     var body: some View {
         ZStack {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 24) {
                     if isLoading {
                         loadingState
                     } else {
@@ -175,30 +182,32 @@ struct DashboardView: View {
     }
 
     private var vaultSummary: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text("My Vault")
-                    .font(.title3.weight(.black))
-                    .foregroundStyle(Color.vdTextPrimary)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Your Vault Value")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
 
-                Text(store.totalCopiesOwned == 1 ? "1 card saved" : "\(store.totalCopiesOwned) cards saved")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.vdTextSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
+                    Text(store.totalCopiesOwned == 1 ? "1 card saved" : "\(store.totalCopiesOwned) cards saved")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
 
-            Spacer()
+                Spacer()
 
-            VStack(alignment: .trailing, spacing: 5) {
-                Text("Estimated Value")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdTextSecondary)
                 Text(store.estimatedCollectionValue.compactVaultCurrency)
-                    .font(.system(.title3, design: .rounded, weight: .black))
+                    .font(.system(.title2, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdGold)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.68)
+            }
+
+            HStack(spacing: 10) {
+                DashboardVaultChip(title: "Added this week", value: "\(cardsAddedThisWeek)", icon: "calendar.badge.plus")
+                DashboardVaultChip(title: "Sets started", value: "\(store.uniqueSetsOwned)", icon: "circle.grid.3x3.fill")
             }
         }
         .padding(.horizontal, 18)
@@ -294,6 +303,9 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             DashboardQuickAction(title: "Wants", subtitle: "Add to Wants", icon: "star.fill", tint: .vdLeaf) {
                 WishlistView()
+            }
+            DashboardQuickAction(title: "Scan", subtitle: "Scan a card", icon: "camera.viewfinder", tint: .vdGold) {
+                CardScannerView()
             }
             DashboardQuickAction(title: "Friends", subtitle: "View Friends", icon: "person.2.fill", tint: .vdSky) {
                 FriendsView()
@@ -421,12 +433,29 @@ struct DashboardView: View {
     }
 
     private var recentlyAddedSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Recently Added", subtitle: nil)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recently Added")
+                    .font(.title3.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
 
-            VStack(spacing: 12) {
+                Spacer()
+
+                NavigationLink {
+                    VaultView()
+                } label: {
+                    Text("View all")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+
+            VStack(spacing: 10) {
                 ForEach(store.recentlyAdded.prefix(3)) { item in
-                    FeaturedDashboardCard(label: "Added", item: item, accent: .vdSky)
+                    FeaturedDashboardCard(item: item)
                 }
             }
         }
@@ -441,7 +470,7 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(store.recentlyAdded.prefix(3)) { item in
-                        FeaturedDashboardCard(label: "Added", item: item, accent: .vdSky)
+                        FeaturedDashboardCard(item: item)
                     }
                 }
             }
@@ -610,51 +639,154 @@ private struct PressableScaleStyle: ButtonStyle {
     }
 }
 
+private struct DashboardVaultChip: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdGold)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+
+                Text(value)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(Color.vdNavy.opacity(0.34), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.06), lineWidth: 1))
+    }
+}
+
 private struct FeaturedDashboardCard: View {
-    let label: String
     let item: CollectionItem
-    let accent: Color
 
     var body: some View {
         NavigationLink {
             CardDetailView(card: item.card)
         } label: {
-            HStack(spacing: 12) {
-                CardTile(card: item.card, quantity: item.quantity, condition: item.condition, variant: item.variant, isAvailableForTrade: item.isAvailableForTrade, style: .compact)
-                    .frame(width: 112)
+            HStack(alignment: .center, spacing: 14) {
+                cardThumbnail
 
-                VStack(alignment: .leading, spacing: 8) {
-                    StatusPill(title: label, tint: accent)
-
+                VStack(alignment: .leading, spacing: 10) {
                     Text(item.card.name)
-                        .font(.headline.weight(.black))
+                        .font(.system(.headline, design: .rounded, weight: .black))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.86)
+                        .multilineTextAlignment(.leading)
 
-                    Text("\(item.card.set.code) #\(item.card.number) · \(item.card.rarity.displayName)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.vdTextSecondary)
-                        .lineLimit(1)
-
-                    Label(item.card.marketValue.vaultCurrency, systemImage: "seal.fill")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(Color.vdNavy)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(Color.vdGold, in: Capsule())
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            DashboardInfoChip(text: "\(item.card.set.code) #\(item.card.number)", icon: "rectangle.3.group.fill", tint: .vdSky)
+                            DashboardInfoChip(text: item.card.rarity.displayName, icon: "sparkles", tint: rarityTint)
+                            DashboardInfoChip(text: item.card.marketValue.vaultCurrency, icon: "seal.fill", tint: .vdGold, isFilled: true)
+                        }
+                    }
+                    .scrollDisabled(false)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextSecondary.opacity(0.85))
             }
             .padding(12)
             .background(
-                LinearGradient(colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: RoundedRectangle(cornerRadius: 20)
+                LinearGradient(
+                    colors: [Color.vdPanelRaised.opacity(0.82), Color.vdPanel.opacity(0.58)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 22)
             )
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.28), lineWidth: 1))
-            .shadow(color: accent.opacity(0.10), radius: 12, x: 0, y: 6)
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.07), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.14), radius: 14, x: 0, y: 8)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableScaleStyle())
+    }
+
+    private var cardThumbnail: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.vdGold.opacity(0.18), Color.vdPanelRaised.opacity(0.92)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            if let imageURL = item.card.smallImageURL ?? item.card.largeImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Image(systemName: "rectangle.stack.fill")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Color.vdGold)
+                    }
+                }
+            } else {
+                Image(systemName: "rectangle.stack.fill")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+            }
+        }
+        .frame(width: 72, height: 98)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(rarityTint.opacity(0.32), lineWidth: 1))
+        .shadow(color: rarityTint.opacity(0.14), radius: 10, x: 0, y: 5)
+    }
+
+    private var rarityTint: Color {
+        switch item.card.rarity {
+        case .common: .vdTextSecondary
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary, .mythic: .vdGold
+        }
+    }
+}
+
+private struct DashboardInfoChip: View {
+    let text: String
+    let icon: String
+    let tint: Color
+    var isFilled = false
+
+    var body: some View {
+        Label(text, systemImage: icon)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(isFilled ? Color.vdNavy : tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(isFilled ? tint : tint.opacity(0.13), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isFilled ? Color.white.opacity(0.24) : tint.opacity(0.24), lineWidth: 1)
+            )
     }
 }
 

@@ -44,34 +44,46 @@ struct VaultView: View {
             .pickerStyle(.segmented)
 
             HStack(spacing: 12) {
-            NavigationLink {
-                SearchView()
-            } label: {
-                Label("Add card", systemImage: "plus.circle.fill")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.vdNavy)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-
-            Menu {
-                Picker("Sort", selection: $sortOption) {
-                    ForEach(VaultSortOption.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
+                NavigationLink {
+                    SearchView()
+                } label: {
+                    Label("Add card", systemImage: "plus.circle.fill")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 16))
                 }
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.vdGold)
-                    .frame(width: 54, height: 50)
-                    .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
-            }
-            .menuStyle(.button)
-            .accessibilityLabel("Sort and filter")
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    CardScannerView()
+                } label: {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(width: 54, height: 50)
+                        .background(Color.vdGold.opacity(0.92), in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scan card")
+
+                Menu {
+                    Picker("Sort", selection: $sortOption) {
+                        ForEach(VaultSortOption.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.vdGold)
+                        .frame(width: 54, height: 50)
+                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
+                }
+                .menuStyle(.button)
+                .accessibilityLabel("Sort and filter")
             }
         }
     }

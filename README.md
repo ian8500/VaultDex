@@ -12,7 +12,7 @@ The app uses Supabase for authentication and cloud data, Pokémon TCG API data f
 4. Optionally run `VaultDex/Resources/Supabase/seed.sql`; it intentionally inserts no demo user data.
 5. In Authentication > Providers, enable Email.
 6. Build and run VaultDex.
-7. Open the Account tab and use Sign Up or Sign In.
+7. Launch the app and use the VaultDex Sign In / Create Account screen.
 
 ## Local Development Config
 
@@ -40,17 +40,23 @@ Do not add a service-role key. Use only the publishable key in the app.
 
 - Confirm the app launches to the VaultDex auth screen when signed out.
 - Confirm no debug, demo, Supabase, config or raw network text is visible in normal screens.
-- Confirm the generated launch screen and app icon placeholder appear on device/simulator.
+- Confirm the VaultDex launch screen and app icon placeholder appear on device/simulator.
+- Confirm the bottom navigation is clean and readable: Home, Search, Vault, Wants, Friends, Trade.
+- Confirm no labels wrap vertically or appear as single-letter columns on iPhone SE, standard iPhone and Pro Max sizes.
 - Confirm sign-up creates or loads a profile row.
 - Confirm sign-in restores the user profile.
 - Confirm profile edits persist after force quit and relaunch.
 - Confirm card search loads real Pokémon TCG API results and images.
+- Confirm search and other network views show loading skeletons or loading states before results appear.
+- Confirm network failure states use friendly wording and include retry actions.
 - Confirm card values are displayed in GBP with estimate wording.
 - Confirm adding a card saves to My Vault.
 - Confirm adding a card saves to Wants.
 - Confirm friend search/request flows use Supabase users only.
 - Confirm trade creation, sent/received trades and status updates reload after restart.
 - Confirm marketplace listings show only live active listings.
+- Confirm empty states appear for a new account with no vault cards, wants, friends, trades or listings.
+- Confirm Safety Centre includes privacy controls, report/block tools, parent-friendly guidance and the independent-app disclaimer.
 - Confirm logout returns to the auth screen and hides all tabs.
 - Confirm friendly loading, empty, error and retry states appear when network requests fail.
 
@@ -71,7 +77,7 @@ Do not add a service-role key. Use only the publishable key in the app.
 13. Create a trade offer with collection items and optional internal credits.
 14. Accept, reject, cancel and complete trade offers.
 15. List a marketplace card and view it from another account.
-16. Report a listing/user placeholder and confirm no open chat is exposed.
+16. Report a listing or user and confirm no open chat is exposed.
 17. Upload an avatar and owned card photos.
 18. Confirm all user-facing errors are friendly.
 

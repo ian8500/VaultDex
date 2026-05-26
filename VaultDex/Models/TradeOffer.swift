@@ -104,9 +104,9 @@ struct TradeOffer: Identifiable, Hashable {
 
     var fairnessLabel: String {
         switch fairnessScore {
-        case 0.86...: "Balanced"
-        case 0.65..<0.86: "Close"
-        default: "Uneven"
+        case 0.86...: "Fair"
+        case 0.65..<0.86: "Slightly uneven"
+        default: "Review carefully"
         }
     }
 }

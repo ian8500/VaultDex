@@ -8,12 +8,21 @@ final class CardAPIService {
     init(
         baseURL: URL = URL(string: "https://api.pokemontcg.io/v2")!,
         apiKey: String? = nil,
-        urlSession: URLSession = .shared
+        urlSession: URLSession = CardAPIService.defaultSession
     ) {
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.urlSession = urlSession
     }
+
+    private static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 45
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
+    }()
 
     func searchCards(query: String) async throws -> [PokemonTCGCard] {
         try await searchCards(query: query, page: 1, pageSize: 24).data
@@ -53,7 +62,7 @@ final class CardAPIService {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedQuery.isEmpty {
             let escaped = apiEscaped(trimmedQuery)
-            parts.append("(name:*\(escaped)* OR set.name:*\(escaped)* OR number:\(escaped))")
+            parts.append("(name:*\(escaped)* OR set.name:*\(escaped)* OR number:\(escaped) OR rarity:*\(escaped)* OR types:\(escaped) OR subtypes:*\(escaped)*)")
         }
 
         if let rarityQuery = rarity?.apiQuery {

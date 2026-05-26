@@ -33,6 +33,8 @@
 		841967D62FC090F30033B46B /* VaultDexUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VaultDexUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		84820F6A2FC0EF3200928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 		8482106F2FC1B07300928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
+		8482119A2FC4FD0400928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
+		848212BF2FC61A2F00928DDB /* VaultDex.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = VaultDex.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -125,6 +127,20 @@
 			sourceTree = "<group>";
 		};
 		848210712FC1B07300928DDB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8482119C2FC4FD0400928DDB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		848212C12FC61A2F00928DDB /* Products */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -243,8 +259,16 @@
 			projectDirPath = "";
 			projectReferences = (
 				{
+					ProductGroup = 848212C12FC61A2F00928DDB /* Products */;
+					ProjectRef = 848212BF2FC61A2F00928DDB /* VaultDex.xcodeproj */;
+				},
+				{
 					ProductGroup = 848210712FC1B07300928DDB /* Products */;
 					ProjectRef = 8482106F2FC1B07300928DDB /* VaultDex.xcodeproj */;
+				},
+				{
+					ProductGroup = 8482119C2FC4FD0400928DDB /* Products */;
+					ProjectRef = 8482119A2FC4FD0400928DDB /* VaultDex.xcodeproj */;
 				},
 				{
 					ProductGroup = 84820F6C2FC0EF3200928DDB /* Products */;
@@ -453,11 +477,12 @@
 				DEVELOPMENT_TEAM = TJ9NQV32CM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses the camera to scan trading cards.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "VaultDex can save profile images for your collector profile.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VaultDex lets you choose a profile photo.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -483,11 +508,12 @@
 				DEVELOPMENT_TEAM = TJ9NQV32CM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses the camera to scan trading cards.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "VaultDex can save profile images for your collector profile.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VaultDex lets you choose a profile photo.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

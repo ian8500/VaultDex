@@ -673,10 +673,9 @@ struct EventDraft {
 @MainActor
 final class InviteFriendsViewModel: ObservableObject {
     @Published private(set) var contacts: [InviteContact]
-    let inviteCode = "VAULT-8420"
 
-    init(repository: DemoVaultRepository = .shared) {
-        contacts = repository.inviteContacts
+    init() {
+        contacts = []
     }
 
     var pendingContacts: [InviteContact] {
@@ -684,7 +683,7 @@ final class InviteFriendsViewModel: ObservableObject {
     }
 
     var inviteMessage: String {
-        "Join me on VaultDex. Use invite code \(inviteCode) to compare collections, wishlists, and trade matches."
+        "Join me on VaultDex to compare collections, track wants, and trade safely with friends."
     }
 }
 

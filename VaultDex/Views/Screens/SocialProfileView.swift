@@ -24,6 +24,10 @@ struct SocialProfileView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     profileHeader
+                    profileProgressSummary
+                    achievementBadges
+                    showcase
+                    setProgress
                     profileEditor
                     socialStats
                     logoutSection
@@ -398,6 +402,54 @@ struct SocialProfileView: View {
         }
     }
 
+    private var profileProgressSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Collector Progress", subtitle: "A calm view of your vault journey.")
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ProfileSummaryTile(
+                    title: "Your Vault Value",
+                    value: store.estimatedCollectionValue.compactVaultCurrency,
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    tint: .vdGold
+                )
+
+                ProfileSummaryTile(
+                    title: "Added This Week",
+                    value: "\(cardsAddedThisWeek)",
+                    systemImage: "calendar.badge.plus",
+                    tint: .vdSky
+                )
+
+                ProfileSummaryTile(
+                    title: "Favourite Cards",
+                    value: "\(favoriteCount)",
+                    systemImage: "heart.fill",
+                    tint: .vdCoral
+                )
+
+                ProfileSummaryTile(
+                    title: "Grails",
+                    value: "\(grailCount)",
+                    systemImage: "sparkles",
+                    tint: .vdGold
+                )
+            }
+        }
+    }
+
+    private var achievementBadges: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VaultSectionHeader(title: "Badges", subtitle: "Milestones earned through collecting and safe trading.")
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ForEach(achievementRows) { achievement in
+                    AchievementBadge(achievement: achievement)
+                }
+            }
+        }
+    }
+
     private var logoutSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             VaultSectionHeader(title: "Account", subtitle: "Manage your VaultDex access.")
@@ -405,6 +457,22 @@ struct SocialProfileView: View {
             SecondaryButton(title: "Log Out", systemImage: "rectangle.portrait.and.arrow.right") {
                 showLogoutConfirmation = true
             }
+
+            NavigationLink {
+                AccountDeletionView()
+            } label: {
+                Label("Delete Account", systemImage: "person.crop.circle.badge.xmark")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.vdCoral)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.vdCoral.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.vdCoral.opacity(0.34), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -496,39 +564,46 @@ struct SocialProfileView: View {
 
     private var setProgress: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Set Progress", subtitle: "Your collection by set.")
+            VaultSectionHeader(title: "Set Progress", subtitle: "Completion by set.")
 
-            VStack(spacing: 10) {
-                ForEach(setProgressRows) { progress in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+            if setProgressRows.isEmpty {
+                EmptyStateView(
+                    systemImage: "circle.dotted",
+                    title: "No set progress yet",
+                    message: "Add cards to see completion rings for each set."
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(setProgressRows.prefix(5)) { progress in
+                        HStack(spacing: 14) {
+                            ProfileSetProgressRing(fraction: progress.fraction)
+
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(progress.cardSet.name)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.subheadline.weight(.bold))
                                     .foregroundStyle(Color.vdTextPrimary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
 
-                                Text(progress.cardSet.code + " · " + "\(progress.cardSet.releaseYear)")
-                                    .font(.caption)
+                                Text("\(progress.owned) of \(progress.total) cards")
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.vdTextSecondary)
                             }
 
                             Spacer()
 
-                            Text("\(progress.owned)/\(progress.total)")
-                                .font(.caption.weight(.bold))
+                            Text("\(Int((progress.fraction * 100).rounded()))%")
+                                .font(.headline.weight(.black))
                                 .foregroundStyle(Color.vdGold)
+                                .lineLimit(1)
                         }
-
-                        ProgressView(value: progress.fraction)
-                            .tint(Color.vdGold)
-                            .background(Color.vdStroke.opacity(0.6), in: Capsule())
+                        .padding(14)
+                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18)
+                                .stroke(Color.vdStroke.opacity(0.45), lineWidth: 1)
+                        )
                     }
-                    .padding(14)
-                    .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.vdStroke.opacity(0.68), lineWidth: 1)
-                    )
                 }
             }
         }
@@ -536,30 +611,41 @@ struct SocialProfileView: View {
 
     private var showcase: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Showcase", subtitle: "Favorite vault pieces")
+            VaultSectionHeader(title: "Top Cards", subtitle: "Favourites, grails and standout cards.")
 
             if store.collectionItems.isEmpty {
                 EmptyStateView(
                     systemImage: "star",
-                    title: "No showcase yet",
-                    message: "Favorites from the vault appear here."
+                    title: "No top cards yet",
+                    message: "Add cards to build a personal showcase."
                 )
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        ForEach(store.collectionItems.filter(\.isFavorite)) { item in
+                        ForEach(topShowcaseItems) { item in
                             NavigationLink {
                                 CardDetailView(card: item.card)
                             } label: {
-                                CardTile(
-                                    card: item.card,
-                                    quantity: item.quantity,
-                                    condition: item.condition,
-                                    variant: item.variant,
-                                    isAvailableForTrade: item.isAvailableForTrade,
-                                    style: .compact
-                                )
-                                .frame(width: 220)
+                                VStack(alignment: .leading, spacing: 10) {
+                                    CardTile(
+                                        card: item.card,
+                                        quantity: item.quantity,
+                                        condition: item.condition,
+                                        variant: item.variant,
+                                        isAvailableForTrade: item.isAvailableForTrade,
+                                        style: .compact
+                                    )
+                                    .frame(width: 220)
+
+                                    HStack(spacing: 6) {
+                                        if item.isFavorite {
+                                            StatusPill(title: "Favourite", tint: .vdCoral)
+                                        }
+                                        if grailCardIDs.contains(item.card.id) {
+                                            StatusPill(title: "Grail", tint: .vdGold)
+                                        }
+                                    }
+                                }
                             }
                             .buttonStyle(.plain)
                         }
@@ -582,15 +668,78 @@ struct SocialProfileView: View {
     }
 
     private var setProgressRows: [SetProgress] {
-        store.sets.map { set in
-            let owned = Set(store.collectionItems.filter { $0.card.set == set }.map(\.card.id)).count
-            let total = store.cards.filter { $0.set == set }.count
+        let ownedSets = Array(Set(store.collectionItems.map(\.card.set)))
+        let candidateSets = store.sets.isEmpty ? ownedSets : Array(Set(store.sets + ownedSets))
+
+        return candidateSets.map { set in
+            let owned = Set(store.collectionItems.filter { $0.card.set.id == set.id }.map(\.card.id)).count
+            let catalogueTotal = store.cards.filter { $0.set.id == set.id }.count
+            let total = max(catalogueTotal, set.totalCards, owned, 1)
             return SetProgress(cardSet: set, owned: owned, total: max(total, 1))
+        }
+        .filter { $0.owned > 0 }
+        .sorted {
+            if $0.fraction == $1.fraction {
+                return $0.owned > $1.owned
+            }
+            return $0.fraction > $1.fraction
         }
     }
 
     private var nextEvent: VaultEvent? {
         store.events.sorted { $0.date < $1.date }.first
+    }
+
+    private var cardsAddedThisWeek: Int {
+        guard let startOfWeek = Calendar.current.date(byAdding: .day, value: -7, to: .now) else { return 0 }
+        return store.collectionItems
+            .filter { $0.acquiredAt >= startOfWeek }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
+    private var favoriteCount: Int {
+        store.collectionItems.filter(\.isFavorite).count
+    }
+
+    private var grailCount: Int {
+        store.wishlistItems.filter { $0.priority == .grail }.count
+    }
+
+    private var grailCardIDs: Set<Card.ID> {
+        Set(store.wishlistItems.filter { $0.priority == .grail }.map(\.card.id))
+    }
+
+    private var topShowcaseItems: [CollectionItem] {
+        store.collectionItems
+            .sorted {
+                let firstScore = showcaseScore(for: $0)
+                let secondScore = showcaseScore(for: $1)
+                if firstScore == secondScore {
+                    return $0.card.marketValue > $1.card.marketValue
+                }
+                return firstScore > secondScore
+            }
+            .prefix(6)
+            .map { $0 }
+    }
+
+    private func showcaseScore(for item: CollectionItem) -> Int {
+        var score = item.card.rarity.profileRank
+        if item.isFavorite { score += 20 }
+        if grailCardIDs.contains(item.card.id) { score += 16 }
+        if item.variant == .holo || item.variant == .reverseHolo { score += 2 }
+        if item.variant == .fullArt || item.variant == .secretRare { score += 4 }
+        return score
+    }
+
+    private var achievementRows: [ProfileAchievement] {
+        [
+            ProfileAchievement(title: "First Card", systemImage: "rectangle.stack.badge.plus", tint: .vdGold, isUnlocked: !store.collectionItems.isEmpty),
+            ProfileAchievement(title: "First Grail", systemImage: "sparkles", tint: .vdGold, isUnlocked: grailCount > 0),
+            ProfileAchievement(title: "First Trade", systemImage: "arrow.left.arrow.right.circle.fill", tint: .vdEmerald, isUnlocked: store.profile.completedTrades > 0 || store.tradeOffers.contains { $0.status == .completed }),
+            ProfileAchievement(title: "Set Starter", systemImage: "circle.grid.3x3.fill", tint: .vdSky, isUnlocked: store.uniqueSetsOwned > 0),
+            ProfileAchievement(title: "Trusted Collector", systemImage: "checkmark.shield.fill", tint: .vdLeaf, isUnlocked: store.profile.reputationScore >= 80 || !store.profile.trustBadges.isEmpty)
+        ]
     }
 }
 
@@ -893,7 +1042,7 @@ struct SettingsView: View {
             SafetyToggleRow(title: "Allow friend trade requests", subtitle: "Friends can send trade offers.", isOn: $allowFriendTradeRequests)
             SafetyToggleRow(title: "Show wants badges", subtitle: "Card screens can show when friends want a card.", isOn: $showWishlistBadges)
             SafetyToggleRow(title: "Safe trade for high value", subtitle: "Prefer an intermediary flow for expensive cards.", isOn: $requireSafeTradeForHighValue)
-            SafetyToggleRow(title: "Parent-managed account", subtitle: "Placeholder for guardian approval and trade review.", isOn: $parentManagedAccount)
+            SafetyToggleRow(title: "Parent-managed account", subtitle: "Guardian approval and trade review controls.", isOn: $parentManagedAccount)
             SafetyInfoRow(systemImage: "message.badge.slash.fill", title: "No open random chat", message: "VaultDex keeps trading focused on friend-based offers, not public chat rooms.")
             SafetyInfoRow(systemImage: "person.crop.circle.badge.questionmark", title: "No anonymous messaging", message: "Trade messages stay tied to collector profiles so reports and blocks can be reviewed.")
         }
@@ -1130,7 +1279,7 @@ private struct PlaceholderLinkRow: View {
 
             Spacer()
 
-            Text("Coming soon")
+            Text("Draft")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.vdTextSecondary)
         }
@@ -1176,5 +1325,124 @@ private struct ProfileStatTile: View {
                 .stroke(tint.opacity(0.32), lineWidth: 1)
         )
         .shadow(color: tint.opacity(0.10), radius: 10, x: 0, y: 5)
+    }
+}
+
+private struct ProfileSummaryTile: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11))
+
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .black))
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.07), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.10), radius: 10, x: 0, y: 6)
+    }
+}
+
+private struct ProfileAchievement: Identifiable {
+    let id = UUID()
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let isUnlocked: Bool
+}
+
+private struct AchievementBadge: View {
+    let achievement: ProfileAchievement
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: achievement.isUnlocked ? achievement.systemImage : "lock.fill")
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(achievement.isUnlocked ? Color.vdNavy : Color.vdTextSecondary)
+                .frame(width: 34, height: 34)
+                .background(
+                    (achievement.isUnlocked ? achievement.tint : Color.vdPanelRaised)
+                        .opacity(achievement.isUnlocked ? 0.95 : 0.75),
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(achievement.title)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(achievement.isUnlocked ? "Earned" : "In progress")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(achievement.isUnlocked ? achievement.tint : Color.vdTextSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(achievement.isUnlocked ? 0.82 : 0.52), in: RoundedRectangle(cornerRadius: 17))
+        .overlay(
+            RoundedRectangle(cornerRadius: 17)
+                .stroke((achievement.isUnlocked ? achievement.tint : Color.vdStroke).opacity(0.34), lineWidth: 1)
+        )
+    }
+}
+
+private struct ProfileSetProgressRing: View {
+    let fraction: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.vdStroke.opacity(0.48), lineWidth: 6)
+
+            Circle()
+                .trim(from: 0, to: min(max(fraction, 0), 1))
+                .stroke(
+                    LinearGradient(colors: [Color.vdGold, Color(hex: 0xFFF06A)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            Text("\(Int((fraction * 100).rounded()))")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(Color.vdGold)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(width: 48, height: 48)
+        .accessibilityLabel("Set completion \(Int((fraction * 100).rounded())) percent")
+    }
+}
+
+private extension CardRarity {
+    var profileRank: Int {
+        switch self {
+        case .common: 0
+        case .uncommon: 1
+        case .rare: 2
+        case .epic: 3
+        case .legendary: 4
+        case .mythic: 5
+        }
     }
 }

@@ -6,21 +6,17 @@ struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @State private var showFilters = false
     @State private var successMessage: String?
+    @State private var searchTask: Task<Void, Never>?
 
     private let popularFilters = ["Charizard", "Pikachu", "Eevee", "Mew", "Holo", "Full Art"]
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
 
     var body: some View {
         ZStack {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    VaultSectionHeader(title: "Find cards", subtitle: nil)
+                VStack(alignment: .leading, spacing: 20) {
+                    header
                     searchField
                     popularQuickFilters
                     filterButton
@@ -40,43 +36,40 @@ struct SearchView: View {
 
                     if viewModel.isLoading && viewModel.filteredCards(in: store).isEmpty {
                         loadingState
+                    } else if viewModel.errorMessage != nil && viewModel.filteredCards(in: store).isEmpty {
+                        errorState
                     } else if viewModel.filteredCards(in: store).isEmpty {
-                        EmptyStateView(
-                            systemImage: "magnifyingglass",
-                            title: "No cards found",
-                            message: viewModel.errorMessage ?? "Try a different search."
-                        )
-                        .padding(.top, 32)
+                        emptyState
                     } else {
-                        LazyVGrid(columns: columns, spacing: 12) {
+                        VStack(spacing: 12) {
                             ForEach(viewModel.filteredCards(in: store)) { card in
                                 let item = store.collectionItem(for: card)
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    NavigationLink {
-                                        CardDetailView(card: card)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            CardTile(
-                                                card: card,
-                                                quantity: item?.quantity,
-                                                condition: item?.condition,
-                                                variant: item?.variant,
-                                                isAvailableForTrade: item?.isAvailableForTrade ?? false,
-                                                style: .compact
-                                            )
-
-                                            if store.isWishlisted(card) {
-                                                StatusPill(title: "Wanted", tint: .vdGold)
-                                            } else if item != nil {
-                                                StatusPill(title: "In My Vault", tint: .vdEmerald)
-                                            }
+                                SearchResultRow(
+                                    card: card,
+                                    collectionItem: item,
+                                    isWanted: store.isWishlisted(card),
+                                    onAddToVault: {
+                                        if item == nil {
+                                            store.addCard(card)
+                                            showSuccess("Added to My Vault")
                                         }
+                                    },
+                                    onToggleWant: {
+                                        if store.isWishlisted(card) {
+                                            store.removeFromWishlist(card)
+                                        } else {
+                                            store.addToWishlist(card, priority: .medium, budget: card.marketValue)
+                                            showSuccess("Added to Wants")
+                                        }
+                                    },
+                                    onMarkTrade: {
+                                        if store.collectionItem(for: card) == nil {
+                                            store.addCard(card)
+                                        }
+                                        store.updateTradeAvailability(for: card, isAvailable: true)
+                                        showSuccess("Marked for Trade")
                                     }
-                                    .buttonStyle(.plain)
-
-                                    quickActions(for: card, item: item)
-                                }
+                                )
                             }
                         }
 
@@ -118,6 +111,21 @@ struct SearchView: View {
         .onChange(of: viewModel.sortOption) { _, _ in
             runSearch()
         }
+        .onDisappear {
+            searchTask?.cancel()
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Search")
+                .font(.system(.largeTitle, design: .rounded, weight: .black))
+                .foregroundStyle(Color.vdTextPrimary)
+            Text("Live card data from the Pokémon TCG database")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.vdTextSecondary)
+                .lineLimit(2)
+        }
     }
 
     private var searchField: some View {
@@ -142,10 +150,10 @@ struct SearchView: View {
             }
         }
         .padding(14)
-        .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
     }
 
@@ -242,16 +250,36 @@ struct SearchView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .tint(Color.vdGold)
-            Text("Searching the card archive...")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdTextSecondary)
+        VStack(spacing: 10) {
+            ForEach(0..<5, id: \.self) { _ in
+                SearchSkeletonRow()
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 36)
-        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var errorState: some View {
+        VStack(spacing: 16) {
+            EmptyStateView(
+                systemImage: "wifi.exclamationmark",
+                title: "Couldn’t load cards",
+                message: "Please check your connection and try again."
+            )
+
+            PrimaryButton(title: "Retry", systemImage: "arrow.clockwise") {
+                runSearch()
+            }
+        }
+        .padding(.top, 24)
+    }
+
+    private var emptyState: some View {
+        EmptyStateView(
+            systemImage: "magnifyingglass",
+            title: "No cards found",
+            message: "Try a card name, set, number, rarity or type."
+        )
+        .padding(.top, 32)
     }
 
     private var rarityFilters: some View {
@@ -432,12 +460,193 @@ struct SearchView: View {
     }
 
     private func runSearch(debounce: Bool = false) {
-        Task {
+        searchTask?.cancel()
+        searchTask = Task {
             if debounce {
                 try? await Task.sleep(for: .milliseconds(350))
             }
+            guard !Task.isCancelled else { return }
             await viewModel.search(store: store)
         }
+    }
+}
+
+private struct SearchResultRow: View {
+    let card: Card
+    let collectionItem: CollectionItem?
+    let isWanted: Bool
+    let onAddToVault: () -> Void
+    let onToggleWant: () -> Void
+    let onMarkTrade: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            NavigationLink {
+                CardDetailView(card: card)
+            } label: {
+                HStack(alignment: .center, spacing: 13) {
+                    thumbnail
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(card.name)
+                            .font(.system(.headline, design: .rounded, weight: .black))
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.86)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 7) {
+                                SearchInfoChip(text: "\(card.set.code) #\(card.number)", systemImage: "rectangle.3.group.fill", tint: .vdSky)
+                                SearchInfoChip(text: card.rarity.displayName, systemImage: "sparkles", tint: rarityTint)
+                                SearchInfoChip(text: card.marketValue.vaultCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
+                            }
+                        }
+
+                        HStack(spacing: 7) {
+                            if collectionItem != nil {
+                                StatusPill(title: "In My Vault", tint: .vdEmerald)
+                            }
+                            if isWanted {
+                                StatusPill(title: "Wanted", tint: .vdGold)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdTextSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 8) {
+                rowAction(
+                    title: collectionItem == nil ? "Vault" : "Saved",
+                    systemImage: collectionItem == nil ? "plus.circle.fill" : "checkmark.circle.fill",
+                    tint: .vdEmerald,
+                    action: onAddToVault
+                )
+                rowAction(
+                    title: isWanted ? "Wanted" : "Wants",
+                    systemImage: isWanted ? "star.fill" : "star",
+                    tint: .vdGold,
+                    isFilled: true,
+                    action: onToggleWant
+                )
+                rowAction(
+                    title: "Trade",
+                    systemImage: collectionItem?.isAvailableForTrade == true ? "arrow.left.arrow.right.circle.fill" : "arrow.left.arrow.right.circle",
+                    tint: .vdSky,
+                    action: onMarkTrade
+                )
+            }
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.07), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 7)
+    }
+
+    private var thumbnail: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 13)
+                .fill(Color.vdPanelRaised.opacity(0.84))
+
+            if let imageURL = card.smallImageURL ?? card.largeImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Image(systemName: "rectangle.stack.fill")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Color.vdGold)
+                    }
+                }
+            } else {
+                Image(systemName: "rectangle.stack.fill")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.vdGold)
+            }
+        }
+        .frame(width: 70, height: 96)
+        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(rarityTint.opacity(0.28), lineWidth: 1))
+    }
+
+    private func rowAction(title: String, systemImage: String, tint: Color, isFilled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(isFilled ? Color.vdNavy : tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(isFilled ? tint : tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 13))
+                .overlay(RoundedRectangle(cornerRadius: 13).stroke(tint.opacity(0.26), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var rarityTint: Color {
+        switch card.rarity {
+        case .common: .vdTextSecondary
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary, .mythic: .vdGold
+        }
+    }
+}
+
+private struct SearchInfoChip: View {
+    let text: String
+    let systemImage: String
+    let tint: Color
+    var isFilled = false
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(isFilled ? Color.vdNavy : tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(isFilled ? tint : tint.opacity(0.13), in: Capsule())
+            .overlay(Capsule().stroke(isFilled ? Color.white.opacity(0.24) : tint.opacity(0.24), lineWidth: 1))
+    }
+}
+
+private struct SearchSkeletonRow: View {
+    var body: some View {
+        HStack(spacing: 13) {
+            RoundedRectangle(cornerRadius: 13)
+                .fill(Color.vdPanelRaised.opacity(0.72))
+                .frame(width: 70, height: 96)
+
+            VStack(alignment: .leading, spacing: 10) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.vdPanelRaised.opacity(0.72))
+                    .frame(height: 18)
+
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.vdPanelRaised.opacity(0.56))
+                    .frame(width: 170, height: 14)
+
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.vdPanelRaised.opacity(0.46))
+                    .frame(width: 120, height: 14)
+            }
+
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.vdPanel.opacity(0.58), in: RoundedRectangle(cornerRadius: 20))
     }
 }
 

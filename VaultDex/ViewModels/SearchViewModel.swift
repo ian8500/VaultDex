@@ -56,6 +56,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func search(store: LocalVaultStore) async {
+        guard !Task.isCancelled else { return }
         currentPage = 1
         canLoadMore = false
         totalResults = nil
@@ -77,11 +78,13 @@ final class SearchViewModel: ObservableObject {
                 page: currentPage,
                 pageSize: pageSize
             )
+            guard !Task.isCancelled else { return }
             apiCards = sort(response.data.map(\.localCard))
             totalResults = response.totalCount
             canLoadMore = response.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
             await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
         } catch {
+            guard !Task.isCancelled else { return }
             apiCards = []
             errorMessage = "Unable to load cards right now. Please try again."
         }

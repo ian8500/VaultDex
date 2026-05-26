@@ -1043,7 +1043,7 @@ struct FriendsWantsView: View {
     }
 
     private var allRows: [FriendWantDiscoveryRowModel] {
-        store.friends.flatMap { friend in
+        store.friends.filter { $0.wishlistVisibility != .private }.flatMap { friend in
             friend.wishlist.map { item in
                 FriendWantDiscoveryRowModel(friend: friend, item: item)
             }
@@ -1152,11 +1152,9 @@ private struct FriendWantDiscoveryRow: View {
                     Spacer(minLength: 6)
                 }
 
-                if !showMode {
-                    Text("\(row.item.card.rarity.displayName) · \(row.item.budget.vaultCurrency)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.vdTextSecondary)
-                        .lineLimit(1)
+                HStack(spacing: 7) {
+                    FriendWantMetaChip(text: row.item.card.rarity.displayName, systemImage: "sparkles", tint: rarityTint)
+                    FriendWantMetaChip(text: row.item.budget.vaultCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
                 }
 
                 if !row.item.notes.isEmpty {
@@ -1210,7 +1208,7 @@ private struct FriendWantDiscoveryRow: View {
                 NavigationLink {
                     TradeView()
                 } label: {
-                    Text("Offer trade")
+                    Text("Suggest trade")
                         .font(.caption.weight(.black))
                         .foregroundStyle(Color.vdNavy)
                         .padding(.horizontal, 10)
@@ -1234,6 +1232,35 @@ private struct FriendWantDiscoveryRow: View {
 
             Spacer(minLength: 0)
         }
+    }
+
+    private var rarityTint: Color {
+        switch row.item.card.rarity {
+        case .common: .vdTextSecondary
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary, .mythic: .vdGold
+        }
+    }
+}
+
+private struct FriendWantMetaChip: View {
+    let text: String
+    let systemImage: String
+    let tint: Color
+    var isFilled = false
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(isFilled ? Color.vdNavy : tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(isFilled ? tint : tint.opacity(0.13), in: Capsule())
+            .overlay(Capsule().stroke(isFilled ? Color.white.opacity(0.24) : tint.opacity(0.24), lineWidth: 1))
     }
 }
 
@@ -2105,17 +2132,6 @@ struct InviteFriendsView: View {
                     .foregroundStyle(Color.vdViolet)
             }
 
-            Text(viewModel.inviteCode)
-                .font(.system(.title, design: .monospaced, weight: .black))
-                .foregroundStyle(Color.vdGold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.vdGold.opacity(0.3), lineWidth: 1)
-                )
-
             HStack(spacing: 10) {
                 ShareLink(item: viewModel.inviteMessage) {
                     Label("Share Invite", systemImage: "square.and.arrow.up")
@@ -2155,11 +2171,19 @@ struct InviteFriendsView: View {
 
     private var contactList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Suggested Contacts", subtitle: "\(viewModel.pendingContacts.count) still pending")
+            VaultSectionHeader(title: "Invite History", subtitle: nil)
 
-            VStack(spacing: 12) {
-                ForEach(viewModel.contacts) { contact in
-                    InviteContactRow(contact: contact)
+            if viewModel.contacts.isEmpty {
+                EmptyStateView(
+                    systemImage: "person.crop.circle.badge.plus",
+                    title: "No invites yet",
+                    message: "Share your invite with trusted collectors when you are ready."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(viewModel.contacts) { contact in
+                        InviteContactRow(contact: contact)
+                    }
                 }
             }
         }

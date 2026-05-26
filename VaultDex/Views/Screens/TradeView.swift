@@ -16,6 +16,7 @@ struct TradeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    safetyNote
                     createTradeAction
                     tradeTabs
                     tradesSection
@@ -92,6 +93,16 @@ struct TradeView: View {
                 viewModel.resetFriendOffer(in: store)
             }
         }
+    }
+
+    private var safetyNote: some View {
+        Label("Only trade with people you trust", systemImage: "shield.lefthalf.filled")
+            .font(.subheadline.weight(.black))
+            .foregroundStyle(Color.vdGold)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.vdGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.vdGold.opacity(0.20), lineWidth: 1))
     }
 
     private var header: some View {
@@ -485,7 +496,7 @@ private struct ListCardSheet: View {
                         .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vdStroke.opacity(0.72), lineWidth: 1))
 
-                    Toggle("Safe intermediary placeholder", isOn: $viewModel.listingUsesSafeTrade)
+                    Toggle("Safe intermediary option", isOn: $viewModel.listingUsesSafeTrade)
                         .tint(Color.vdGold)
                         .foregroundStyle(Color.vdTextPrimary)
 
@@ -588,17 +599,26 @@ private struct FriendTradeComposer: View {
     }
 
     private var ownCardPicker: some View {
-        collectionPicker(
-            title: "Offer My Cards",
-            subtitle: "\(offeredItems.count) selected",
-            items: store.collectionItems,
-            selectedIDs: Binding(
-                get: { Set(store.collectionItems.filter { viewModel.selectedOfferCardIDs.contains($0.card.id) }.map(\.id)) },
-                set: { ids in
-                    viewModel.selectedOfferCardIDs = Set(store.collectionItems.filter { ids.contains($0.id) }.map(\.card.id))
+        VStack(alignment: .leading, spacing: 14) {
+            if let selectedFriend {
+                let wantedItems = store.cardsFriendWantsThatIOwn(selectedFriend)
+                if !wantedItems.isEmpty {
+                    collectionPicker(
+                        title: "They Want From You",
+                        subtitle: "\(wantedItems.filter { viewModel.selectedOfferCardIDs.contains($0.card.id) }.count) selected",
+                        items: wantedItems,
+                        selectedIDs: selectedOfferItemIDs(for: wantedItems)
+                    )
                 }
+            }
+
+            collectionPicker(
+                title: "Offer My Cards",
+                subtitle: "\(offeredItems.count) selected",
+                items: store.collectionItems,
+                selectedIDs: selectedOfferItemIDs(for: store.collectionItems)
             )
-        )
+        }
     }
 
     @ViewBuilder
@@ -665,6 +685,23 @@ private struct FriendTradeComposer: View {
         }
     }
 
+    private func selectedOfferItemIDs(for items: [CollectionItem]) -> Binding<Set<CollectionItem.ID>> {
+        Binding(
+            get: { Set(items.filter { viewModel.selectedOfferCardIDs.contains($0.card.id) }.map(\.id)) },
+            set: { ids in
+                var selectedCardIDs = viewModel.selectedOfferCardIDs
+                for item in items {
+                    if ids.contains(item.id) {
+                        selectedCardIDs.insert(item.card.id)
+                    } else {
+                        selectedCardIDs.remove(item.card.id)
+                    }
+                }
+                viewModel.selectedOfferCardIDs = selectedCardIDs
+            }
+        )
+    }
+
     private var creditsAndMessage: some View {
         VStack(alignment: .leading, spacing: 12) {
             Stepper(value: $viewModel.internalCredits, in: 0...500, step: 5) {
@@ -688,6 +725,10 @@ private struct FriendTradeComposer: View {
             Toggle("Safe trade review", isOn: $viewModel.offerUsesSafeTrade)
                 .tint(Color.vdGold)
                 .foregroundStyle(Color.vdTextPrimary)
+
+            Label("Only trade with people you trust", systemImage: "shield.lefthalf.filled")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdGold)
         }
         .padding(14)
         .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
@@ -835,6 +876,10 @@ private struct TradeOfferComposer: View {
             Toggle("Safe trade review", isOn: $viewModel.offerUsesSafeTrade)
                 .tint(Color.vdGold)
                 .foregroundStyle(Color.vdTextPrimary)
+
+            Label("Only trade with people you trust", systemImage: "shield.lefthalf.filled")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdGold)
         }
         .padding(14)
         .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 8))
@@ -1019,7 +1064,7 @@ private struct TradeListingDetailView: View {
                             }
 
                             if listing.usesSafeTrade {
-                                Label("Safe intermediary option placeholder enabled", systemImage: "shield.fill")
+                                Label("Safe intermediary requested", systemImage: "shield.fill")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.vdTextSecondary)
                             }

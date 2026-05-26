@@ -654,10 +654,10 @@ struct CardDetailView: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(savedWishlistItem == nil ? Color.vdTextSecondary : Color.vdGold)
 
-                HStack(spacing: 10) {
-                    matchPlaceholder(title: "Friend matches", value: "Checked", systemImage: "person.2.fill", tint: .vdSky)
-                    matchPlaceholder(title: "Market matches", value: "Watching", systemImage: "storefront.fill", tint: .vdLeaf)
-                }
+                Text("Friends and market matches appear when real shared wants or listings are available.")
+                    .font(.caption)
+                    .foregroundStyle(Color.vdTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if store.lastSyncError?.contains("Wants") == true, let error = store.lastSyncError {
@@ -742,32 +742,6 @@ struct CardDetailView: View {
                         .stroke(Color.vdStroke.opacity(0.8), lineWidth: 1)
                 )
         }
-    }
-
-    private func matchPlaceholder(title: String, value: String, systemImage: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.black))
-                .foregroundStyle(tint)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.vdTextSecondary)
-
-                Text(value)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(Color.vdTextPrimary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(Color.vdPanelRaised.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(tint.opacity(0.24), lineWidth: 1)
-        )
     }
 
     private func secondaryButton(
