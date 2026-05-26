@@ -14,10 +14,12 @@ struct ContentView: View {
     @State private var hasResolvedAuthenticatedLaunch = false
     @State private var continueToProfileSetupAfterError = false
     @State private var selectedDestination: VaultDockDestination = .home
+    @State private var saveStatusDismissTask: Task<Void, Never>?
     @AppStorage("hasCompletedVaultDexOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
             if authService.shouldShowLogin {
                 NavigationStack {
                     AuthView()
@@ -46,6 +48,14 @@ struct ContentView: View {
             } else {
                 mainTabs
             }
+            }
+
+            if let saveStatusMessage = store.saveStatusMessage {
+                SaveStatusBanner(message: saveStatusMessage)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .tint(Color.vdGold)
         .background(AppBackground())
@@ -57,6 +67,16 @@ struct ContentView: View {
         }
         .onChange(of: authService.isDemoModeEnabled) { _, _ in
             Task { await refreshDataMode() }
+        }
+        .onChange(of: store.saveStatusMessage) { _, newValue in
+            saveStatusDismissTask?.cancel()
+            guard newValue == "Saved" || newValue == "Couldn’t save. Please try again." else { return }
+            saveStatusDismissTask = Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                await MainActor.run {
+                    store.clearSaveStatusMessage()
+                }
+            }
         }
     }
 
@@ -452,6 +472,47 @@ private struct AuthenticatedLoadingView: View {
             .background(Color.vdPanel.opacity(0.9), in: RoundedRectangle(cornerRadius: 24))
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.vdGold.opacity(0.24), lineWidth: 1))
         }
+    }
+}
+
+private struct SaveStatusBanner: View {
+    let message: String
+
+    private var systemImage: String {
+        switch message {
+        case "Saving...": "arrow.triangle.2.circlepath"
+        case "Saved": "checkmark.circle.fill"
+        default: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var tint: Color {
+        switch message {
+        case "Saved": .vdLeaf
+        case "Saving...": .vdGold
+        default: .vdCoral
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.callout.weight(.black))
+                .foregroundStyle(tint)
+
+            Text(message)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(tint.opacity(0.28), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
+        .accessibilityElement(children: .combine)
     }
 }
 

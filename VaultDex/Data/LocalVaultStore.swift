@@ -17,6 +17,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
     @Published private(set) var lastSyncError: String?
+    @Published private(set) var saveStatusMessage: String?
     @Published var sets: [CardSet]
     @Published var cards: [Card]
     @Published var profile: UserProfile
@@ -84,6 +85,7 @@ final class LocalVaultStore: ObservableObject {
     private static let tradeSyncMessage = "Unable to sync trades right now. Please try again."
     private static let imageUploadMessage = "Unable to upload that image right now. Please try again."
     private static let imageUploadSignInMessage = "Sign in before uploading images."
+    private static let saveFailedMessage = "Couldn’t save. Please try again."
 
     func useDemoMode(repository: DemoVaultRepository = .shared) {
         runtimeMode = .demo
@@ -95,6 +97,7 @@ final class LocalVaultStore: ObservableObject {
         runtimeMode = .supabase
         lastSyncError = nil
         imageUploadMessage = nil
+        saveStatusMessage = nil
         sets = []
         cards = []
         collectionItems = []
@@ -146,9 +149,13 @@ final class LocalVaultStore: ObservableObject {
         do {
             let cloudProfile = try await fetchOrCreateCloudProfile(userID: session.userID)
             do {
-                let snapshot = try await fetchCloudSnapshot(userID: session.userID, profile: cloudProfile)
+                let snapshot = mergeWithCachedCloudSnapshot(
+                    try await fetchCloudSnapshot(userID: session.userID, profile: cloudProfile),
+                    userID: session.userID
+                )
                 apply(snapshot: snapshot, userID: session.userID)
                 CloudVaultCache.save(snapshot, userID: session.userID)
+                repairCloudPersistenceIfNeeded(snapshot: snapshot)
                 runtimeMode = .supabase
                 lastSyncError = nil
             } catch {
@@ -237,6 +244,60 @@ final class LocalVaultStore: ObservableObject {
             marketplaceListings: remoteListings,
             events: remoteEvents
         )
+    }
+
+    private func mergeWithCachedCloudSnapshot(_ snapshot: CloudVaultSnapshot, userID: UUID) -> CloudVaultSnapshot {
+        guard let cachedSnapshot = CloudVaultCache.load(userID: userID) else { return snapshot }
+
+        return CloudVaultSnapshot(
+            profile: snapshot.profile ?? cachedSnapshot.profile,
+            sets: mergeRemoteSets(snapshot.sets + cachedSnapshot.sets),
+            cards: mergeRemoteCards(snapshot.cards + cachedSnapshot.cards),
+            collection: mergeByID(snapshot.collection + cachedSnapshot.collection),
+            wishlist: mergeByID(snapshot.wishlist + cachedSnapshot.wishlist),
+            friends: snapshot.friends.isEmpty ? cachedSnapshot.friends : snapshot.friends,
+            friendRequests: snapshot.friendRequests?.isEmpty == false ? snapshot.friendRequests : cachedSnapshot.friendRequests,
+            friendProfiles: snapshot.friendProfiles?.isEmpty == false ? snapshot.friendProfiles : cachedSnapshot.friendProfiles,
+            visibleFriendData: snapshot.visibleFriendData?.isEmpty == false ? snapshot.visibleFriendData : cachedSnapshot.visibleFriendData,
+            tradeOffers: mergeByID(snapshot.tradeOffers + cachedSnapshot.tradeOffers),
+            tradeOfferItems: mergeByID((snapshot.tradeOfferItems ?? []) + (cachedSnapshot.tradeOfferItems ?? [])),
+            marketplaceListings: mergeByID(snapshot.marketplaceListings + cachedSnapshot.marketplaceListings),
+            events: mergeByID(snapshot.events + cachedSnapshot.events)
+        )
+    }
+
+    private func repairCloudPersistenceIfNeeded(snapshot: CloudVaultSnapshot) {
+        guard repositories.clientProvider.currentSession?.userID != nil else { return }
+
+        Task {
+            do {
+                for set in snapshot.sets {
+                    try await repositories.cards.upsertSet(set)
+                }
+                for card in snapshot.cards {
+                    try await repositories.cards.upsertCard(card)
+                }
+                for item in snapshot.collection {
+                    try await repositories.collection.upsertCollectionItem(item)
+                }
+                for item in snapshot.wishlist {
+                    try await repositories.wishlist.upsertWishlistItem(item)
+                }
+                for listing in snapshot.marketplaceListings where listing.ownerID != nil {
+                    try await repositories.trades.upsertTradeListing(listing.remoteTradeListingPayload)
+                }
+                for offer in snapshot.tradeOffers {
+                    try await repositories.trades.upsertTradeOffer(offer)
+                }
+                if let items = snapshot.tradeOfferItems, !items.isEmpty {
+                    try await repositories.trades.upsertTradeOfferItems(items)
+                }
+            } catch {
+                await MainActor.run {
+                    lastSyncError = Self.cloudConnectionMessage
+                }
+            }
+        }
     }
 
     private func createBlankCloudProfile(userID: UUID) async throws -> RemoteProfile {
@@ -359,6 +420,7 @@ final class LocalVaultStore: ObservableObject {
             collectionItems[index].condition = condition ?? collectionItems[index].condition
             collectionItems[index].variant = variant
             collectionItems[index].acquiredAt = .now
+            updateCachedCloudStateIfPossible()
             syncCollectionItem(collectionItems[index])
         } else {
             let item = CollectionItem(
@@ -369,6 +431,7 @@ final class LocalVaultStore: ObservableObject {
                 acquiredAt: .now
             )
             collectionItems.append(item)
+            updateCachedCloudStateIfPossible()
             syncCollectionItem(item)
         }
     }
@@ -376,6 +439,7 @@ final class LocalVaultStore: ObservableObject {
     func removeCard(_ card: Card) {
         let removed = collectionItems.first { $0.card.id == card.id }
         collectionItems.removeAll { $0.card.id == card.id }
+        updateCachedCloudStateIfPossible()
         if let removed, shouldSyncSignedInCloud {
             Task {
                 do {
@@ -419,6 +483,7 @@ final class LocalVaultStore: ObservableObject {
             }
         } else {
             collectionItems[index].quantity = quantity
+            updateCachedCloudStateIfPossible()
             syncCollectionItem(collectionItems[index])
         }
     }
@@ -426,18 +491,21 @@ final class LocalVaultStore: ObservableObject {
     func updateCondition(for card: Card, condition: CardCondition) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].condition = condition
+        updateCachedCloudStateIfPossible()
         syncCollectionItem(collectionItems[index])
     }
 
     func updateVariant(for card: Card, variant: CardVariant) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].variant = variant
+        updateCachedCloudStateIfPossible()
         syncCollectionItem(collectionItems[index])
     }
 
     func updateTradeAvailability(for card: Card, isAvailable: Bool) {
         guard let index = collectionItems.firstIndex(where: { $0.card.id == card.id }) else { return }
         collectionItems[index].isAvailableForTrade = isAvailable
+        updateCachedCloudStateIfPossible()
         syncCollectionItem(collectionItems[index])
     }
 
@@ -459,6 +527,7 @@ final class LocalVaultStore: ObservableObject {
         collectionItems[index].visibility = visibility
         collectionItems[index].isAvailableForCredits = availableForCredits
         collectionItems[index].askingCredits = availableForCredits ? askingCredits.map { max($0, 0) } : nil
+        updateCachedCloudStateIfPossible()
         syncCollectionItem(collectionItems[index])
     }
 
@@ -474,6 +543,7 @@ final class LocalVaultStore: ObservableObject {
             wishlistItems[index].preferredCondition = preferredCondition
             wishlistItems[index].budget = budget ?? wishlistItems[index].budget
             wishlistItems[index].notes = notes
+            updateCachedCloudStateIfPossible()
             syncWishlistItem(wishlistItems[index])
         } else {
             let item = WishlistItem(
@@ -484,6 +554,7 @@ final class LocalVaultStore: ObservableObject {
                 notes: notes
             )
             wishlistItems.append(item)
+            updateCachedCloudStateIfPossible()
             syncWishlistItem(item)
         }
     }
@@ -500,12 +571,14 @@ final class LocalVaultStore: ObservableObject {
         wishlistItems[index].preferredCondition = preferredCondition
         wishlistItems[index].budget = max(budget, 0)
         wishlistItems[index].notes = notes
+        updateCachedCloudStateIfPossible()
         syncWishlistItem(wishlistItems[index])
     }
 
     func removeFromWishlist(_ card: Card) {
         let removed = wishlistItems.first { $0.card.id == card.id }
         wishlistItems.removeAll { $0.card.id == card.id }
+        updateCachedCloudStateIfPossible()
         if let removed, shouldSyncSignedInCloud {
             Task {
                 do {
@@ -792,11 +865,13 @@ final class LocalVaultStore: ObservableObject {
         )
         tradeListings.insert(listing, at: 0)
         updateTradeAvailability(for: item.card, isAvailable: true)
+        updateCachedCloudStateIfPossible()
         syncTradeListing(listing)
     }
 
     func removeTradeListing(_ listing: TradeListing) {
         tradeListings.removeAll { $0.id == listing.id }
+        updateCachedCloudStateIfPossible()
         if runtimeMode == .supabase {
             Task {
                 do {
@@ -841,6 +916,7 @@ final class LocalVaultStore: ObservableObject {
             usesSafeTrade: usesSafeTrade
         )
         tradeOffers.insert(offer, at: 0)
+        updateCachedCloudStateIfPossible()
 
         if shouldSyncSignedInCloud {
             let requestedItems = collectionItemsForListing(listing, requestedCards: requestedCards)
@@ -874,6 +950,7 @@ final class LocalVaultStore: ObservableObject {
             usesSafeTrade: usesSafeTrade
         )
         tradeOffers.insert(offer, at: 0)
+        updateCachedCloudStateIfPossible()
 
         if shouldSyncSignedInCloud {
             syncTradeOffer(offer, receiverID: friend.id, offeredItems: offeredItems, requestedItems: requestedItems)
@@ -883,6 +960,7 @@ final class LocalVaultStore: ObservableObject {
     func updateTradeOfferStatus(_ offer: TradeOffer, status: TradeStatus) {
         guard let index = tradeOffers.firstIndex(where: { $0.id == offer.id }) else { return }
         tradeOffers[index].status = status
+        updateCachedCloudStateIfPossible()
         if shouldSyncSignedInCloud {
             Task {
                 do {
@@ -917,6 +995,7 @@ final class LocalVaultStore: ObservableObject {
         }
 
         isSavingProfile = true
+        saveStatusMessage = "Saving..."
         defer { isSavingProfile = false }
 
         do {
@@ -925,8 +1004,10 @@ final class LocalVaultStore: ObservableObject {
             profile = profileForCurrentUser
             runtimeMode = .supabase
             updateCachedCloudStateIfPossible(userID: userID)
+            saveStatusMessage = "Saved"
             lastSyncError = nil
         } catch {
+            saveStatusMessage = Self.saveFailedMessage
             lastSyncError = Self.cloudConnectionMessage
             throw error
         }
@@ -958,6 +1039,10 @@ final class LocalVaultStore: ObservableObject {
 
     func updateProfilePhotoUploadStatus(_ status: String) {
         profilePhotoUploadStatus = status
+    }
+
+    func clearSaveStatusMessage() {
+        saveStatusMessage = nil
     }
 
     func uploadAvatarImageData(_ data: Data) async throws {
@@ -1235,6 +1320,7 @@ final class LocalVaultStore: ObservableObject {
     private func syncCollectionItem(_ item: CollectionItem) {
         guard shouldSyncSignedInCloud, let userID = repositories.clientProvider.currentSession?.userID else { return }
         let remoteItem = remoteCollectionItem(from: item, userID: userID)
+        saveStatusMessage = "Saving..."
         Task {
             do {
                 try await repositories.cards.upsertSet(item.card.remoteSet)
@@ -1242,12 +1328,14 @@ final class LocalVaultStore: ObservableObject {
                 try await repositories.collection.upsertCollectionItem(remoteItem)
                 await MainActor.run {
                     updateCachedCloudStateIfPossible(userID: userID)
+                    saveStatusMessage = "Saved"
                     if lastSyncError == Self.collectionSyncMessage {
                         lastSyncError = nil
                     }
                 }
             } catch {
                 await MainActor.run {
+                    saveStatusMessage = Self.saveFailedMessage
                     lastSyncError = Self.collectionSyncMessage
                 }
             }
@@ -1257,6 +1345,7 @@ final class LocalVaultStore: ObservableObject {
     private func syncWishlistItem(_ item: WishlistItem) {
         guard shouldSyncSignedInCloud, let userID = repositories.clientProvider.currentSession?.userID else { return }
         let remoteItem = remoteWishlistItem(from: item, userID: userID)
+        saveStatusMessage = "Saving..."
         Task {
             do {
                 try await repositories.cards.upsertSet(item.card.remoteSet)
@@ -1264,12 +1353,14 @@ final class LocalVaultStore: ObservableObject {
                 try await repositories.wishlist.upsertWishlistItem(remoteItem)
                 await MainActor.run {
                     updateCachedCloudStateIfPossible(userID: userID)
+                    saveStatusMessage = "Saved"
                     if lastSyncError == Self.wantsSyncMessage {
                         lastSyncError = nil
                     }
                 }
             } catch {
                 await MainActor.run {
+                    saveStatusMessage = Self.saveFailedMessage
                     lastSyncError = Self.wantsSyncMessage
                 }
             }
@@ -1331,7 +1422,7 @@ final class LocalVaultStore: ObservableObject {
             visibleFriendData: existing?.visibleFriendData ?? [],
             tradeOffers: existing?.tradeOffers ?? [],
             tradeOfferItems: existing?.tradeOfferItems ?? [],
-            marketplaceListings: existing?.marketplaceListings ?? [],
+            marketplaceListings: mergeByID((existing?.marketplaceListings ?? []) + tradeListings.map(\.remoteMarketplaceListing)),
             events: existing?.events ?? []
         )
         CloudVaultCache.save(snapshot, userID: userID)
@@ -1345,6 +1436,11 @@ final class LocalVaultStore: ObservableObject {
     private func mergeRemoteSets(_ sets: [RemoteCardSet]) -> [RemoteCardSet] {
         var seen = Set<UUID>()
         return sets.filter { seen.insert($0.id).inserted }
+    }
+
+    private func mergeByID<T: Identifiable>(_ values: [T]) -> [T] where T.ID == UUID {
+        var seen = Set<UUID>()
+        return values.filter { seen.insert($0.id).inserted }
     }
 
     private func syncTradeListing(_ listing: TradeListing) {
@@ -1375,18 +1471,22 @@ final class LocalVaultStore: ObservableObject {
             listedAt: listing.listedAt
         )
 
+        saveStatusMessage = "Saving..."
         Task {
             do {
                 try await repositories.cards.upsertSet(listing.card.remoteSet)
                 try await repositories.cards.upsertCard(listing.card.remoteCard)
                 try await repositories.trades.upsertTradeListing(remoteListing)
                 await MainActor.run {
+                    updateCachedCloudStateIfPossible(userID: ownerID)
+                    saveStatusMessage = "Saved"
                     if lastSyncError?.contains("listing") == true {
                         lastSyncError = nil
                     }
                 }
             } catch {
                 await MainActor.run {
+                    saveStatusMessage = Self.saveFailedMessage
                     lastSyncError = Self.tradeSyncMessage
                 }
             }
@@ -1473,6 +1573,7 @@ final class LocalVaultStore: ObservableObject {
             )
         }
 
+        saveStatusMessage = "Saving..."
         Task {
             do {
                 let cardsToCache = offer.offeredCards + offer.requestedCards
@@ -1483,12 +1584,15 @@ final class LocalVaultStore: ObservableObject {
                 try await repositories.trades.upsertTradeOffer(remoteOffer)
                 try await repositories.trades.upsertTradeOfferItems(remoteOfferedItems + remoteRequestedItems)
                 await MainActor.run {
+                    updateCachedCloudStateIfPossible(userID: senderID)
+                    saveStatusMessage = "Saved"
                     if lastSyncError == Self.tradeSyncMessage {
                         lastSyncError = nil
                     }
                 }
             } catch {
                 await MainActor.run {
+                    saveStatusMessage = Self.saveFailedMessage
                     lastSyncError = Self.tradeSyncMessage
                 }
             }
@@ -1688,6 +1792,59 @@ private extension TradeListingKind {
             }
             return "Open to trades or credits"
         }
+    }
+}
+
+private extension TradeListing {
+    var remoteMarketplaceListing: RemoteMarketplaceListing {
+        RemoteMarketplaceListing(
+            id: id,
+            cardID: card.id,
+            ownerID: ownerID,
+            collectionItemID: collectionItemID,
+            title: card.name,
+            rarity: card.rarity.rawValue,
+            condition: condition.rawValue,
+            variant: variant.rawValue,
+            listingKind: listingKind.rawValue,
+            askingCredits: askingCredits,
+            description: description.nilIfBlank,
+            askingFor: askingFor,
+            estimatedValue: estimatedValue,
+            sellerDisplayName: ownerName,
+            sellerReputation: sellerReputation,
+            isSaved: isSaved,
+            usesSafeTrade: usesSafeTrade,
+            locationLabel: locationLabel,
+            listedAt: listedAt
+        )
+    }
+}
+
+private extension RemoteMarketplaceListing {
+    var remoteTradeListingPayload: RemoteTradeListing {
+        RemoteTradeListing(
+            id: id,
+            ownerID: ownerID ?? UUID(),
+            cardID: cardID,
+            collectionItemID: collectionItemID,
+            title: title ?? "VaultDex listing",
+            condition: condition,
+            variant: variant ?? "normal",
+            rarity: rarity,
+            estimatedValue: estimatedValue,
+            listingKind: listingKind ?? "trade",
+            askingCredits: askingCredits,
+            description: description,
+            askingFor: askingFor ?? "Open to fair offers",
+            sellerDisplayName: sellerDisplayName ?? "Collector",
+            locationLabel: locationLabel,
+            sellerReputation: sellerReputation,
+            isPublic: true,
+            status: "active",
+            usesSafeTrade: usesSafeTrade ?? false,
+            listedAt: listedAt
+        )
     }
 }
 
