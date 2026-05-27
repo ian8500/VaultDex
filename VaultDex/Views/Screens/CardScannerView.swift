@@ -341,7 +341,8 @@ struct CardScannerView: View {
 
     private func recognizeCardText(in image: UIImage) async -> ScanRecognitionResult {
         await Task.detached(priority: .userInitiated) {
-            guard let cgImage = image.cgImage else { return .empty }
+            let croppedImage = image.croppedToScannerCardFrame()
+            guard let cgImage = croppedImage.cgImage else { return .empty }
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
@@ -353,7 +354,7 @@ struct CardScannerView: View {
                 "Mewtwo", "Gengar", "Lucario"
             ]
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: CGImagePropertyOrientation(image.imageOrientation))
+            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: CGImagePropertyOrientation(croppedImage.imageOrientation))
             do {
                 try handler.perform([request])
                 let observations = request.results ?? []
@@ -376,8 +377,7 @@ struct CardScannerView: View {
     }
 
     private func searchCards(using recognition: ScanRecognitionResult) async {
-        let queries = recognition.searchQueries
-        guard !queries.isEmpty else {
+        guard let query = recognition.scanNameQuery else {
             await MainActor.run {
                 isSearching = false
                 matches = []
@@ -395,19 +395,8 @@ struct CardScannerView: View {
 
         do {
             await ExchangeRateService.shared.refreshRatesIfNeeded()
-            var uniqueCards: [PokemonTCGCard] = []
-            var seenIDs = Set<String>()
-
-            for query in queries.prefix(5) {
-                guard !Task.isCancelled else { return }
-                let response = try await apiService.searchCards(query: query, page: 1, pageSize: 8)
-                for card in response.data where seenIDs.insert(card.id).inserted {
-                    uniqueCards.append(card)
-                }
-                if uniqueCards.count >= 12 {
-                    break
-                }
-            }
+            let response = try await apiService.searchCardsForScan(name: query, pageSize: 5)
+            let uniqueCards = response.data
 
             await apiService.cache(cards: uniqueCards, using: store.repositories.clientProvider)
             await MainActor.run {
@@ -425,7 +414,7 @@ struct CardScannerView: View {
             await MainActor.run {
                 matches = []
                 isSearching = false
-                message = "Couldn’t search right now. Try again or use manual search."
+                message = Self.isTimeout(error) ? "Card search took too long. Try again or search manually." : "Couldn’t search right now. Try again or use manual search."
                 scanOverlayMessage = "Place card inside the frame"
             }
         }
@@ -457,6 +446,11 @@ struct CardScannerView: View {
             score += 8
         }
         return score
+    }
+
+    private static func isTimeout(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
     }
 
     private func showSuccess(_ text: String) {
@@ -493,9 +487,9 @@ private struct ScanRecognitionResult {
     static let empty = ScanRecognitionResult(candidates: [])
 
     init(manualText: String) {
-        let trimmed = manualText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = Self.cleanOCRLine(manualText)
         lines = trimmed.isEmpty ? [] : [ScanTextCandidate(text: trimmed, confidence: 1, boundingBox: .zero)]
-        likelyName = trimmed
+        likelyName = Self.isLikelyAppUIText(trimmed) ? nil : trimmed
         cardNumber = Self.extractCardNumber(from: trimmed)
         setNumber = Self.extractSetNumber(from: trimmed)
         averageConfidence = trimmed.isEmpty ? 0 : 1
@@ -511,6 +505,7 @@ private struct ScanRecognitionResult {
                 )
             }
             .filter { !$0.text.isEmpty }
+            .filter { !Self.isLikelyAppUIText($0.text) }
 
         lines = cleaned
         averageConfidence = cleaned.isEmpty ? 0 : cleaned.reduce(Float(0)) { $0 + $1.confidence } / Float(cleaned.count)
@@ -534,6 +529,13 @@ private struct ScanRecognitionResult {
 
     var isLowConfidence: Bool {
         averageConfidence < 0.62 || likelyName == nil
+    }
+
+    var scanNameQuery: String? {
+        guard let likelyName else { return nil }
+        let cleaned = Self.cleanOCRLine(likelyName)
+        guard Self.isValidScanName(cleaned) else { return nil }
+        return cleaned
     }
 
     var searchQueries: [String] {
@@ -574,6 +576,7 @@ private struct ScanRecognitionResult {
                     && candidate.text.rangeOfCharacter(from: .letters) != nil
                     && candidate.text.range(of: #"^\d+(/\d+)?$"#, options: .regularExpression) == nil
                     && !noise.contains { lower.contains($0) }
+                    && !Self.isLikelyAppUIText(candidate.text)
             }
             .sorted { left, right in
                 let leftScore = nameScore(left)
@@ -587,8 +590,10 @@ private struct ScanRecognitionResult {
 
     private static func nameScore(_ candidate: ScanTextCandidate) -> Float {
         var score = candidate.confidence * 10
-        if candidate.boundingBox.maxY > 0.68 { score += 4 }
+        if candidate.boundingBox.maxY > 0.62 { score += 5 }
+        if candidate.boundingBox.width > 0.18 { score += 2 }
         if candidate.text.split(separator: " ").count <= 4 { score += 2 }
+        if candidate.text.count > 22 { score -= 4 }
         if candidate.text.range(of: #"\d"#, options: .regularExpression) != nil { score -= 3 }
         return score
     }
@@ -615,6 +620,38 @@ private struct ScanRecognitionResult {
             .replacingOccurrences(of: #"[^A-Za-z0-9éÉ'’.\- /]"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isValidScanName(_ text: String) -> Bool {
+        let words = text.split(separator: " ")
+        return text.count >= 3
+            && text.count <= 28
+            && words.count <= 4
+            && text.rangeOfCharacter(from: .letters) != nil
+            && !isLikelyAppUIText(text)
+            && text.range(of: #"^\d+(/\d+)?$"#, options: .regularExpression) == nil
+    }
+
+    private static func isLikelyAppUIText(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let blockedPhrases = [
+            "vaultdex",
+            "card trading app",
+            "place card",
+            "inside frame",
+            "scan",
+            "scanning",
+            "find card",
+            "add to vault",
+            "add to wants",
+            "home",
+            "search",
+            "trade",
+            "friends",
+            "wants",
+            "profile"
+        ]
+        return blockedPhrases.contains { lower.contains($0) }
     }
 }
 
@@ -1010,6 +1047,45 @@ private extension CGImagePropertyOrientation {
         case .leftMirrored: self = .leftMirrored
         case .rightMirrored: self = .rightMirrored
         @unknown default: self = .up
+        }
+    }
+}
+
+private extension UIImage {
+    func croppedToScannerCardFrame() -> UIImage {
+        let normalized = normalizedForScannerCrop()
+        guard let cgImage = normalized.cgImage else { return normalized }
+
+        let imageWidth = CGFloat(cgImage.width)
+        let imageHeight = CGFloat(cgImage.height)
+        let cardAspect: CGFloat = 1.38
+        var cropWidth = imageWidth * 0.78
+        var cropHeight = cropWidth * cardAspect
+
+        if cropHeight > imageHeight * 0.84 {
+            cropHeight = imageHeight * 0.84
+            cropWidth = cropHeight / cardAspect
+        }
+
+        let cropX = max((imageWidth - cropWidth) / 2, 0)
+        let verticalOffset = imageHeight * -0.035
+        let cropY = max((imageHeight - cropHeight) / 2 + verticalOffset, 0)
+        let cropRect = CGRect(
+            x: cropX,
+            y: min(cropY, imageHeight - cropHeight),
+            width: min(cropWidth, imageWidth),
+            height: min(cropHeight, imageHeight)
+        ).integral
+
+        guard let cropped = cgImage.cropping(to: cropRect) else { return normalized }
+        return UIImage(cgImage: cropped, scale: normalized.scale, orientation: .up)
+    }
+
+    private func normalizedForScannerCrop() -> UIImage {
+        guard imageOrientation != .up else { return self }
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
         }
     }
 }

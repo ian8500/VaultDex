@@ -30,6 +30,18 @@ final class CardAPIService {
         try await searchCards(query: query, page: 1, pageSize: 8).data
     }
 
+    func searchCardsForScan(name: String, pageSize: Int = 5) async throws -> PokemonTCGListResponse<PokemonTCGCard> {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { throw CardAPIError.invalidURL }
+
+        return try await request("cards", queryItems: [
+            URLQueryItem(name: "q", value: "name:\"\(apiEscaped(trimmedName))\""),
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "pageSize", value: "\(pageSize)"),
+            URLQueryItem(name: "select", value: listCardSelectFields)
+        ], decode: PokemonTCGListResponse<PokemonTCGCard>.self)
+    }
+
     func searchCards(
         query: String,
         rarity: CardRarity? = nil,
