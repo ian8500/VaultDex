@@ -14,7 +14,7 @@ struct CardScannerView: View {
     @State private var selectedCard: Card?
     @State private var message: String?
     @State private var successMessage: String?
-    @State private var scanOverlayMessage = "Centre the card"
+    @State private var scanOverlayMessage = "Place card inside the frame"
 
     private let apiService = CardAPIService()
 
@@ -55,6 +55,10 @@ struct CardScannerView: View {
                 handleCapturedImage(image)
             } onCancel: {
                 isCameraPresented = false
+                if cameraPermission != .denied {
+                    scanOverlayMessage = "Place card inside the frame"
+                    message = "Search manually if the camera is unavailable."
+                }
             }
             .ignoresSafeArea()
         }
@@ -111,7 +115,7 @@ struct CardScannerView: View {
                         .foregroundStyle(Color.vdTextPrimary)
                         .multilineTextAlignment(.center)
 
-                    Text("OCR may need confirmation, especially with shiny cards or busy artwork.")
+                    Text("Good light helps.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.vdTextSecondary)
                         .multilineTextAlignment(.center)
@@ -128,6 +132,7 @@ struct CardScannerView: View {
             }
 
             SecondaryButton(title: "Search manually", systemImage: "magnifyingglass") {
+                scanOverlayMessage = "Place card inside the frame"
                 message = "Use manual search below to find the card."
             }
 
@@ -236,7 +241,7 @@ struct CardScannerView: View {
             VStack(spacing: 12) {
                 ProgressView()
                     .tint(Color.vdGold)
-                Text("Finding possible matches...")
+                Text(message ?? "Finding matches...")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
             }
@@ -322,12 +327,13 @@ struct CardScannerView: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         isSearching = true
         scanOverlayMessage = "Scanning..."
-        message = "Scanning..."
+        message = "Reading card..."
         Task {
             let recognition = await recognizeCardText(in: image)
             await MainActor.run {
                 detectedText = recognition.displayText
                 manualSearchText = recognition.primaryQuery
+                message = "Finding matches..."
             }
             await searchCards(using: recognition)
         }
@@ -375,8 +381,8 @@ struct CardScannerView: View {
             await MainActor.run {
                 isSearching = false
                 matches = []
-                message = "We couldn’t read enough text. Try manual search."
-                scanOverlayMessage = "Centre the card"
+                message = "We couldn’t identify this card. Try again or search manually."
+                scanOverlayMessage = "Place card inside the frame"
             }
             return
         }
@@ -408,8 +414,8 @@ struct CardScannerView: View {
                 matches = rankScannedMatches(uniqueCards.map(\.localCard), recognition: recognition)
                 isSearching = false
                 if matches.isEmpty {
-                    message = "No matches found. Try a simpler card name or number."
-                    scanOverlayMessage = "Centre the card"
+                    message = "We couldn’t identify this card. Try again or search manually."
+                    scanOverlayMessage = "Place card inside the frame"
                 } else {
                     message = recognition.isLowConfidence ? "We found a few possible matches" : "Choose the correct card"
                     scanOverlayMessage = "Hold steady"
@@ -420,7 +426,7 @@ struct CardScannerView: View {
                 matches = []
                 isSearching = false
                 message = "Couldn’t search right now. Try again or use manual search."
-                scanOverlayMessage = "Centre the card"
+                scanOverlayMessage = "Place card inside the frame"
             }
         }
     }
@@ -431,7 +437,7 @@ struct CardScannerView: View {
             .sorted { left, right in
                 score(card: left, tokens: tokens, recognition: recognition) > score(card: right, tokens: tokens, recognition: recognition)
             }
-            .prefix(12)
+            .prefix(5)
             .map { $0 }
     }
 
@@ -446,6 +452,9 @@ struct CardScannerView: View {
         }
         if recognition.cardNumber?.lowercased() == number {
             score += 10
+        }
+        if let cardNumberPrefix = recognition.cardNumber?.split(separator: "/").first?.lowercased(), cardNumberPrefix == number {
+            score += 8
         }
         return score
     }
@@ -530,9 +539,6 @@ private struct ScanRecognitionResult {
     var searchQueries: [String] {
         var queries: [String] = []
 
-        if let likelyName, let cardNumber {
-            queries.append("\(likelyName) \(cardNumber)")
-        }
         if let likelyName {
             queries.append(likelyName)
         }
@@ -799,6 +805,8 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
     private let sessionQueue = DispatchQueue(label: "VaultDex.Scanner.Session")
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var didConfigureSession = false
+    private var isViewVisible = false
+    private var isCapturingPhoto = false
 
     init(onImage: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
         self.onImage = onImage
@@ -824,14 +832,15 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        isViewVisible = true
         sessionQueue.async { [weak self] in
-            guard let self, self.didConfigureSession, !self.session.isRunning else { return }
-            self.session.startRunning()
+            self?.startSessionIfReady()
         }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        isViewVisible = false
         sessionQueue.async { [weak self] in
             guard let self, self.session.isRunning else { return }
             self.session.stopRunning()
@@ -865,22 +874,28 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
             let input = try AVCaptureDeviceInput(device: device)
             session.beginConfiguration()
             session.sessionPreset = .photo
-            if session.canAddInput(input) {
-                session.addInput(input)
+            guard session.canAddInput(input), session.canAddOutput(photoOutput) else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { [weak self] in self?.onCancel() }
+                return
             }
-            if session.canAddOutput(photoOutput) {
-                session.addOutput(photoOutput)
-            }
+            session.addInput(input)
+            session.addOutput(photoOutput)
             session.commitConfiguration()
             didConfigureSession = true
+            startSessionIfReady()
         } catch {
             DispatchQueue.main.async { [weak self] in self?.onCancel() }
         }
     }
 
+    private func startSessionIfReady() {
+        guard didConfigureSession, isViewVisible, !session.isRunning else { return }
+        session.startRunning()
+    }
+
     private static func preferredCameraDevice() -> AVCaptureDevice? {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-            ?? AVCaptureDevice.default(for: .video)
     }
 
     private func configureOverlayControls() {
@@ -890,7 +905,7 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
         view.addSubview(overlay)
 
         let label = UILabel()
-        label.text = "Centre the card\nHold steady"
+        label.text = "Place card inside the frame\nGood light helps"
         label.textColor = .white
         label.font = .systemFont(ofSize: 17, weight: .bold)
         label.textAlignment = .center
@@ -948,6 +963,12 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
     }
 
     @objc private func capturePhoto() {
+        guard !isCapturingPhoto else { return }
+        guard didConfigureSession, session.isRunning else {
+            onCancel()
+            return
+        }
+        isCapturingPhoto = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let settings = AVCapturePhotoSettings()
         if let connection = photoOutput.connection(with: .video), connection.isVideoRotationAngleSupported(90) {
@@ -961,12 +982,17 @@ private final class ScannerCameraViewController: UIViewController, AVCapturePhot
     }
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        isCapturingPhoto = false
         guard error == nil,
               let data = photo.fileDataRepresentation(),
               let image = UIImage(data: data)
         else {
             onCancel()
             return
+        }
+        sessionQueue.async { [weak self] in
+            guard let self, self.session.isRunning else { return }
+            self.session.stopRunning()
         }
         onImage(image)
     }

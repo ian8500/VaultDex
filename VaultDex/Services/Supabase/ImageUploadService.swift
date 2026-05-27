@@ -64,19 +64,33 @@ struct ImageUploadService {
     static func compressedJPEGData(from data: Data, maxPixelDimension: CGFloat, quality: CGFloat) throws -> Data {
         #if canImport(UIKit)
         guard let image = UIImage(data: data) else { throw ImageUploadError.unreadableImage }
-        let fittedImage = image.resizedToFit(maxPixelDimension: maxPixelDimension)
-        guard let jpegData = fittedImage.jpegData(compressionQuality: quality), !jpegData.isEmpty else {
-            throw ImageUploadError.compressionFailed
-        }
-        return jpegData
+        return try compressedJPEGData(from: image, maxPixelDimension: maxPixelDimension, quality: quality)
         #else
         throw ImageUploadError.unsupportedPlatform
         #endif
     }
+
+    #if canImport(UIKit)
+    static func compressedJPEGData(from image: UIImage, maxPixelDimension: CGFloat, quality: CGFloat) throws -> Data {
+        let fittedImage = image.normalizedForUpload().resizedToFit(maxPixelDimension: maxPixelDimension)
+        guard let jpegData = fittedImage.jpegData(compressionQuality: quality), !jpegData.isEmpty else {
+            throw ImageUploadError.compressionFailed
+        }
+        return jpegData
+    }
+    #endif
 }
 
 #if canImport(UIKit)
 private extension UIImage {
+    func normalizedForUpload() -> UIImage {
+        guard imageOrientation != .up else { return self }
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
     func resizedToFit(maxPixelDimension: CGFloat) -> UIImage {
         let largestSide = max(size.width, size.height)
         guard largestSide > maxPixelDimension else { return self }

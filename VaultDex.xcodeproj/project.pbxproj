@@ -489,7 +489,7 @@
 				DEVELOPMENT_TEAM = TJ9NQV32CM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses your camera to scan trading cards and help identify them.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses your camera to scan trading cards.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "VaultDex can save selected images for your collector profile.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VaultDex lets you choose profile and card photos.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -520,7 +520,7 @@
 				DEVELOPMENT_TEAM = TJ9NQV32CM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses your camera to scan trading cards and help identify them.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "VaultDex uses your camera to scan trading cards.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "VaultDex can save selected images for your collector profile.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VaultDex lets you choose profile and card photos.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -1136,21 +1136,23 @@ final class LocalVaultStore: ObservableObject {
         }
 
         isUploadingAvatar = true
-        imageUploadMessage = "Uploading photo..."
-        profilePhotoUploadStatus = "Uploading photo..."
+        imageUploadMessage = "uploading"
+        profilePhotoUploadStatus = "uploading"
         defer { isUploadingAvatar = false }
+        var didUploadImage = false
         do {
             let service = ImageUploadService(storage: repositories.storage)
             let publicURLString = try await service.uploadAvatar(userID: userID, imageData: data)
-            imageUploadMessage = "Upload complete"
-            profilePhotoUploadStatus = "Upload complete"
+            didUploadImage = true
+            imageUploadMessage = "uploaded"
+            profilePhotoUploadStatus = "uploaded"
             try await updateProfileAvatarURL(publicURLString, userID: userID)
             imageUploadMessage = "URL saved"
             profilePhotoUploadStatus = "URL saved"
             if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
-                imageUploadMessage = "Profile reloaded"
-                profilePhotoUploadStatus = "Profile reloaded"
+                imageUploadMessage = "profile reloaded"
+                profilePhotoUploadStatus = "profile reloaded"
             } else {
                 var updatedProfile = profile.replacingID(with: userID)
                 updatedProfile.avatarURL = URL(string: publicURLString)
@@ -1159,15 +1161,43 @@ final class LocalVaultStore: ObservableObject {
             runtimeMode = .supabase
             updateCachedCloudStateIfPossible(userID: userID)
             imageUploadMessage = Self.photoSavedMessage
-            profilePhotoUploadStatus = Self.photoSavedMessage
             lastSyncError = nil
         } catch {
-            let message = data.isEmpty ? Self.imageUseFailedMessage : Self.photoUploadFailedMessage
+            let message = data.isEmpty ? Self.imageUseFailedMessage : (didUploadImage ? Self.photoSaveFailedMessage : Self.photoUploadFailedMessage)
             imageUploadMessage = message
             profilePhotoUploadStatus = message
             lastSyncError = Self.imageUploadMessage
             throw error
         }
+    }
+
+    func removeAvatarPhoto() async throws {
+        guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
+            throw ImageUploadError.missingSession
+        }
+
+        let data = try JSONSerialization.data(withJSONObject: [
+            "avatar_url": NSNull(),
+            "avatar_path": NSNull()
+        ])
+        let request = try repositories.clientProvider.restRequest(
+            table: "profiles",
+            method: .patch,
+            queryItems: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            body: data,
+            prefer: "return=minimal"
+        )
+        try await repositories.clientProvider.send(request)
+        if let refreshedProfile = try? await repositories.profiles.fetchCurrentProfile(userID: userID) {
+            profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
+        } else {
+            var updatedProfile = profile.replacingID(with: userID)
+            updatedProfile.avatarURL = nil
+            profile = updatedProfile
+        }
+        updateCachedCloudStateIfPossible(userID: userID)
+        imageUploadMessage = nil
+        profilePhotoUploadStatus = "No photo selected"
     }
 
     private func updateProfileAvatarURL(_ urlString: String, userID: UUID) async throws {

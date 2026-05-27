@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct SocialProfileView: View {
     @EnvironmentObject private var authService: AuthService
@@ -16,6 +17,8 @@ struct SocialProfileView: View {
     @State private var showAvatarUploadError = false
     @State private var isProcessingAvatar = false
     @State private var avatarImageRefreshToken = 0
+    @State private var showCameraPicker = false
+    @State private var showCameraUnavailable = false
 
     var body: some View {
         ZStack {
@@ -50,7 +53,16 @@ struct SocialProfileView: View {
                     Task { await uploadPendingAvatar() }
                 }
             }
+            Button("Take Profile Photo") {
+                guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                    showCameraUnavailable = true
+                    return
+                }
+                showCameraPicker = true
+            }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Try taking a new profile photo instead.")
         }
         .confirmationDialog("Log out of VaultDex?", isPresented: $showLogoutConfirmation, titleVisibility: .visible) {
             Button("Log Out", role: .destructive) {
@@ -62,6 +74,17 @@ struct SocialProfileView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You can sign back in at any time.")
+        }
+        .alert("Camera isn't available", isPresented: $showCameraUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Try choosing a photo from your library instead.")
+        }
+        .fullScreenCover(isPresented: $showCameraPicker) {
+            ProfileCameraPicker { image in
+                handleCameraImage(image)
+            }
+            .ignoresSafeArea()
         }
     }
 
@@ -93,7 +116,7 @@ struct SocialProfileView: View {
                 }
             }
 
-            avatarUploadButton
+            avatarPhotoActions
 
             if let message = store.imageUploadMessage {
                 Label(message, systemImage: store.isUploadingAvatar ? "photo.badge.arrow.down.fill" : (message == "Profile picture saved." ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"))
@@ -197,32 +220,53 @@ struct SocialProfileView: View {
         }
     }
 
-    private var avatarUploadButton: some View {
+    private var avatarPhotoActions: some View {
         let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
-        return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+        return VStack(spacing: 10) {
             HStack(spacing: 10) {
-                if isUploading {
-                    ProgressView()
-                        .tint(Color.vdNavy)
-                } else {
-                    Image(systemName: "photo.badge.arrow.down.fill")
-                        .font(.headline.weight(.bold))
+                PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                    Label("Choose from Library", systemImage: "photo.on.rectangle.angled")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
+                        )
                 }
+                .disabled(isUploading)
 
-                Text(isUploading ? "Uploading..." : "Upload Avatar Photo")
-                    .font(.headline.weight(.bold))
+                Button {
+                    guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                        showCameraUnavailable = true
+                        return
+                    }
+                    showCameraPicker = true
+                } label: {
+                    Label("Take Profile Photo", systemImage: "camera.fill")
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.vdNavy)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(isUploading)
             }
-            .foregroundStyle(Color.vdGold)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
-            )
+
+            Button {
+                Task { await removeAvatarPhoto() }
+            } label: {
+                Label("Remove Photo", systemImage: "trash")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isUploading || store.profile.avatarURL == nil)
         }
-        .disabled(isUploading)
     }
 
     private var profileAvatar: some View {
@@ -231,7 +275,13 @@ struct SocialProfileView: View {
         let initials = profileInitials
         let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
-        return PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+        return Button {
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                showCameraUnavailable = true
+                return
+            }
+            showCameraPicker = true
+        } label: {
             ZStack(alignment: .bottomTrailing) {
                 ZStack {
                     Circle()
@@ -275,8 +325,9 @@ struct SocialProfileView: View {
                     .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 1))
             }
         }
+        .buttonStyle(.plain)
         .disabled(isUploading)
-        .accessibilityLabel("Choose profile picture")
+        .accessibilityLabel("Take profile photo")
     }
 
     @ViewBuilder
@@ -383,20 +434,23 @@ struct SocialProfileView: View {
     private func loadAvatar(from item: PhotosPickerItem?) {
         guard let item else { return }
         isProcessingAvatar = true
-        store.updateProfilePhotoUploadStatus("Photo selected")
+        store.updateProfilePhotoUploadStatus("selected")
         Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self),
-                      UIImage(data: data) != nil else {
+                      let image = UIImage(data: data) else {
                     await MainActor.run {
-                        store.reportImagePickerError("We couldn't use that image.")
+                        store.reportImagePickerError("We couldn't use that image. Try taking a new profile photo instead.")
                         isProcessingAvatar = false
                         showAvatarUploadError = true
                         selectedAvatarItem = nil
                     }
                     return
                 }
-                let preparedData = try ImageUploadService.compressedJPEGData(from: data, maxPixelDimension: 512, quality: 0.75)
+                await MainActor.run {
+                    store.updateProfilePhotoUploadStatus("decoded")
+                }
+                let preparedData = try ImageUploadService.compressedJPEGData(from: image, maxPixelDimension: 512, quality: 0.75)
                 guard !preparedData.isEmpty else {
                     await MainActor.run {
                         store.reportImagePickerError("We couldn't use that image.")
@@ -407,7 +461,7 @@ struct SocialProfileView: View {
                     return
                 }
                 await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("Image compressed")
+                    store.updateProfilePhotoUploadStatus("resized")
                     pendingAvatarData = preparedData
                     isProcessingAvatar = false
                     selectedAvatarItem = nil
@@ -415,12 +469,56 @@ struct SocialProfileView: View {
                 await uploadPendingAvatar()
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("We couldn't use that image.")
+                    store.reportImagePickerError("We couldn't use that image. Try taking a new profile photo instead.")
                     isProcessingAvatar = false
                     showAvatarUploadError = true
                     selectedAvatarItem = nil
                 }
             }
+        }
+    }
+
+    private func handleCameraImage(_ image: UIImage?) {
+        guard let image else { return }
+        isProcessingAvatar = true
+        store.updateProfilePhotoUploadStatus("selected")
+        Task {
+            do {
+                await MainActor.run {
+                    store.updateProfilePhotoUploadStatus("decoded")
+                }
+                let preparedData = try ImageUploadService.compressedJPEGData(from: image, maxPixelDimension: 512, quality: 0.75)
+                guard !preparedData.isEmpty else {
+                    await MainActor.run {
+                        store.reportImagePickerError("We couldn't use that image.")
+                        isProcessingAvatar = false
+                        showAvatarUploadError = true
+                    }
+                    return
+                }
+                await MainActor.run {
+                    store.updateProfilePhotoUploadStatus("resized")
+                    pendingAvatarData = preparedData
+                    isProcessingAvatar = false
+                }
+                await uploadPendingAvatar()
+            } catch {
+                await MainActor.run {
+                    store.reportImagePickerError("We couldn't use that image.")
+                    isProcessingAvatar = false
+                    showAvatarUploadError = true
+                }
+            }
+        }
+    }
+
+    private func removeAvatarPhoto() async {
+        do {
+            try await store.removeAvatarPhoto()
+            pendingAvatarData = nil
+            avatarImageRefreshToken = Int(Date().timeIntervalSince1970)
+        } catch {
+            showAvatarUploadError = true
         }
     }
 
@@ -773,6 +871,48 @@ private struct VerificationStatusDisplay {
     let title: String
     let systemImage: String
     let tint: Color
+}
+
+private struct ProfileCameraPicker: UIViewControllerRepresentable {
+    let onImage: (UIImage?) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let parent: ProfileCameraPicker
+
+        init(parent: ProfileCameraPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            parent.onImage(info[.originalImage] as? UIImage)
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onImage(nil)
+            parent.dismiss()
+        }
+    }
 }
 
 struct VerificationRequestView: View {
