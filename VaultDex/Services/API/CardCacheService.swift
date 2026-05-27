@@ -7,7 +7,21 @@ actor CardCacheService {
     private let fileManager = FileManager.default
     private let searchTTL: TimeInterval = 60 * 60 * 24
     private let setTTL: TimeInterval = 60 * 60 * 24 * 7
-    private let popularSearches = ["Pikachu", "Charizard", "Eevee", "Mew", "Snorlax"]
+    private let popularSearches = [
+        "Pikachu",
+        "Charizard",
+        "Eevee",
+        "Mew",
+        "Mewtwo",
+        "Snorlax",
+        "Umbreon",
+        "Lugia",
+        "Rayquaza",
+        "Gengar",
+        "Squirtle",
+        "Bulbasaur",
+        "Charmander"
+    ]
 
     private var memoryImageCache = NSCache<NSURL, UIImage>()
 
@@ -37,16 +51,26 @@ actor CardCacheService {
     }
 
     func cachedSearch(for key: String) -> CachedCardSearch? {
+        cachedSearch(for: key, allowingExpired: false)
+    }
+
+    func cachedSearch(for key: String, allowingExpired: Bool) -> CachedCardSearch? {
         guard let entry: CachedCardSearchEntry = read(CachedCardSearchEntry.self, from: searchURL(for: key)) else { return nil }
-        guard Date().timeIntervalSince(entry.cachedAt) < searchTTL else { return nil }
-        return CachedCardSearch(cards: entry.cards.map(\.card), totalResults: entry.totalResults, cachedAt: entry.cachedAt)
+        let isExpired = Date().timeIntervalSince(entry.cachedAt) >= searchTTL
+        guard allowingExpired || !isExpired else { return nil }
+        return CachedCardSearch(cards: entry.cards.map(\.card), totalResults: entry.totalResults, cachedAt: entry.cachedAt, isExpired: isExpired)
+    }
+
+    func isSearchCacheFresh(for key: String) -> Bool {
+        guard let entry: CachedCardSearchEntry = read(CachedCardSearchEntry.self, from: searchURL(for: key)) else { return false }
+        return Date().timeIntervalSince(entry.cachedAt) < searchTTL
     }
 
     func saveSearch(cards: [Card], totalResults: Int?, key: String) {
         let entry = CachedCardSearchEntry(
             cachedAt: Date(),
             totalResults: totalResults,
-            cards: cards.map(CachedCard.init(card:))
+            cards: cards.map { CachedCard(card: $0, lightweight: true) }
         )
         write(entry, to: searchURL(for: key))
     }
@@ -57,7 +81,7 @@ actor CardCacheService {
         cards.insert(card, at: 0)
         let entry = CachedRecentlyViewedEntry(
             updatedAt: Date(),
-            cards: cards.prefix(40).map(CachedCard.init(card:))
+            cards: cards.prefix(40).map { CachedCard(card: $0) }
         )
         write(entry, to: recentlyViewedURL)
     }
@@ -177,6 +201,7 @@ struct CachedCardSearch {
     let cards: [Card]
     let totalResults: Int?
     let cachedAt: Date
+    let isExpired: Bool
 }
 
 private struct CachedCardSearchEntry: Codable {
@@ -216,7 +241,7 @@ private struct CachedCard: Codable {
     let tcgplayerPrices: CardPriceInfo?
     let cardmarketPrices: CardPriceInfo?
 
-    init(card: Card) {
+    init(card: Card, lightweight: Bool = false) {
         id = card.id
         name = card.name
         set = CachedCardSet(set: card.set)
@@ -224,18 +249,18 @@ private struct CachedCard: Codable {
         rarity = card.rarity
         cardType = card.cardType
         typeLine = card.typeLine
-        power = card.power
+        power = lightweight ? 0 : card.power
         condition = card.condition
-        marketValue = card.marketValue
+        marketValue = lightweight ? 0 : card.marketValue
         accent = card.accent
         externalID = card.externalID
         types = card.types
         subtypes = card.subtypes
-        artist = card.artist
+        artist = lightweight ? nil : card.artist
         smallImageURL = card.smallImageURL
         largeImageURL = card.largeImageURL
-        tcgplayerPrices = card.tcgplayerPrices
-        cardmarketPrices = card.cardmarketPrices
+        tcgplayerPrices = lightweight ? nil : card.tcgplayerPrices
+        cardmarketPrices = lightweight ? nil : card.cardmarketPrices
     }
 
     var card: Card {

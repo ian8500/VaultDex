@@ -68,7 +68,7 @@ struct PriceFormatter {
     }
 
     static func displayAmount(_ amount: Double, sourceCurrency: MarketCurrency = .gbp) -> Double {
-        ExchangeRateService.shared.convertToGBP(amount, from: sourceCurrency)
+        PriceService.gbpAmount(amount, sourceCurrency: sourceCurrency) ?? amount
     }
 }
 

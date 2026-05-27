@@ -1,21 +1,16 @@
 # VaultDex Privacy Policy Placeholder
 
-This placeholder is for TestFlight preparation only and should be replaced with a reviewed production privacy policy before public release.
+This placeholder is for TestFlight preparation only. Replace it with a reviewed privacy policy before public App Store release.
 
-VaultDex may process:
+VaultDex collects account information, profile details and collection data that users choose to add. User-uploaded profile images and card photos are stored to support the collection experience.
 
-- Account email for authentication.
-- Collector profile details the user chooses to provide.
-- Card collection, wants, binder, trade and marketplace data.
-- Uploaded avatar and owned-card photos.
-- Safety reports submitted by users.
+VaultDex should explain before release:
 
-VaultDex should not collect payment card data, cash payment data, open random chat messages or anonymous marketplace messages.
-
-Family and safety expectations:
-
-- Younger collectors should use VaultDex with parent or guardian awareness.
-- Users should not share home addresses, school details, phone numbers or payment information in trade notes.
-- Report and block tooling should be reviewed before public launch.
+- what data is collected
+- why the data is collected
+- how account and collection data can be deleted
+- how reports and safety requests are reviewed
+- how parents or guardians can contact the app owner
+- how Supabase and other service providers process app data
 
 VaultDex is independent and not affiliated with The Pokémon Company, Nintendo, Creatures Inc. or GAME FREAK.

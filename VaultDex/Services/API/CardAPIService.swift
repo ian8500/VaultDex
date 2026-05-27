@@ -47,6 +47,7 @@ final class CardAPIService {
         rarity: CardRarity? = nil,
         type: CardType? = nil,
         setID: String? = nil,
+        quickQuery: String? = nil,
         sort: SearchSortOption = .name,
         page: Int,
         pageSize: Int
@@ -56,6 +57,7 @@ final class CardAPIService {
             rarity: rarity,
             type: type,
             setID: setID,
+            quickQuery: quickQuery,
             sort: sort,
             page: page,
             pageSize: pageSize
@@ -67,6 +69,7 @@ final class CardAPIService {
         rarity: CardRarity?,
         type: CardType?,
         setID: String?,
+        quickQuery: String?,
         sort: SearchSortOption,
         page: Int,
         pageSize: Int
@@ -78,7 +81,7 @@ final class CardAPIService {
         ]
 
         let filterParts = buildFilterParts(rarity: rarity, type: type, setID: setID)
-        let textQuery = buildTextQuery(query: query)
+        let textQuery = quickQuery ?? buildTextQuery(query: query)
 
         if let textQuery {
             queryItems.append(URLQueryItem(name: "q", value: ([textQuery] + filterParts).joined(separator: " ")))
@@ -86,10 +89,6 @@ final class CardAPIService {
             queryItems.append(URLQueryItem(name: "q", value: filterParts.joined(separator: " ")))
         } else {
             queryItems.append(URLQueryItem(name: "q", value: "name:pikachu"))
-        }
-
-        if sort != .newest {
-            queryItems.append(URLQueryItem(name: "orderBy", value: sort.apiOrderBy))
         }
         return try await request("cards", queryItems: queryItems, decode: PokemonTCGListResponse<PokemonTCGCard>.self)
     }
@@ -121,21 +120,7 @@ final class CardAPIService {
         guard !trimmedQuery.isEmpty else { return nil }
 
         let escaped = apiEscaped(trimmedQuery)
-        let textToken = trimmedQuery.contains(" ") ? "\"\(escaped)\"" : "*\(escaped)*"
-        let exactToken = trimmedQuery.contains(" ") ? "\"\(escaped)\"" : escaped
-        var clauses = [
-            "name:\(textToken)",
-            "set.name:\(textToken)",
-            "rarity:\(textToken)",
-            "types:\(exactToken)",
-            "subtypes:\(textToken)"
-        ]
-
-        if trimmedQuery.rangeOfCharacter(from: .decimalDigits) != nil {
-            clauses.insert("number:\(escaped)", at: 2)
-        }
-
-        return "(\(clauses.joined(separator: " OR ")))"
+        return trimmedQuery.contains(" ") ? "name:\"\(escaped)\"" : "name:\(escaped)"
     }
 
     private func apiEscaped(_ value: String) -> String {
@@ -307,8 +292,6 @@ struct PokemonTCGPlayer: Decodable, Hashable {
         prices?["holofoil"]?.market
             ?? prices?["reverseHolofoil"]?.market
             ?? prices?["normal"]?.market
-            ?? prices?["1stEditionHolofoil"]?.market
-            ?? prices?["1stEditionNormal"]?.market
     }
 }
 

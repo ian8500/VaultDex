@@ -182,10 +182,10 @@ struct DashboardView: View {
     }
 
     private var vaultSummary: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text("Your Vault Value")
+                    Text("My Vault")
                         .font(.title3.weight(.black))
                         .foregroundStyle(Color.vdTextPrimary)
 
@@ -204,14 +204,9 @@ struct DashboardView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
             }
-
-            HStack(spacing: 10) {
-                DashboardVaultChip(title: "Added this week", value: "\(cardsAddedThisWeek)", icon: "calendar.badge.plus")
-                DashboardVaultChip(title: "Sets started", value: "\(store.uniqueSetsOwned)", icon: "circle.grid.3x3.fill")
-            }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 17)
+        .padding(.vertical, 18)
         .background(
             LinearGradient(
                 colors: [Color.vdPanelRaised.opacity(0.88), Color.vdPanel.opacity(0.70)],
@@ -678,7 +673,7 @@ private struct FeaturedDashboardCard: View {
         if item.card.marketValue > 0 {
             return item.card.marketValue.vaultEstimatedCurrency
         }
-        return store.isCheckingValue(for: item.card) ? "Checking value..." : "Value unavailable"
+        return store.isCheckingValue(for: item.card) ? "Checking value…" : "Value unavailable"
     }
 
     var body: some View {

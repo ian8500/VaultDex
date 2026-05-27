@@ -174,7 +174,7 @@ struct CardDetailView: View {
         if detailCard.marketValue > 0 {
             return detailCard.marketValue.vaultEstimatedCurrency
         }
-        return isLoadingLiveCard ? "Checking value..." : "Value unavailable"
+        return isLoadingLiveCard ? "Checking value…" : "Value unavailable"
     }
 
     private func detailMetric(_ title: String, _ value: String) -> some View {
@@ -256,7 +256,7 @@ struct CardDetailView: View {
     }
 
     private var loadingLiveCardState: some View {
-        Label(detailCard.marketValue <= 0 ? "Checking value..." : "Refreshing card details...", systemImage: "arrow.triangle.2.circlepath")
+        Label(detailCard.marketValue <= 0 ? "Checking value…" : "Refreshing card details…", systemImage: "arrow.triangle.2.circlepath")
             .font(.caption.weight(.bold))
             .foregroundStyle(Color.vdTextSecondary)
             .padding(12)
@@ -824,7 +824,7 @@ struct CardDetailView: View {
             let refreshedCard = apiCard.localCard
             await apiService.cache(cards: [apiCard], using: store.repositories.clientProvider)
             liveCard = refreshedCard
-            store.cacheViewedCard(refreshedCard)
+            store.applyEnrichedCard(refreshedCard)
             syncState()
         } catch {
             detailErrorMessage = "This card could not be refreshed right now."

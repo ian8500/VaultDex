@@ -95,7 +95,7 @@ struct ContentView: View {
             PremiumNavigationDock(selectedDestination: $selectedDestination)
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
                 .background(Color.clear)
         }
     }
@@ -206,8 +206,8 @@ private struct PremiumNavigationDock: View {
                         .id(destination.id)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
@@ -219,20 +219,17 @@ private struct PremiumNavigationDock: View {
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.vdNavy.opacity(0.40), Color.vdPanel.opacity(0.20)],
+                                colors: [Color.vdNavy.opacity(0.26), Color.vdPanel.opacity(0.12)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                 }
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .shadow(color: Color.black.opacity(0.18), radius: 20, x: 0, y: 9)
-            .shadow(color: Color.vdGold.opacity(0.10), radius: 16, x: 0, y: 5)
+            .shadow(color: Color.black.opacity(0.14), radius: 18, x: 0, y: 8)
+            .shadow(color: Color.vdGold.opacity(0.07), radius: 14, x: 0, y: 5)
             .onAppear {
                 proxy.scrollTo(selectedDestination.id, anchor: .center)
             }
@@ -266,9 +263,9 @@ private struct DockButton: View {
                     .allowsTightening(true)
             }
             .foregroundStyle(isSelected ? Color.vdNavy : Color.vdTextPrimary)
-            .frame(minWidth: 88)
-            .frame(height: 50)
-            .padding(.horizontal, isSelected ? 9 : 5)
+            .frame(minWidth: 82)
+            .frame(height: 46)
+            .padding(.horizontal, isSelected ? 8 : 4)
             .background {
                 buttonBackground
                     .clipShape(Capsule())

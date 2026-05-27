@@ -85,6 +85,14 @@ Do not add a service-role key. Use only the publishable key in the app.
 
 A production privacy policy should be published before external testing. A draft placeholder is tracked in `PRIVACY_POLICY.md`.
 
+## Terms Placeholder
+
+Production terms should be reviewed before public release. A TestFlight placeholder is tracked in `TERMS_PLACEHOLDER.md`.
+
+## TestFlight Checklist
+
+The focused TestFlight QA checklist is tracked in `README_TESTFLIGHT_CHECKLIST.md`.
+
 ## Independent App Disclaimer
 
 VaultDex is independent and not affiliated with The Pokémon Company, Nintendo, Creatures Inc. or GAME FREAK.

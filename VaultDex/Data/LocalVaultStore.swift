@@ -108,6 +108,7 @@ final class LocalVaultStore: ObservableObject {
     private static let photoUploadFailedMessage = "We couldn't upload your photo."
     private static let photoSaveFailedMessage = "We couldn't save your profile picture."
     private static let photoSavedMessage = "Profile picture saved."
+    private static let safetyReportMessage = "Thanks. We received your report."
 
     func useDemoMode(repository: DemoVaultRepository = .shared) {
         runtimeMode = .demo
@@ -222,8 +223,6 @@ final class LocalVaultStore: ObservableObject {
     }
 
     private func fetchCloudSnapshot(userID: UUID, profile: RemoteProfile) async throws -> CloudVaultSnapshot {
-        let remoteSets: [RemoteCardSet] = []
-        let remoteCards: [RemoteCard] = []
         async let remoteCollection = repositories.collection.fetchCollection(userID: userID)
         async let remoteWishlist = repositories.wishlist.fetchWishlist(userID: userID)
         async let remoteFriends = repositories.friends.fetchFriends(userID: userID)
@@ -236,6 +235,7 @@ final class LocalVaultStore: ObservableObject {
         let friendRequests = try await remoteFriendRequests
         let tradeOffers = try await remoteOffers
         let tradeOfferItems = try await repositories.trades.fetchTradeOfferItems(offerIDs: tradeOffers.map(\.id))
+        let marketplaceListings = try await remoteListings
         let friendIDs = friendships.map { $0.friendID(for: userID) }
         let requestProfileIDs = friendRequests.map { $0.otherUserID(for: userID) }
         let tradeProfileIDs = tradeOffers.map { $0.senderID == userID ? $0.receiverID : $0.senderID }
@@ -253,21 +253,35 @@ final class LocalVaultStore: ObservableObject {
                 )
             )
         }
+        let collection = try await remoteCollection
+        let wishlist = try await remoteWishlist
+        let events = try await remoteEvents
+        var referencedCardIDs: [UUID] = []
+        referencedCardIDs.append(contentsOf: collection.map(\.cardID))
+        referencedCardIDs.append(contentsOf: wishlist.map(\.cardID))
+        for visibleData in visibleFriendData {
+            referencedCardIDs.append(contentsOf: visibleData.collection.map(\.cardID))
+            referencedCardIDs.append(contentsOf: visibleData.wishlist.map(\.cardID))
+        }
+        referencedCardIDs.append(contentsOf: tradeOfferItems.map(\.cardID))
+        referencedCardIDs.append(contentsOf: marketplaceListings.map(\.cardID))
+        let remoteCards = try await repositories.cards.fetchCards(ids: referencedCardIDs)
+        let remoteSets = (try? await repositories.cards.fetchSets()) ?? []
 
-        return try await CloudVaultSnapshot(
+        return CloudVaultSnapshot(
             profile: profile,
             sets: remoteSets,
             cards: remoteCards,
-            collection: remoteCollection,
-            wishlist: remoteWishlist,
+            collection: collection,
+            wishlist: wishlist,
             friends: friendships,
             friendRequests: friendRequests,
             friendProfiles: profiles,
             visibleFriendData: visibleFriendData,
             tradeOffers: tradeOffers,
             tradeOfferItems: tradeOfferItems,
-            marketplaceListings: remoteListings,
-            events: remoteEvents
+            marketplaceListings: marketplaceListings,
+            events: events
         )
     }
 
@@ -1091,6 +1105,28 @@ final class LocalVaultStore: ObservableObject {
         lastSyncError = message
     }
 
+    func submitSafetyReport(reason: String, details: String) async throws {
+        guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
+            saveStatusMessage = "Sign in to send a report."
+            throw VaultStoreError.notSignedIn
+        }
+
+        let cleanDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
+        let data = try JSONSerialization.data(withJSONObject: [
+            "reporter_id": userID.uuidString,
+            "reason": reason,
+            "details": cleanDetails.isEmpty ? "Submitted from Safety Centre" : cleanDetails
+        ])
+        let request = try repositories.clientProvider.restRequest(
+            table: "safety_reports",
+            method: .post,
+            body: data,
+            prefer: "return=minimal"
+        )
+        try await repositories.clientProvider.send(request)
+        saveStatusMessage = Self.safetyReportMessage
+    }
+
     func updateProfilePhotoUploadStatus(_ status: String) {
         profilePhotoUploadStatus = status
     }
@@ -1220,6 +1256,10 @@ final class LocalVaultStore: ObservableObject {
         }
 
         avatarTestUploadStatus = "Test upload started"
+        profilePhotoUploadStatus = "selected"
+        imageUploadMessage = nil
+        isUploadingAvatar = true
+        defer { isUploadingAvatar = false }
         lastAvatarStorageErrorReason = nil
 
         do {
@@ -1228,16 +1268,28 @@ final class LocalVaultStore: ObservableObject {
                 UIColor(red: 1.0, green: 0.78, blue: 0.12, alpha: 1).setFill()
                 context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
             }
-            guard let data = image.jpegData(compressionQuality: 0.75), !data.isEmpty else {
-                throw ImageUploadError.compressionFailed
+
+            let service = AvatarUploadService(
+                storage: repositories.storage,
+                clientProvider: repositories.clientProvider
+            ) { [weak self] status in
+                self?.profilePhotoUploadStatus = status
+                if status == "uploading" || status == "uploaded" {
+                    self?.imageUploadMessage = status
+                }
             }
 
-            _ = try await repositories.storage.uploadAvatarFile(
-                userID: userID,
-                fileName: "test-avatar.jpg",
-                data: data,
-                contentType: "image/jpeg"
-            )
+            let publicURLString = try await service.saveAvatar(image: image, userId: userID)
+            if let refreshedProfile = try await repositories.profiles.fetchCurrentProfile(userID: userID) {
+                profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
+            } else {
+                var updatedProfile = profile.replacingID(with: userID)
+                updatedProfile.avatarURL = URL(string: publicURLString)
+                profile = updatedProfile
+            }
+            profilePhotoUploadStatus = "profile reloaded"
+            imageUploadMessage = Self.photoSavedMessage
+            updateCachedCloudStateIfPossible(userID: userID)
             avatarTestUploadStatus = "Test upload succeeded"
         } catch {
             avatarTestUploadStatus = "Test upload failed"
@@ -1275,7 +1327,7 @@ final class LocalVaultStore: ObservableObject {
             ) { [weak self] status in
                 lastPipelineStage = status
                 self?.profilePhotoUploadStatus = status
-                if status == "Uploading" || status == "Uploaded" {
+                if status == "uploading" || status == "uploaded" {
                     self?.imageUploadMessage = status
                 }
             }
@@ -1283,12 +1335,12 @@ final class LocalVaultStore: ObservableObject {
             let publicURLString = try await service.saveAvatar(image: image, userId: userID)
             if let refreshedProfile = try await repositories.profiles.fetchCurrentProfile(userID: userID) {
                 profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
-                profilePhotoUploadStatus = "Reloaded"
+                profilePhotoUploadStatus = "profile reloaded"
             } else {
                 var updatedProfile = profile.replacingID(with: userID)
                 updatedProfile.avatarURL = URL(string: publicURLString)
                 profile = updatedProfile
-                profilePhotoUploadStatus = "Reloaded"
+                profilePhotoUploadStatus = "profile reloaded"
             }
 
             runtimeMode = .supabase
@@ -1301,7 +1353,7 @@ final class LocalVaultStore: ObservableObject {
             lastSyncError = Self.imageUploadMessage
             throw error
         } catch {
-            let message = lastPipelineStage == "Uploaded" || lastPipelineStage == "Profile updated"
+            let message = lastPipelineStage == "uploaded" || lastPipelineStage == "URL saved"
                 ? Self.photoSaveFailedMessage
                 : Self.photoUploadFailedMessage
             imageUploadMessage = message
@@ -1513,6 +1565,15 @@ final class LocalVaultStore: ObservableObject {
                 return
             }
         }
+    }
+
+    func applyEnrichedCard(_ card: Card) {
+        if !cards.contains(where: { $0.id == card.id || $0.externalID == card.externalID }) {
+            cards.append(card)
+        }
+        replaceCardEverywhere(card)
+        updateCachedCloudStateIfPossible()
+        cacheViewedCard(card)
     }
 
     func addEvent(_ event: VaultEvent) {

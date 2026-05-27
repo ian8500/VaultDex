@@ -27,15 +27,15 @@ struct AvatarUploadService {
             quality: 0.75
         )
         guard !jpegData.isEmpty else { throw ImageUploadError.compressionFailed }
-        await statusHandler("JPEG prepared")
+        await statusHandler("converted")
 
-        await statusHandler("Uploading")
+        await statusHandler("uploading")
         let publicURLString = try await storage.uploadAvatar(
             userID: userId,
             data: jpegData,
             contentType: "image/jpeg"
         )
-        await statusHandler("Uploaded")
+        await statusHandler("uploaded")
 
         let data = try JSONSerialization.data(withJSONObject: [
             "avatar_url": publicURLString,
@@ -49,7 +49,7 @@ struct AvatarUploadService {
             prefer: "return=minimal"
         )
         try await clientProvider.send(request)
-        await statusHandler("Profile updated")
+        await statusHandler("URL saved")
 
         return publicURLString
     }

@@ -395,8 +395,9 @@ struct CardScannerView: View {
 
         do {
             do {
-                let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(
-                    CardSearchRequest(query: query, limit: 5)
+                let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCardsByName(
+                    query,
+                    limit: 5
                 )
                 if !supabaseCards.isEmpty {
                     await MainActor.run {
@@ -582,7 +583,8 @@ private struct ScanRecognitionResult {
         let noise = [
             "pokemon", "trainer", "stage", "basic", "evolves", "weakness", "resistance",
             "retreat", "illustrated", "illus", "copyright", "switch", "during", "damage",
-            "attach", "energy", "opponent", "bench", "active", "discard", "shuffle"
+            "attach", "energy", "opponent", "bench", "active", "discard", "shuffle",
+            "card trading", "trading app", "manual search", "possible matches"
         ]
 
         return lines
@@ -633,10 +635,11 @@ private struct ScanRecognitionResult {
     }
 
     private static func cleanOCRLine(_ line: String) -> String {
-        line
+        let cleaned = line
             .replacingOccurrences(of: #"[^A-Za-z0-9éÉ'’.\- /]"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        return isLikelyAppUIText(cleaned) ? "" : cleaned
     }
 
     private static func isValidScanName(_ text: String) -> Bool {
@@ -654,13 +657,26 @@ private struct ScanRecognitionResult {
         let blockedPhrases = [
             "vaultdex",
             "card trading app",
+            "card trading",
+            "trading app",
             "place card",
+            "inside the frame",
             "inside frame",
+            "hold steady",
+            "good light",
+            "capture",
+            "cancel",
             "scan",
             "scanning",
+            "scan card",
             "find card",
             "add to vault",
             "add to wants",
+            "manual confirmation",
+            "manual search",
+            "search manually",
+            "possible matches",
+            "no scan results",
             "home",
             "search",
             "trade",

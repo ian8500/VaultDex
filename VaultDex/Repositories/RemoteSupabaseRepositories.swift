@@ -167,6 +167,33 @@ final class SupabaseCardCatalogRepository: SupabaseTableRepository, CardCatalogR
         ])
     }
 
+    func fetchCards(name: String, limit: Int) async throws -> [RemoteCard] {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        let escaped = trimmed
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "*", with: "\\*")
+            .replacingOccurrences(of: ",", with: "\\,")
+            .replacingOccurrences(of: "(", with: "\\(")
+            .replacingOccurrences(of: ")", with: "\\)")
+
+        return try await fetchRows(from: "cards", queryItems: [
+            URLQueryItem(name: "name", value: "ilike.*\(escaped)*"),
+            URLQueryItem(name: "order", value: "name.asc"),
+            URLQueryItem(name: "limit", value: "\(max(1, min(limit, 20)))")
+        ])
+    }
+
+    func fetchCards(ids: [UUID]) async throws -> [RemoteCard] {
+        let uniqueIDs = Array(Set(ids))
+        guard !uniqueIDs.isEmpty else { return [] }
+        let idList = uniqueIDs.map(\.uuidString).joined(separator: ",")
+        return try await fetchRows(from: "cards", queryItems: [
+            URLQueryItem(name: "id", value: "in.(\(idList))")
+        ])
+    }
+
     func countCards() async throws -> Int {
         let request = try client.restRequest(
             table: "cards",

@@ -8,8 +8,6 @@ struct SearchView: View {
     @State private var successMessage: String?
     @State private var searchTask: Task<Void, Never>?
 
-    private let popularFilters = ["Pikachu", "Charizard", "Eevee", "Mew", "Snorlax", "Holo", "Full Art"]
-
     var body: some View {
         ZStack {
             AppBackground()
@@ -97,6 +95,7 @@ struct SearchView: View {
             await viewModel.loadInitialResults(store: store)
         }
         .onChange(of: viewModel.query) { _, _ in
+            viewModel.clearQuickChipIfNeeded()
             runSearch(debounce: true)
         }
         .onChange(of: viewModel.selectedRarity) { _, _ in
@@ -177,20 +176,41 @@ struct SearchView: View {
     }
 
     private var popularQuickFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(popularFilters, id: \.self) { filter in
-                    Button {
-                        viewModel.query = filter
-                    } label: {
-                        Text(filter)
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(Color.vdNavy)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(Color.vdGold.opacity(0.92), in: Capsule())
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(SearchQuickChip.groups, id: \.0) { group, chips in
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(group.rawValue)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .textCase(.uppercase)
+                        .lineLimit(1)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(chips) { chip in
+                                let isSelected = viewModel.selectedQuickChip == chip
+                                Button {
+                                    let shouldRunImmediately = viewModel.selectedQuickChip == chip && viewModel.query == chip.title
+                                    viewModel.applyQuickChip(chip)
+                                    if shouldRunImmediately {
+                                        runSearch()
+                                    }
+                                } label: {
+                                    Text(chip.title)
+                                        .font(.caption.weight(.black))
+                                        .foregroundStyle(isSelected ? Color.vdNavy : Color.vdGold)
+                                        .lineLimit(1)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(isSelected ? Color.vdGold : Color.vdGold.opacity(0.12), in: Capsule())
+                                        .overlay(Capsule().stroke(Color.vdGold.opacity(isSelected ? 0.45 : 0.22), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Search \(chip.title)")
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }

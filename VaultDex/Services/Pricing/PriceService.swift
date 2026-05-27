@@ -26,9 +26,9 @@ enum PriceService {
         case .gbp:
             return amount
         case .eur:
-            return ExchangeRateService.shared.convertToGBP(amount, from: .eur)
+            return amount * eurToGBP
         case .usd:
-            return ExchangeRateService.shared.convertToGBP(amount, from: .usd)
+            return amount * usdToGBP
         }
     }
 

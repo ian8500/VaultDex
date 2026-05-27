@@ -237,7 +237,14 @@ final class SupabaseClientProvider {
     func publicStorageURL(bucket: String, path: String) throws -> URL {
         guard let baseURL = config.url else { throw SupabaseClientError.missingConfiguration }
         let cleanPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return baseURL.appending(path: "storage/v1/object/public/\(bucket)/\(cleanPath)")
+        var url = baseURL
+        ["storage", "v1", "object", "public", bucket].forEach { component in
+            url.append(path: component)
+        }
+        cleanPath.split(separator: "/").forEach { component in
+            url.append(path: String(component))
+        }
+        return url
     }
 
     func send<T: Decodable>(_ request: URLRequest, decode type: T.Type = T.self) async throws -> T {

@@ -19,15 +19,66 @@ enum SearchSortOption: String, CaseIterable, Identifiable {
 
     var apiOrderBy: String {
         switch self {
-        case .name, .rarity, .marketValue: "name"
-        case .newest: "-set.releaseDate"
+        case .name, .rarity, .marketValue, .newest: "name"
         }
     }
+}
+
+enum SearchChipGroup: String, CaseIterable, Identifiable {
+    case popular = "Popular"
+    case types = "Types"
+    case rarities = "Rarities"
+    case sets = "Sets"
+
+    var id: String { rawValue }
+}
+
+struct SearchQuickChip: Identifiable, Hashable {
+    let title: String
+    let group: SearchChipGroup
+    let apiQuery: String
+
+    var id: String { "\(group.rawValue)-\(title)" }
+
+    static let groups: [(SearchChipGroup, [SearchQuickChip])] = [
+        (.popular, [
+            SearchQuickChip(title: "Pikachu", group: .popular, apiQuery: "name:pikachu"),
+            SearchQuickChip(title: "Charizard", group: .popular, apiQuery: "name:charizard"),
+            SearchQuickChip(title: "Eevee", group: .popular, apiQuery: "name:eevee"),
+            SearchQuickChip(title: "Mew", group: .popular, apiQuery: "name:mew"),
+            SearchQuickChip(title: "Mewtwo", group: .popular, apiQuery: "name:mewtwo"),
+            SearchQuickChip(title: "Snorlax", group: .popular, apiQuery: "name:snorlax"),
+            SearchQuickChip(title: "Umbreon", group: .popular, apiQuery: "name:umbreon"),
+            SearchQuickChip(title: "Lugia", group: .popular, apiQuery: "name:lugia"),
+            SearchQuickChip(title: "Rayquaza", group: .popular, apiQuery: "name:rayquaza"),
+            SearchQuickChip(title: "Gengar", group: .popular, apiQuery: "name:gengar"),
+            SearchQuickChip(title: "Squirtle", group: .popular, apiQuery: "name:squirtle"),
+            SearchQuickChip(title: "Bulbasaur", group: .popular, apiQuery: "name:bulbasaur"),
+            SearchQuickChip(title: "Charmander", group: .popular, apiQuery: "name:charmander")
+        ]),
+        (.types, [
+            SearchQuickChip(title: "Legendary", group: .types, apiQuery: "subtypes:legend"),
+            SearchQuickChip(title: "Full Art", group: .types, apiQuery: "subtypes:\"Full Art\""),
+            SearchQuickChip(title: "VMAX", group: .types, apiQuery: "subtypes:vmax"),
+            SearchQuickChip(title: "ex", group: .types, apiQuery: "subtypes:ex")
+        ]),
+        (.rarities, [
+            SearchQuickChip(title: "Common", group: .rarities, apiQuery: "rarity:common"),
+            SearchQuickChip(title: "Uncommon", group: .rarities, apiQuery: "rarity:uncommon"),
+            SearchQuickChip(title: "Rare", group: .rarities, apiQuery: "rarity:rare")
+        ]),
+        (.sets, [
+            SearchQuickChip(title: "Trainer Gallery", group: .sets, apiQuery: "set.name:\"Trainer Gallery\""),
+            SearchQuickChip(title: "Scarlet & Violet", group: .sets, apiQuery: "set.series:\"Scarlet & Violet\""),
+            SearchQuickChip(title: "Sword & Shield", group: .sets, apiQuery: "set.series:\"Sword & Shield\"")
+        ])
+    ]
 }
 
 @MainActor
 final class SearchViewModel: ObservableObject {
     @Published var query = ""
+    @Published private(set) var selectedQuickChip: SearchQuickChip?
     @Published var selectedRarity: CardRarity?
     @Published var selectedSet: CardSet?
     @Published var selectedType: CardType?
@@ -48,7 +99,6 @@ final class SearchViewModel: ObservableObject {
     private let apiService: CardAPIService
     private let cacheService: CardCacheService
     private let pageSize = 8
-    private var didPrewarmPopularSearches = false
 
     init(apiService: CardAPIService = CardAPIService(), cacheService: CardCacheService = .shared) {
         self.apiService = apiService
@@ -80,12 +130,15 @@ final class SearchViewModel: ObservableObject {
         }
 
         let key = await cacheKey(page: currentPage)
-        if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
+        if let cached = await cacheService.cachedSearch(for: key, allowingExpired: true), !cached.cards.isEmpty {
             apiCards = sort(cached.cards)
             totalResults = cached.totalResults
             canLoadMore = cached.cards.count == pageSize
             didLoadAPI = true
             isShowingCachedResults = true
+            if !cached.isExpired {
+                return
+            }
         } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let recentlyViewed = await cacheService.recentlyViewedCards()
             if !recentlyViewed.isEmpty {
@@ -133,11 +186,13 @@ final class SearchViewModel: ObservableObject {
                 rarity: selectedRarity,
                 type: selectedType,
                 setID: selectedSet?.externalID ?? selectedSet?.code,
+                quickQuery: selectedQuickChip?.apiQuery,
                 sort: sortOption,
                 page: currentPage,
                 pageSize: pageSize
             )
             guard !Task.isCancelled else { return }
+
             let cards = response.data.map(\.localCard)
             apiCards = sort(cards)
             totalResults = response.totalCount
@@ -180,6 +235,7 @@ final class SearchViewModel: ObservableObject {
                 rarity: selectedRarity,
                 type: selectedType,
                 setID: selectedSet?.externalID ?? selectedSet?.code,
+                quickQuery: selectedQuickChip?.apiQuery,
                 sort: sortOption,
                 page: nextPage,
                 pageSize: pageSize
@@ -238,7 +294,8 @@ final class SearchViewModel: ObservableObject {
 
     func filteredCards(in store: LocalVaultStore) -> [Card] {
         sort(apiCards.filter { card in
-            let matchesQuery = query.isEmpty
+            let matchesQuery = selectedQuickChip != nil
+                || query.isEmpty
                 || card.name.localizedCaseInsensitiveContains(query)
                 || card.number.localizedCaseInsensitiveContains(query)
                 || card.set.name.localizedCaseInsensitiveContains(query)
@@ -274,6 +331,21 @@ final class SearchViewModel: ObservableObject {
 
     var isShowingFallback: Bool {
         !isLoading && didLoadAPI && apiCards.isEmpty && errorMessage != nil
+    }
+
+    func applyQuickChip(_ chip: SearchQuickChip) {
+        selectedQuickChip = chip
+        query = chip.title
+        selectedRarity = nil
+        selectedType = nil
+        selectedSet = nil
+        sortOption = .name
+    }
+
+    func clearQuickChipIfNeeded() {
+        if let selectedQuickChip, query != selectedQuickChip.title {
+            self.selectedQuickChip = nil
+        }
     }
 
     private func sort(_ cards: [Card]) -> [Card] {
@@ -331,7 +403,7 @@ final class SearchViewModel: ObservableObject {
                 page: 1,
                 pageSize: pageSize
             )
-            if let cached = await cacheService.cachedSearch(for: key), !cached.cards.isEmpty {
+            if let cached = await cacheService.cachedSearch(for: key, allowingExpired: true), !cached.cards.isEmpty {
                 apiCards = sort(cached.cards)
                 totalResults = cached.totalResults
                 canLoadMore = false
@@ -364,44 +436,6 @@ final class SearchViewModel: ObservableObject {
             return "Sets are taking longer than expected."
         }
         return "Unable to load sets right now."
-    }
-
-    private func prewarmPopularSearches(store: LocalVaultStore) async {
-        guard !didPrewarmPopularSearches else { return }
-        didPrewarmPopularSearches = true
-
-        let searches = await cacheService.popularDefaultSearches()
-        for popularQuery in searches {
-            let key = await cacheService.searchCacheKey(
-                query: popularQuery,
-                rarity: nil,
-                type: nil,
-                setID: nil,
-                sort: .name,
-                page: 1,
-                pageSize: 6
-            )
-            if await cacheService.cachedSearch(for: key) != nil {
-                continue
-            }
-
-            do {
-                let response = try await apiService.searchCards(
-                    query: popularQuery,
-                    rarity: nil,
-                    type: nil,
-                    setID: nil,
-                    sort: .name,
-                    page: 1,
-                    pageSize: 6
-                )
-                let cards = response.data.map(\.localCard)
-                await cacheService.saveSearch(cards: cards, totalResults: response.totalCount, key: key)
-                await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
-            } catch {
-                continue
-            }
-        }
     }
 }
 

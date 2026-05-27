@@ -3,7 +3,7 @@ import SwiftUI
 private struct BottomDockSpacingModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(.bottom, 132)
+            .padding(.bottom, 124)
     }
 }
 

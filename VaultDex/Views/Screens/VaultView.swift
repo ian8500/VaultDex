@@ -367,7 +367,7 @@ private struct VaultListRow: View {
         if item.card.marketValue > 0 {
             return item.estimatedGBPValue.vaultEstimatedCurrency
         }
-        return store.isCheckingValue(for: item.card) ? "Checking value..." : "Value unavailable"
+        return store.isCheckingValue(for: item.card) ? "Checking value…" : "Value unavailable"
     }
 
     var body: some View {

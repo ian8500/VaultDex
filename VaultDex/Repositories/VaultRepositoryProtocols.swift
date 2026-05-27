@@ -21,6 +21,8 @@ protocol VerificationRepository {
 protocol CardCatalogRepository {
     func fetchSets() async throws -> [RemoteCardSet]
     func fetchCards(search: String?) async throws -> [RemoteCard]
+    func fetchCards(name: String, limit: Int) async throws -> [RemoteCard]
+    func fetchCards(ids: [UUID]) async throws -> [RemoteCard]
     func upsertSet(_ set: RemoteCardSet) async throws
     func upsertCard(_ card: RemoteCard) async throws
 }

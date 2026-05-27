@@ -1,7 +1,6 @@
 import SwiftUI
 import PhotosUI
 import UIKit
-import UniformTypeIdentifiers
 
 struct SocialProfileView: View {
     @EnvironmentObject private var authService: AuthService
@@ -17,8 +16,6 @@ struct SocialProfileView: View {
     @State private var showAvatarUploadError = false
     @State private var isProcessingAvatar = false
     @State private var avatarImageRefreshToken = 0
-    @State private var showCameraPicker = false
-    @State private var showCameraUnavailable = false
 
     var body: some View {
         ZStack {
@@ -53,16 +50,9 @@ struct SocialProfileView: View {
                     Task { await savePendingAvatar() }
                 }
             }
-            Button("Take Profile Photo") {
-                guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                    showCameraUnavailable = true
-                    return
-                }
-                showCameraPicker = true
-            }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Try taking a new profile photo instead.")
+            Text("Please try choosing the image again.")
         }
         .confirmationDialog("Log out of VaultDex?", isPresented: $showLogoutConfirmation, titleVisibility: .visible) {
             Button("Log Out", role: .destructive) {
@@ -74,17 +64,6 @@ struct SocialProfileView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You can sign back in at any time.")
-        }
-        .alert("Camera isn't available", isPresented: $showCameraUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Try choosing a photo from your library instead.")
-        }
-        .fullScreenCover(isPresented: $showCameraPicker) {
-            ProfileCameraPicker { image in
-                handleCameraImage(image)
-            }
-            .ignoresSafeArea()
         }
     }
 
@@ -123,10 +102,6 @@ struct SocialProfileView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(message.hasPrefix("We couldn't") ? Color.vdCoral : (store.isUploadingAvatar ? Color.vdGold : Color.vdEmerald))
             }
-
-            Label(store.profilePhotoUploadStatus, systemImage: "waveform.path.ecg")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(Color.vdTextSecondary)
 
             if didSaveProfile {
                 Label(profileMessage.isEmpty ? "Changes saved" : profileMessage, systemImage: "checkmark.circle.fill")
@@ -224,38 +199,15 @@ struct SocialProfileView: View {
         let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
         return VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
-                    Label("Choose from Library", systemImage: "photo.on.rectangle.angled")
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(Color.vdGold)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.vdPanelRaised.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.vdGold.opacity(0.28), lineWidth: 1)
-                        )
-                }
-                .disabled(isUploading)
-
-                Button {
-                    guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                        showCameraUnavailable = true
-                        return
-                    }
-                    showCameraPicker = true
-                } label: {
-                    Label("Take Profile Photo", systemImage: "camera.fill")
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(Color.vdNavy)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-                .disabled(isUploading)
+            PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                Label("Choose Photo", systemImage: "photo.on.rectangle.angled")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(Color.vdNavy)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Color.vdGold, in: RoundedRectangle(cornerRadius: 12))
             }
+            .disabled(isUploading)
 
             Button {
                 Task { await removeAvatarPhoto() }
@@ -275,59 +227,49 @@ struct SocialProfileView: View {
         let initials = profileInitials
         let isUploading = store.isUploadingAvatar || isProcessingAvatar
 
-        return Button {
-            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                showCameraUnavailable = true
-                return
-            }
-            showCameraPicker = true
-        } label: {
-            ZStack(alignment: .bottomTrailing) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+        return ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0xFFF06A), Color.vdGold, Color.vdGoldDeep],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
+                    )
 
-                    if let avatarURL {
-                        CachedAsyncImage(url: avatarURL) { image in
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } placeholder: {
-                            ProgressView()
-                                .tint(Color.vdNavy)
-                        }
-                    } else {
-                        avatarPlaceholder(symbol: avatarSymbol, initials: initials)
-                    }
-
-                    if isUploading {
-                        Color.vdNavy.opacity(0.42)
+                if let avatarURL {
+                    CachedAsyncImage(url: avatarURL) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
                         ProgressView()
-                            .tint(Color.vdGold)
+                            .tint(Color.vdNavy)
                     }
+                } else {
+                    avatarPlaceholder(symbol: avatarSymbol, initials: initials)
                 }
-                .frame(width: 82, height: 82)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.48), lineWidth: 1))
-                .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
 
-                Image(systemName: "camera.fill")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(Color.vdNavy)
-                    .frame(width: 28, height: 28)
-                    .background(Color.vdGold, in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 1))
+                if isUploading {
+                    Color.vdNavy.opacity(0.42)
+                    ProgressView()
+                        .tint(Color.vdGold)
+                }
             }
+            .frame(width: 82, height: 82)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.white.opacity(0.48), lineWidth: 1))
+            .shadow(color: Color.vdGold.opacity(0.32), radius: 16, x: 0, y: 8)
+
+            Image(systemName: "camera.fill")
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.vdNavy)
+                .frame(width: 28, height: 28)
+                .background(Color.vdGold, in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.6), lineWidth: 1))
         }
-        .buttonStyle(.plain)
-        .disabled(isUploading)
-        .accessibilityLabel("Take profile photo")
+        .accessibilityLabel("Profile photo")
     }
 
     @ViewBuilder
@@ -434,13 +376,13 @@ struct SocialProfileView: View {
     private func loadAvatar(from item: PhotosPickerItem?) {
         guard let item else { return }
         isProcessingAvatar = true
-        store.updateProfilePhotoUploadStatus("Photo selected")
+        store.updateProfilePhotoUploadStatus("selected")
         Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self),
                       let image = UIImage(data: data) else {
                     await MainActor.run {
-                        store.reportImagePickerError("We couldn't use that image. Try taking a new profile photo instead.")
+                        store.reportImagePickerError("We couldn't use that image.")
                         isProcessingAvatar = false
                         showAvatarUploadError = true
                         selectedAvatarItem = nil
@@ -455,25 +397,12 @@ struct SocialProfileView: View {
                 await savePendingAvatar()
             } catch {
                 await MainActor.run {
-                    store.reportImagePickerError("We couldn't use that image. Try taking a new profile photo instead.")
+                    store.reportImagePickerError("We couldn't use that image.")
                     isProcessingAvatar = false
                     showAvatarUploadError = true
                     selectedAvatarItem = nil
                 }
             }
-        }
-    }
-
-    private func handleCameraImage(_ image: UIImage?) {
-        guard let image else { return }
-        isProcessingAvatar = true
-        store.updateProfilePhotoUploadStatus("Photo captured")
-        Task {
-            await MainActor.run {
-                pendingAvatarImage = image
-                isProcessingAvatar = false
-            }
-            await savePendingAvatar()
         }
     }
 
@@ -496,62 +425,6 @@ struct SocialProfileView: View {
             showAvatarUploadError = false
         } catch {
             showAvatarUploadError = true
-        }
-    }
-
-    private var socialStats: some View {
-        HStack(spacing: 12) {
-            ProfileStatTile(title: "Reputation", value: "\(store.profile.reputationScore)", systemImage: "shield.checkered", tint: .vdGold)
-            ProfileStatTile(title: "Trades", value: "\(store.profile.completedTrades)", systemImage: "arrow.left.arrow.right", tint: .vdEmerald)
-            ProfileStatTile(title: "Mythics", value: "\(mythicCount)", systemImage: "sparkles", tint: .vdCoral)
-        }
-    }
-
-    private var profileProgressSummary: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Collector Progress", subtitle: "A calm view of your vault journey.")
-
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                ProfileSummaryTile(
-                    title: "Your Vault Value",
-                    value: store.estimatedCollectionValue.compactVaultEstimatedCurrency,
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    tint: .vdGold
-                )
-
-                ProfileSummaryTile(
-                    title: "Added This Week",
-                    value: "\(cardsAddedThisWeek)",
-                    systemImage: "calendar.badge.plus",
-                    tint: .vdSky
-                )
-
-                ProfileSummaryTile(
-                    title: "Favourite Cards",
-                    value: "\(favoriteCount)",
-                    systemImage: "heart.fill",
-                    tint: .vdCoral
-                )
-
-                ProfileSummaryTile(
-                    title: "Grails",
-                    value: "\(grailCount)",
-                    systemImage: "sparkles",
-                    tint: .vdGold
-                )
-            }
-        }
-    }
-
-    private var achievementBadges: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Badges", subtitle: "Milestones earned through collecting and safe trading.")
-
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                ForEach(achievementRows) { achievement in
-                    AchievementBadge(achievement: achievement)
-                }
-            }
         }
     }
 
@@ -591,293 +464,12 @@ struct SocialProfileView: View {
         }
     }
 
-    private var socialTools: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Social", subtitle: "Friends, invites and safety tools.")
-
-            FeatureLinkCard(
-                title: "Friends",
-                subtitle: "\(store.friends.count) collectors connected",
-                systemImage: "person.2.fill",
-                tint: .vdEmerald
-            ) {
-                FriendsView()
-            }
-
-            FeatureLinkCard(
-                title: "Events",
-                subtitle: nextEvent?.title ?? "Upcoming local events",
-                systemImage: "calendar",
-                tint: .vdGold
-            ) {
-                EventsView()
-            }
-
-            FeatureLinkCard(
-                title: "Invite Friends",
-                subtitle: "Share your invite message",
-                systemImage: "paperplane.fill",
-                tint: .vdViolet
-            ) {
-                InviteFriendsView()
-            }
-
-            FeatureLinkCard(
-                title: "Settings",
-                subtitle: "Privacy and trading preferences",
-                systemImage: "gearshape.fill",
-                tint: .vdGold
-            ) {
-                SettingsView()
-            }
-
-            FeatureLinkCard(
-                title: "Safety Centre",
-                subtitle: "Trading guidance, privacy, reporting, and disclaimers",
-                systemImage: "shield.lefthalf.filled",
-                tint: .vdEmerald
-            ) {
-                SafetyCentreView()
-            }
-
-            FeatureLinkCard(
-                title: "Danger Zone",
-                subtitle: "Delete account data",
-                systemImage: "person.crop.circle.badge.xmark",
-                tint: .vdCoral
-            ) {
-                AccountDeletionView()
-            }
-        }
-    }
-
-    private var setProgress: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Set Progress", subtitle: "Completion by set.")
-
-            if setProgressRows.isEmpty {
-                EmptyStateView(
-                    systemImage: "circle.dotted",
-                    title: "No set progress yet",
-                    message: "Add cards to see completion rings for each set."
-                )
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(setProgressRows.prefix(5)) { progress in
-                        HStack(spacing: 14) {
-                            ProfileSetProgressRing(fraction: progress.fraction)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(progress.cardSet.name)
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.vdTextPrimary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.82)
-
-                                Text("\(progress.owned) of \(progress.total) cards")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color.vdTextSecondary)
-                            }
-
-                            Spacer()
-
-                            Text("\(Int((progress.fraction * 100).rounded()))%")
-                                .font(.headline.weight(.black))
-                                .foregroundStyle(Color.vdGold)
-                                .lineLimit(1)
-                        }
-                        .padding(14)
-                        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18)
-                                .stroke(Color.vdStroke.opacity(0.45), lineWidth: 1)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private var showcase: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Top Cards", subtitle: "Favourites, grails and standout cards.")
-
-            if store.collectionItems.isEmpty {
-                EmptyStateView(
-                    systemImage: "star",
-                    title: "No top cards yet",
-                    message: "Add cards to build a personal showcase."
-                )
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(topShowcaseItems) { item in
-                            NavigationLink {
-                                CardDetailView(card: item.card)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    CardTile(
-                                        card: item.card,
-                                        quantity: item.quantity,
-                                        condition: item.condition,
-                                        variant: item.variant,
-                                        isAvailableForTrade: item.isAvailableForTrade,
-                                        style: .compact
-                                    )
-                                    .frame(width: 220)
-
-                                    HStack(spacing: 6) {
-                                        if item.isFavorite {
-                                            StatusPill(title: "Favourite", tint: .vdCoral)
-                                        }
-                                        if grailCardIDs.contains(item.card.id) {
-                                            StatusPill(title: "Grail", tint: .vdGold)
-                                        }
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.viewAligned)
-            }
-        }
-    }
-
-    private var onlineFriends: Int {
-        store.friends.filter(\.isOnline).count
-    }
-
-    private var mythicCount: Int {
-        store.collectionItems
-            .filter { $0.card.rarity == .mythic }
-            .reduce(0) { $0 + $1.quantity }
-    }
-
-    private var setProgressRows: [SetProgress] {
-        let ownedSets = Array(Set(store.collectionItems.map(\.card.set)))
-        let candidateSets = store.sets.isEmpty ? ownedSets : Array(Set(store.sets + ownedSets))
-
-        return candidateSets.map { set in
-            let owned = Set(store.collectionItems.filter { $0.card.set.id == set.id }.map(\.card.id)).count
-            let catalogueTotal = store.cards.filter { $0.set.id == set.id }.count
-            let total = max(catalogueTotal, set.totalCards, owned, 1)
-            return SetProgress(cardSet: set, owned: owned, total: max(total, 1))
-        }
-        .filter { $0.owned > 0 }
-        .sorted {
-            if $0.fraction == $1.fraction {
-                return $0.owned > $1.owned
-            }
-            return $0.fraction > $1.fraction
-        }
-    }
-
-    private var nextEvent: VaultEvent? {
-        store.events.sorted { $0.date < $1.date }.first
-    }
-
-    private var cardsAddedThisWeek: Int {
-        guard let startOfWeek = Calendar.current.date(byAdding: .day, value: -7, to: .now) else { return 0 }
-        return store.collectionItems
-            .filter { $0.acquiredAt >= startOfWeek }
-            .reduce(0) { $0 + $1.quantity }
-    }
-
-    private var favoriteCount: Int {
-        store.collectionItems.filter(\.isFavorite).count
-    }
-
-    private var grailCount: Int {
-        store.wishlistItems.filter { $0.priority == .grail }.count
-    }
-
-    private var grailCardIDs: Set<Card.ID> {
-        Set(store.wishlistItems.filter { $0.priority == .grail }.map(\.card.id))
-    }
-
-    private var topShowcaseItems: [CollectionItem] {
-        store.collectionItems
-            .sorted {
-                let firstScore = showcaseScore(for: $0)
-                let secondScore = showcaseScore(for: $1)
-                if firstScore == secondScore {
-                    return $0.card.marketValue > $1.card.marketValue
-                }
-                return firstScore > secondScore
-            }
-            .prefix(6)
-            .map { $0 }
-    }
-
-    private func showcaseScore(for item: CollectionItem) -> Int {
-        var score = item.card.rarity.profileRank
-        if item.isFavorite { score += 20 }
-        if grailCardIDs.contains(item.card.id) { score += 16 }
-        if item.variant == .holo || item.variant == .reverseHolo { score += 2 }
-        if item.variant == .fullArt || item.variant == .secretRare { score += 4 }
-        return score
-    }
-
-    private var achievementRows: [ProfileAchievement] {
-        [
-            ProfileAchievement(title: "First Card", systemImage: "rectangle.stack.badge.plus", tint: .vdGold, isUnlocked: !store.collectionItems.isEmpty),
-            ProfileAchievement(title: "First Grail", systemImage: "sparkles", tint: .vdGold, isUnlocked: grailCount > 0),
-            ProfileAchievement(title: "First Trade", systemImage: "arrow.left.arrow.right.circle.fill", tint: .vdEmerald, isUnlocked: store.profile.completedTrades > 0 || store.tradeOffers.contains { $0.status == .completed }),
-            ProfileAchievement(title: "Set Starter", systemImage: "circle.grid.3x3.fill", tint: .vdSky, isUnlocked: store.uniqueSetsOwned > 0),
-            ProfileAchievement(title: "Trusted Collector", systemImage: "checkmark.shield.fill", tint: .vdLeaf, isUnlocked: store.profile.reputationScore >= 80 || !store.profile.trustBadges.isEmpty)
-        ]
-    }
 }
 
 private struct VerificationStatusDisplay {
     let title: String
     let systemImage: String
     let tint: Color
-}
-
-private struct ProfileCameraPicker: UIViewControllerRepresentable {
-    let onImage: (UIImage?) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.cameraCaptureMode = .photo
-        picker.mediaTypes = [UTType.image.identifier]
-        picker.allowsEditing = false
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        private let parent: ProfileCameraPicker
-
-        init(parent: ProfileCameraPicker) {
-            self.parent = parent
-        }
-
-        func imagePickerController(
-            _ picker: UIImagePickerController,
-            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-        ) {
-            parent.onImage(info[.originalImage] as? UIImage)
-            parent.dismiss()
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onImage(nil)
-            parent.dismiss()
-        }
-    }
 }
 
 struct VerificationRequestView: View {
@@ -1195,7 +787,6 @@ private struct ProfileTextField: View {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject private var store: LocalVaultStore
     @State private var profileVisibility = BinderVisibility.friends
     @State private var collectionVisibility = BinderVisibility.friends
     @State private var wantsVisibility = BinderVisibility.friends
@@ -1203,7 +794,6 @@ struct SettingsView: View {
     @State private var showWishlistBadges = true
     @State private var requireSafeTradeForHighValue = true
     @State private var parentManagedAccount = false
-    @State private var showDeveloperAdmin = false
 
     var body: some View {
         ZStack {
@@ -1215,7 +805,6 @@ struct SettingsView: View {
                     privacyControls
                     tradeControls
                     legalLinks
-                    developerAdminArea
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -1305,148 +894,15 @@ struct SettingsView: View {
             PlaceholderLinkRow(title: "Privacy policy", systemImage: "hand.raised.fill")
         }
     }
-
-    private var developerAdminArea: some View {
-        DisclosureGroup(isExpanded: $showDeveloperAdmin) {
-            Button {
-                Task { await store.testAvatarUpload() }
-            } label: {
-                Label("Test Avatar Upload", systemImage: "photo.badge.checkmark.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 10)
-
-            if let status = store.avatarTestUploadStatus {
-                Label(status, systemImage: status.contains("succeeded") ? "checkmark.circle.fill" : (status.contains("started") ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill"))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(status.contains("failed") ? Color.vdCoral : (status.contains("succeeded") ? Color.vdEmerald : Color.vdGold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 4)
-            }
-
-            VStack(spacing: 10) {
-                developerButton("Import sample cards", systemImage: "square.and.arrow.down.fill") {
-                    Task { await store.importSampleCards() }
-                }
-
-                developerButton("Refresh popular cards", systemImage: "arrow.clockwise.circle.fill") {
-                    Task { await store.refreshPopularCards() }
-                }
-
-                developerButton("Show card cache count", systemImage: "number.circle.fill") {
-                    Task { await store.loadCardCacheCount() }
-                }
-
-                developerButton("Clear card cache", systemImage: "trash.fill") {
-                    Task { await store.clearCardCache() }
-                }
-
-                if let status = store.cardCacheAdminStatus {
-                    Text(status)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(status.contains("Couldn’t") ? Color.vdCoral : Color.vdTextSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(.top, 8)
-
-            NavigationLink {
-                VerificationAdminPlaceholderView()
-            } label: {
-                Label("Verification requests", systemImage: "checkmark.shield.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-        } label: {
-            Label("Developer / Admin", systemImage: "wrench.and.screwdriver.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdTextSecondary)
-        }
-        .tint(Color.vdGold)
-        .padding(14)
-        .background(Color.vdPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func developerButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.vdTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color.vdPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct VerificationAdminPlaceholderView: View {
-    @EnvironmentObject private var store: LocalVaultStore
-
-    var body: some View {
-        ZStack {
-            AppBackground()
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    VaultSectionHeader(title: "Pending verification", subtitle: "Admin review placeholder.")
-
-                    if store.pendingVerificationRequests.isEmpty {
-                        EmptyStateView(
-                            systemImage: "checkmark.shield",
-                            title: "No pending requests",
-                            message: "New ID verification requests will appear here for admin review."
-                        )
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(store.pendingVerificationRequests) { request in
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text(request.fullName)
-                                        .font(.headline.weight(.bold))
-                                        .foregroundStyle(Color.vdTextPrimary)
-
-                                    Text("Submitted for review")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(Color.vdTextSecondary)
-
-                                    HStack(spacing: 10) {
-                                        SecondaryButton(title: "Approve", systemImage: "checkmark.circle.fill") {}
-                                        SecondaryButton(title: "Reject", systemImage: "xmark.circle.fill") {}
-                                    }
-                                }
-                                .padding(16)
-                                .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
-                            }
-                        }
-                    }
-                }
-                .padding(20)
-                .bottomDockSpacing()
-            }
-        }
-        .navigationTitle("Admin")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await store.loadPendingVerificationRequests()
-        }
-    }
 }
 
 struct SafetyCentreView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @State private var reportText = ""
     @State private var listingReportText = ""
     @State private var blockText = ""
     @State private var actionMessage: String?
+    @State private var isSubmittingReport = false
 
     var body: some View {
         ZStack {
@@ -1507,7 +963,7 @@ struct SafetyCentreView: View {
 
             SafetyInfoRow(systemImage: "figure.and.child.holdinghands", title: "Parent-managed account", message: "A guardian approval flow is planned for younger collectors and high-value trades.")
             SafetyInfoRow(systemImage: "person.2.fill", title: "Use supervised accounts", message: "Children should trade only with parent or guardian awareness, especially for high-value cards.")
-            SafetyInfoRow(systemImage: "lock.shield.fill", title: "Keep personal details private", message: "Do not share home addresses, school details, phone numbers, or payment information in trade messages.")
+            SafetyInfoRow(systemImage: "lock.shield.fill", title: "Keep personal details private", message: "Do not share home addresses, school details, phone numbers or financial details in trade messages.")
             SafetyInfoRow(systemImage: "checkmark.seal.fill", title: "Confirm every trade", message: "Review condition, variant, value balance, and wants before accepting an offer.")
         }
     }
@@ -1534,7 +990,7 @@ struct SafetyCentreView: View {
 
     private var reportBlockTools: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VaultSectionHeader(title: "Report & Block", subtitle: "Moderation actions")
+            VaultSectionHeader(title: "Report & Block", subtitle: "Simple safety actions.")
 
             ProfileTextField(title: "Report user", text: $reportText, systemImage: "flag.fill")
             ProfileTextField(title: "Report listing", text: $listingReportText, systemImage: "flag.checkered")
@@ -1542,10 +998,14 @@ struct SafetyCentreView: View {
 
             HStack(spacing: 10) {
                 PrimaryButton(title: "Report", systemImage: "flag.fill") {
-                    actionMessage = "Thanks. Reporting tools will be available soon."
+                    Task { await submitReports() }
                 }
+                .disabled(isSubmittingReport || (reportText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && listingReportText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+
                 PrimaryButton(title: "Block", systemImage: "nosign") {
-                    actionMessage = "Thanks. Blocking tools will be available soon."
+                    actionMessage = blockText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? "Add a username to block when blocking is available."
+                        : "Block controls will be available soon."
                 }
             }
 
@@ -1555,6 +1015,29 @@ struct SafetyCentreView: View {
                     .foregroundStyle(Color.vdTextSecondary)
                     .padding(.top, 2)
             }
+        }
+    }
+
+    private func submitReports() async {
+        isSubmittingReport = true
+        defer { isSubmittingReport = false }
+
+        do {
+            let userDetails = reportText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let listingDetails = listingReportText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !userDetails.isEmpty {
+                try await store.submitSafetyReport(reason: "user_report", details: userDetails)
+            }
+            if !listingDetails.isEmpty {
+                try await store.submitSafetyReport(reason: "listing_report", details: listingDetails)
+            }
+
+            reportText = ""
+            listingReportText = ""
+            actionMessage = "Thanks. We received your report."
+        } catch {
+            actionMessage = "We couldn’t send that report. Please try again."
         }
     }
 
@@ -1676,147 +1159,6 @@ private struct PlaceholderLinkRow: View {
     }
 }
 
-private struct ProfileStatTile: View {
-    let title: String
-    let value: String
-    let systemImage: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(width: 30, height: 30)
-                .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 8))
-
-            Text(value)
-                .font(.headline)
-                .foregroundStyle(Color.vdTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(Color.vdTextSecondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.vdPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(tint.opacity(0.32), lineWidth: 1)
-        )
-        .shadow(color: tint.opacity(0.10), radius: 10, x: 0, y: 5)
-    }
-}
-
-private struct ProfileSummaryTile: View {
-    let title: String
-    let value: String
-    let systemImage: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(tint)
-                .frame(width: 34, height: 34)
-                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11))
-
-            Text(value)
-                .font(.system(.title3, design: .rounded, weight: .black))
-                .foregroundStyle(Color.vdTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.vdTextSecondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.vdPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.07), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.10), radius: 10, x: 0, y: 6)
-    }
-}
-
-private struct ProfileAchievement: Identifiable {
-    let id = UUID()
-    let title: String
-    let systemImage: String
-    let tint: Color
-    let isUnlocked: Bool
-}
-
-private struct AchievementBadge: View {
-    let achievement: ProfileAchievement
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: achievement.isUnlocked ? achievement.systemImage : "lock.fill")
-                .font(.system(size: 15, weight: .black))
-                .foregroundStyle(achievement.isUnlocked ? Color.vdNavy : Color.vdTextSecondary)
-                .frame(width: 34, height: 34)
-                .background(
-                    (achievement.isUnlocked ? achievement.tint : Color.vdPanelRaised)
-                        .opacity(achievement.isUnlocked ? 0.95 : 0.75),
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(achievement.title)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Text(achievement.isUnlocked ? "Earned" : "In progress")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(achievement.isUnlocked ? achievement.tint : Color.vdTextSecondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(12)
-        .background(Color.vdPanel.opacity(achievement.isUnlocked ? 0.82 : 0.52), in: RoundedRectangle(cornerRadius: 17))
-        .overlay(
-            RoundedRectangle(cornerRadius: 17)
-                .stroke((achievement.isUnlocked ? achievement.tint : Color.vdStroke).opacity(0.34), lineWidth: 1)
-        )
-    }
-}
-
-private struct ProfileSetProgressRing: View {
-    let fraction: Double
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.vdStroke.opacity(0.48), lineWidth: 6)
-
-            Circle()
-                .trim(from: 0, to: min(max(fraction, 0), 1))
-                .stroke(
-                    LinearGradient(colors: [Color.vdGold, Color(hex: 0xFFF06A)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-
-            Text("\(Int((fraction * 100).rounded()))")
-                .font(.caption2.weight(.black))
-                .foregroundStyle(Color.vdGold)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(width: 48, height: 48)
-        .accessibilityLabel("Set completion \(Int((fraction * 100).rounded())) percent")
-    }
-}
 
 private extension CardRarity {
     var profileRank: Int {

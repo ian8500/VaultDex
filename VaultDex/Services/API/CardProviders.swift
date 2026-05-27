@@ -70,6 +70,10 @@ final class SupabaseCardRepository: CardProvider {
             .prefix(request.limit)
             .map { $0 }
     }
+
+    func searchCardsByName(_ name: String, limit: Int = 5) async throws -> [Card] {
+        try await repository.fetchCards(name: name, limit: limit).map(\.localSearchCard)
+    }
 }
 
 extension RemoteCard {
