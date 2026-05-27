@@ -13,7 +13,7 @@ struct SocialProfileView: View {
     @State private var profileMessage = ""
     @State private var usernameError = ""
     @State private var showLogoutConfirmation = false
-    @State private var pendingAvatarData: Data?
+    @State private var pendingAvatarImage: UIImage?
     @State private var showAvatarUploadError = false
     @State private var isProcessingAvatar = false
     @State private var avatarImageRefreshToken = 0
@@ -48,9 +48,9 @@ struct SocialProfileView: View {
             loadAvatar(from: newItem)
         }
         .alert("We couldn't save your profile picture.", isPresented: $showAvatarUploadError) {
-            if pendingAvatarData != nil {
+            if pendingAvatarImage != nil {
                 Button("Retry") {
-                    Task { await uploadPendingAvatar() }
+                    Task { await savePendingAvatar() }
                 }
             }
             Button("Take Profile Photo") {
@@ -434,7 +434,7 @@ struct SocialProfileView: View {
     private func loadAvatar(from item: PhotosPickerItem?) {
         guard let item else { return }
         isProcessingAvatar = true
-        store.updateProfilePhotoUploadStatus("selected")
+        store.updateProfilePhotoUploadStatus("Photo selected")
         Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self),
@@ -448,25 +448,11 @@ struct SocialProfileView: View {
                     return
                 }
                 await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("decoded")
-                }
-                let preparedData = try ImageUploadService.compressedJPEGData(from: image, maxPixelDimension: 512, quality: 0.75)
-                guard !preparedData.isEmpty else {
-                    await MainActor.run {
-                        store.reportImagePickerError("We couldn't use that image.")
-                        isProcessingAvatar = false
-                        showAvatarUploadError = true
-                        selectedAvatarItem = nil
-                    }
-                    return
-                }
-                await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("resized")
-                    pendingAvatarData = preparedData
+                    pendingAvatarImage = image
                     isProcessingAvatar = false
                     selectedAvatarItem = nil
                 }
-                await uploadPendingAvatar()
+                await savePendingAvatar()
             } catch {
                 await MainActor.run {
                     store.reportImagePickerError("We couldn't use that image. Try taking a new profile photo instead.")
@@ -481,52 +467,31 @@ struct SocialProfileView: View {
     private func handleCameraImage(_ image: UIImage?) {
         guard let image else { return }
         isProcessingAvatar = true
-        store.updateProfilePhotoUploadStatus("selected")
+        store.updateProfilePhotoUploadStatus("Photo captured")
         Task {
-            do {
-                await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("decoded")
-                }
-                let preparedData = try ImageUploadService.compressedJPEGData(from: image, maxPixelDimension: 512, quality: 0.75)
-                guard !preparedData.isEmpty else {
-                    await MainActor.run {
-                        store.reportImagePickerError("We couldn't use that image.")
-                        isProcessingAvatar = false
-                        showAvatarUploadError = true
-                    }
-                    return
-                }
-                await MainActor.run {
-                    store.updateProfilePhotoUploadStatus("resized")
-                    pendingAvatarData = preparedData
-                    isProcessingAvatar = false
-                }
-                await uploadPendingAvatar()
-            } catch {
-                await MainActor.run {
-                    store.reportImagePickerError("We couldn't use that image.")
-                    isProcessingAvatar = false
-                    showAvatarUploadError = true
-                }
+            await MainActor.run {
+                pendingAvatarImage = image
+                isProcessingAvatar = false
             }
+            await savePendingAvatar()
         }
     }
 
     private func removeAvatarPhoto() async {
         do {
             try await store.removeAvatarPhoto()
-            pendingAvatarData = nil
+            pendingAvatarImage = nil
             avatarImageRefreshToken = Int(Date().timeIntervalSince1970)
         } catch {
             showAvatarUploadError = true
         }
     }
 
-    private func uploadPendingAvatar() async {
-        guard let pendingAvatarData else { return }
+    private func savePendingAvatar() async {
+        guard let pendingAvatarImage else { return }
         do {
-            try await store.uploadAvatarImageData(pendingAvatarData)
-            self.pendingAvatarData = nil
+            try await store.saveAvatar(image: pendingAvatarImage)
+            self.pendingAvatarImage = nil
             avatarImageRefreshToken = Int(Date().timeIntervalSince1970)
             showAvatarUploadError = false
         } catch {

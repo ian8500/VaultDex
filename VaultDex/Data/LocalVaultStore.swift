@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 private enum VaultStoreError: Error {
     case notSignedIn
 }
@@ -1118,7 +1122,83 @@ final class LocalVaultStore: ObservableObject {
         saveStatusMessage = nil
     }
 
+    #if canImport(UIKit)
+    func saveAvatar(image: UIImage) async throws {
+        guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
+            lastSyncError = Self.imageUploadSignInMessage
+            imageUploadMessage = Self.photoSaveFailedMessage
+            profilePhotoUploadStatus = Self.photoSaveFailedMessage
+            isUploadingAvatar = false
+            throw ImageUploadError.missingSession
+        }
+
+        guard repositories.clientProvider.canCreateClient else {
+            lastSyncError = Self.imageUploadMessage
+            imageUploadMessage = Self.photoSaveFailedMessage
+            profilePhotoUploadStatus = Self.photoSaveFailedMessage
+            isUploadingAvatar = false
+            throw SupabaseClientError.missingConfiguration
+        }
+
+        isUploadingAvatar = true
+        imageUploadMessage = nil
+        defer { isUploadingAvatar = false }
+        var lastPipelineStage = profilePhotoUploadStatus
+
+        do {
+            let service = AvatarUploadService(
+                storage: repositories.storage,
+                clientProvider: repositories.clientProvider
+            ) { [weak self] status in
+                lastPipelineStage = status
+                self?.profilePhotoUploadStatus = status
+                if status == "Uploading" || status == "Uploaded" {
+                    self?.imageUploadMessage = status
+                }
+            }
+
+            let publicURLString = try await service.saveAvatar(image: image, userId: userID)
+            if let refreshedProfile = try await repositories.profiles.fetchCurrentProfile(userID: userID) {
+                profile = refreshedProfile.localProfile(favoriteSet: profile.favoriteSet)
+                profilePhotoUploadStatus = "Reloaded"
+            } else {
+                var updatedProfile = profile.replacingID(with: userID)
+                updatedProfile.avatarURL = URL(string: publicURLString)
+                profile = updatedProfile
+                profilePhotoUploadStatus = "Reloaded"
+            }
+
+            runtimeMode = .supabase
+            updateCachedCloudStateIfPossible(userID: userID)
+            imageUploadMessage = Self.photoSavedMessage
+            lastSyncError = nil
+        } catch let error as ImageUploadError where error == .unreadableImage || error == .compressionFailed {
+            imageUploadMessage = Self.imageUseFailedMessage
+            profilePhotoUploadStatus = Self.imageUseFailedMessage
+            lastSyncError = Self.imageUploadMessage
+            throw error
+        } catch {
+            let message = lastPipelineStage == "Uploaded" || lastPipelineStage == "Profile updated"
+                ? Self.photoSaveFailedMessage
+                : Self.photoUploadFailedMessage
+            imageUploadMessage = message
+            profilePhotoUploadStatus = message
+            lastSyncError = Self.imageUploadMessage
+            throw error
+        }
+    }
+    #endif
+
     func uploadAvatarImageData(_ data: Data) async throws {
+        #if canImport(UIKit)
+        guard let image = UIImage(data: data) else {
+            imageUploadMessage = Self.imageUseFailedMessage
+            profilePhotoUploadStatus = Self.imageUseFailedMessage
+            lastSyncError = Self.imageUploadMessage
+            throw ImageUploadError.unreadableImage
+        }
+        try await saveAvatar(image: image)
+        #else
         guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.imageUploadSignInMessage
             imageUploadMessage = Self.photoSaveFailedMessage
@@ -1169,6 +1249,7 @@ final class LocalVaultStore: ObservableObject {
             lastSyncError = Self.imageUploadMessage
             throw error
         }
+        #endif
     }
 
     func removeAvatarPhoto() async throws {
