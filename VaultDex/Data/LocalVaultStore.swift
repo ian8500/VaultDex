@@ -26,6 +26,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var isSavingProfile = false
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
+    @Published private(set) var enrichingCardValueIDs: Set<Card.ID> = []
     @Published private(set) var lastSyncError: String?
     @Published private(set) var saveStatusMessage: String?
     @Published var sets: [CardSet]
@@ -394,6 +395,7 @@ final class LocalVaultStore: ObservableObject {
             request.localRequest(profile: profileByID[request.otherUserID(for: userID)], currentUserID: userID, previewCard: cards.first)
         }
         friendWants = []
+        enrichMissingVaultValuesInBackground()
     }
 
     var totalCopiesOwned: Int {
@@ -440,6 +442,20 @@ final class LocalVaultStore: ObservableObject {
 
     func isWishlisted(_ card: Card) -> Bool {
         wishlistItem(for: card) != nil
+    }
+
+    func isCheckingValue(for card: Card) -> Bool {
+        enrichingCardValueIDs.contains(card.id)
+    }
+
+    func enrichMissingVaultValuesInBackground() {
+        let visibleCards = collectionItems.map(\.card)
+            + wishlistItems.map(\.card)
+            + tradeOffers.flatMap { $0.offeredCards + $0.requestedCards }
+            + tradeListings.map(\.card)
+        for card in visibleCards where card.marketValue <= 0 {
+            enrichCardValueInBackground(card)
+        }
     }
 
     func addCard(
@@ -1670,20 +1686,28 @@ final class LocalVaultStore: ObservableObject {
         }
     }
 
-    private func enrichCardValueInBackground(_ card: Card) {
-        guard shouldSyncSignedInCloud, card.marketValue <= 0, let externalID = card.externalID, !externalID.isEmpty else { return }
+    func enrichCardValueInBackground(_ card: Card) {
+        guard card.marketValue <= 0, let externalID = card.externalID, !externalID.isEmpty else { return }
+        guard !enrichingCardValueIDs.contains(card.id) else { return }
+        enrichingCardValueIDs.insert(card.id)
+        let shouldCacheRemotely = shouldSyncSignedInCloud
         Task {
             do {
                 let apiCard = try await CardAPIService().fetchCard(id: externalID)
                 let enrichedCard = apiCard.localCard
-                guard enrichedCard.marketValue > 0 else { return }
-                await apiCardCache(enrichedCards: [apiCard])
                 await MainActor.run {
+                    _ = enrichingCardValueIDs.remove(card.id)
+                    guard enrichedCard.marketValue > 0 else { return }
                     replaceCardEverywhere(enrichedCard)
                     updateCachedCloudStateIfPossible()
                 }
+                if shouldCacheRemotely {
+                    await apiCardCache(enrichedCards: [apiCard])
+                }
             } catch {
-                return
+                await MainActor.run {
+                    _ = enrichingCardValueIDs.remove(card.id)
+                }
             }
         }
     }

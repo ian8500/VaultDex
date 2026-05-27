@@ -106,7 +106,7 @@ struct CardDetailView: View {
             HStack(spacing: 10) {
                 StatusPill(title: detailCard.cardType.displayName, tint: .vdEmerald)
                 RarityBadge(rarity: detailCard.rarity)
-                StatusPill(title: detailCard.marketValue.vaultEstimatedCurrency, tint: .vdGold)
+                StatusPill(title: valueLabel, tint: .vdGold)
             }
 
             Text(detailCard.set.name + " · " + detailCard.typeLine)
@@ -166,8 +166,15 @@ struct CardDetailView: View {
             detailMetric("Set", detailCard.set.name)
             detailMetric("Number", detailCard.number)
             detailMetric("Rarity", detailCard.rarity.displayName)
-            detailMetric("Value", detailCard.marketValue.vaultEstimatedCurrency)
+            detailMetric("Value", valueLabel)
         }
+    }
+
+    private var valueLabel: String {
+        if detailCard.marketValue > 0 {
+            return detailCard.marketValue.vaultEstimatedCurrency
+        }
+        return isLoadingLiveCard ? "Checking value..." : "Value unavailable"
     }
 
     private func detailMetric(_ title: String, _ value: String) -> some View {
@@ -249,7 +256,7 @@ struct CardDetailView: View {
     }
 
     private var loadingLiveCardState: some View {
-        Label("Refreshing card details...", systemImage: "arrow.triangle.2.circlepath")
+        Label(detailCard.marketValue <= 0 ? "Checking value..." : "Refreshing card details...", systemImage: "arrow.triangle.2.circlepath")
             .font(.caption.weight(.bold))
             .foregroundStyle(Color.vdTextSecondary)
             .padding(12)

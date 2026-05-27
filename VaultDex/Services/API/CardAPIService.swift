@@ -308,6 +308,7 @@ struct PokemonTCGPlayer: Decodable, Hashable {
             ?? prices?["reverseHolofoil"]?.market
             ?? prices?["normal"]?.market
             ?? prices?["1stEditionHolofoil"]?.market
+            ?? prices?["1stEditionNormal"]?.market
     }
 }
 

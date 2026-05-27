@@ -671,7 +671,15 @@ private struct DashboardVaultChip: View {
 }
 
 private struct FeaturedDashboardCard: View {
+    @EnvironmentObject private var store: LocalVaultStore
     let item: CollectionItem
+
+    private var valueLabel: String {
+        if item.card.marketValue > 0 {
+            return item.card.marketValue.vaultEstimatedCurrency
+        }
+        return store.isCheckingValue(for: item.card) ? "Checking value..." : "Value unavailable"
+    }
 
     var body: some View {
         NavigationLink {
@@ -692,7 +700,7 @@ private struct FeaturedDashboardCard: View {
                         HStack(spacing: 7) {
                             DashboardInfoChip(text: "\(item.card.set.code) #\(item.card.number)", icon: "rectangle.3.group.fill", tint: .vdSky)
                             DashboardInfoChip(text: item.card.rarity.displayName, icon: "sparkles", tint: rarityTint)
-                            DashboardInfoChip(text: item.card.marketValue.vaultEstimatedCurrency, icon: "seal.fill", tint: .vdGold, isFilled: true)
+                            DashboardInfoChip(text: valueLabel, icon: "seal.fill", tint: .vdGold, isFilled: true)
                         }
                     }
                     .scrollDisabled(false)

@@ -32,6 +32,9 @@ struct VaultView: View {
         }
         .navigationTitle("Vault")
         .navigationBarTitleDisplayMode(.large)
+        .task {
+            store.enrichMissingVaultValuesInBackground()
+        }
     }
 
     private var vaultActions: some View {
@@ -357,7 +360,15 @@ struct VaultView: View {
 }
 
 private struct VaultListRow: View {
+    @EnvironmentObject private var store: LocalVaultStore
     let item: CollectionItem
+
+    private var valueLabel: String {
+        if item.card.marketValue > 0 {
+            return item.estimatedGBPValue.vaultEstimatedCurrency
+        }
+        return store.isCheckingValue(for: item.card) ? "Checking value..." : "Value unavailable"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -390,7 +401,7 @@ private struct VaultListRow: View {
                 Text("x\(item.quantity)")
                     .font(.headline.weight(.black))
                     .foregroundStyle(Color.vdGold)
-                Text(item.estimatedGBPValue.vaultEstimatedCurrency)
+                Text(valueLabel)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
             }
