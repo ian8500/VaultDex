@@ -413,16 +413,12 @@ final class SupabaseStorageRepository: VaultStorageRepository {
     }
 
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String {
-        let path = "\(userID.uuidString)/profile.jpg"
-        #if canImport(Supabase)
-        let storage = try client.requireSDKClient().storage.from("avatars")
-        try await storage.upload(
-            path,
-            data: data,
-            options: FileOptions(contentType: contentType, upsert: true)
-        )
-        return try storage.getPublicURL(path: path).absoluteString
-        #else
+        try await uploadAvatarFile(userID: userID, fileName: "profile.jpg", data: data, contentType: contentType)
+    }
+
+    func uploadAvatarFile(userID: UUID, fileName: String, data: Data, contentType: String) async throws -> String {
+        let safeFileName = fileName.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let path = "\(userID.uuidString)/\(safeFileName)"
         let request = try client.storageRequest(
             bucket: "avatars",
             path: path,
@@ -445,7 +441,6 @@ final class SupabaseStorageRepository: VaultStorageRepository {
             try await client.send(overwriteRequest)
         }
         return try client.publicStorageURL(bucket: "avatars", path: path).absoluteString
-        #endif
     }
 
     func uploadCardPhoto(userID: UUID, collectionItemID: UUID, side: CardPhotoSide, data: Data, contentType: String) async throws -> String {

@@ -1195,6 +1195,7 @@ private struct ProfileTextField: View {
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var store: LocalVaultStore
     @State private var profileVisibility = BinderVisibility.friends
     @State private var collectionVisibility = BinderVisibility.friends
     @State private var wantsVisibility = BinderVisibility.friends
@@ -1307,6 +1308,28 @@ struct SettingsView: View {
 
     private var developerAdminArea: some View {
         DisclosureGroup(isExpanded: $showDeveloperAdmin) {
+            Button {
+                Task { await store.testAvatarUpload() }
+            } label: {
+                Label("Test Avatar Upload", systemImage: "photo.badge.checkmark.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.vdTextPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+
+            if let status = store.avatarTestUploadStatus {
+                Label(status, systemImage: status.contains("succeeded") ? "checkmark.circle.fill" : (status.contains("started") ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle.fill"))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(status.contains("failed") ? Color.vdCoral : (status.contains("succeeded") ? Color.vdEmerald : Color.vdGold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 4)
+            }
+
             NavigationLink {
                 VerificationAdminPlaceholderView()
             } label: {
@@ -1318,7 +1341,6 @@ struct SettingsView: View {
                     .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
-            .padding(.top, 10)
         } label: {
             Label("Developer / Admin", systemImage: "wrench.and.screwdriver.fill")
                 .font(.caption.weight(.bold))

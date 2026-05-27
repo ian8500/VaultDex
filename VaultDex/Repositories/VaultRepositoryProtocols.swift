@@ -86,5 +86,6 @@ protocol ReputationRepository {
 
 protocol VaultStorageRepository {
     func uploadAvatar(userID: UUID, data: Data, contentType: String) async throws -> String
+    func uploadAvatarFile(userID: UUID, fileName: String, data: Data, contentType: String) async throws -> String
     func uploadCardPhoto(userID: UUID, collectionItemID: UUID, side: CardPhotoSide, data: Data, contentType: String) async throws -> String
 }

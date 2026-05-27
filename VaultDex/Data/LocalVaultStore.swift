@@ -21,6 +21,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var isLoadingCloudData = false
     @Published private(set) var imageUploadMessage: String?
     @Published private(set) var profilePhotoUploadStatus = "No photo selected"
+    @Published private(set) var avatarTestUploadStatus: String?
     @Published private(set) var isSavingProfile = false
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
@@ -44,6 +45,7 @@ final class LocalVaultStore: ObservableObject {
     @Published var friendWants: [FriendWant]
     @Published var tradeListings: [TradeListing]
     @Published var tradeOffers: [TradeOffer]
+    private var lastAvatarStorageErrorReason: String?
 
     init(
         repository: DemoVaultRepository = .shared,
@@ -1123,6 +1125,40 @@ final class LocalVaultStore: ObservableObject {
     }
 
     #if canImport(UIKit)
+    func testAvatarUpload() async {
+        guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
+            avatarTestUploadStatus = "Test upload failed"
+            lastAvatarStorageErrorReason = "Missing auth session"
+            return
+        }
+
+        avatarTestUploadStatus = "Test upload started"
+        lastAvatarStorageErrorReason = nil
+
+        do {
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 100))
+            let image = renderer.image { context in
+                UIColor(red: 1.0, green: 0.78, blue: 0.12, alpha: 1).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+            }
+            guard let data = image.jpegData(compressionQuality: 0.75), !data.isEmpty else {
+                throw ImageUploadError.compressionFailed
+            }
+
+            _ = try await repositories.storage.uploadAvatarFile(
+                userID: userID,
+                fileName: "test-avatar.jpg",
+                data: data,
+                contentType: "image/jpeg"
+            )
+            avatarTestUploadStatus = "Test upload succeeded"
+        } catch {
+            avatarTestUploadStatus = "Test upload failed"
+            lastAvatarStorageErrorReason = String(describing: error)
+            lastSyncError = Self.imageUploadMessage
+        }
+    }
+
     func saveAvatar(image: UIImage) async throws {
         guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
             lastSyncError = Self.imageUploadSignInMessage
