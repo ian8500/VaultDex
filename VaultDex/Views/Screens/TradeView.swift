@@ -672,7 +672,7 @@ private struct FriendTradeComposer: View {
                             Text(item.card.name)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.vdTextPrimary)
-                            Text(item.card.marketValue.vaultCurrency)
+                            Text(item.card.marketValue.vaultEstimatedCurrency)
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(Color.vdTextSecondary)
                         }
@@ -946,7 +946,7 @@ private struct TradeListingRow: View {
 
                     HStack(spacing: 8) {
                         RarityBadge(rarity: listing.card.rarity)
-                        TradeValueChip(value: listing.estimatedValue.vaultCurrency, tint: .vdLeaf)
+                        TradeValueChip(value: listing.estimatedValue.vaultEstimatedCurrency, tint: .vdLeaf)
                         StatusPill(title: listing.listingKind.displayName, tint: .vdGold)
                         if let askingCredits = listing.askingCredits, listing.listingKind != .trade {
                             StatusPill(title: "\(askingCredits) credits", tint: .vdSky)
@@ -1053,7 +1053,7 @@ private struct TradeListingDetailView: View {
 
                             HStack(spacing: 8) {
                                 RarityBadge(rarity: listing.card.rarity)
-                                TradeValueChip(value: listing.estimatedValue.vaultCurrency, tint: .vdLeaf)
+                                TradeValueChip(value: listing.estimatedValue.vaultEstimatedCurrency, tint: .vdLeaf)
                                 StatusPill(title: listing.listingKind.displayName, tint: .vdGold)
                             }
 

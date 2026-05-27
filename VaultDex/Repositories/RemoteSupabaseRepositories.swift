@@ -134,15 +134,52 @@ final class SupabaseVerificationRepository: SupabaseTableRepository, Verificatio
 
 final class SupabaseCardCatalogRepository: SupabaseTableRepository, CardCatalogRepository {
     func fetchSets() async throws -> [RemoteCardSet] {
-        try await fetchRows(from: "card_sets", queryItems: [URLQueryItem(name: "order", value: "release_year.desc")])
+        try await fetchRows(from: "card_sets", queryItems: [
+            URLQueryItem(name: "order", value: "cached_at.desc.nullslast"),
+            URLQueryItem(name: "limit", value: "30")
+        ])
     }
 
     func fetchCards(search: String?) async throws -> [RemoteCard] {
-        var queryItems = [URLQueryItem(name: "order", value: "name.asc")]
-        if let search, !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            queryItems.append(URLQueryItem(name: "name", value: "ilike.*\(search)*"))
+        let trimmed = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return [] }
+
+        let escaped = trimmed
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "*", with: "\\*")
+            .replacingOccurrences(of: ",", with: "\\,")
+            .replacingOccurrences(of: "(", with: "\\(")
+            .replacingOccurrences(of: ")", with: "\\)")
+
+        let orQuery = [
+            "name.ilike.*\(escaped)*",
+            "set_name.ilike.*\(escaped)*",
+            "number.ilike.*\(escaped)*",
+            "rarity.ilike.*\(escaped)*",
+            "type_line.ilike.*\(escaped)*",
+            "card_type.ilike.*\(escaped)*"
+        ].joined(separator: ",")
+
+        return try await fetchRows(from: "cards", queryItems: [
+            URLQueryItem(name: "or", value: "(\(orQuery))"),
+            URLQueryItem(name: "order", value: "name.asc"),
+            URLQueryItem(name: "limit", value: "20")
+        ])
+    }
+
+    func countCards() async throws -> Int {
+        let request = try client.restRequest(
+            table: "cards",
+            queryItems: [URLQueryItem(name: "select", value: "id")],
+            prefer: "count=exact"
+        )
+        let (_, response) = try await client.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { return 0 }
+        if let range = httpResponse.value(forHTTPHeaderField: "Content-Range"),
+           let total = range.split(separator: "/").last.flatMap({ Int($0) }) {
+            return total
         }
-        return try await fetchRows(from: "cards", queryItems: queryItems)
+        return 0
     }
 
     func upsertSet(_ set: RemoteCardSet) async throws {

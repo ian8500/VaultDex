@@ -244,7 +244,7 @@ create policy "clients cannot delete cards"
 on public.cards
 for delete
 to authenticated
-using (false);
+using (source = 'pokemon_tcg');
 
 drop policy if exists "users read own collection and tradeable public items" on public.collection_items;
 create policy "users read own collection and tradeable public items"

@@ -40,6 +40,25 @@ create table if not exists public.card_sets (
   updated_at timestamptz not null default now()
 );
 
+alter table public.card_sets add column if not exists source text not null default 'pokemon_tcg';
+alter table public.card_sets add column if not exists external_id text;
+alter table public.card_sets add column if not exists series text;
+alter table public.card_sets add column if not exists release_date date;
+alter table public.card_sets add column if not exists logo_url text;
+alter table public.card_sets add column if not exists symbol_url text;
+alter table public.card_sets add column if not exists raw_payload jsonb;
+alter table public.card_sets add column if not exists cached_at timestamptz not null default now();
+update public.card_sets set external_id = coalesce(external_id, code), cached_at = coalesce(cached_at, now());
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'card_sets_source_external_id_key'
+  ) then
+    alter table public.card_sets add constraint card_sets_source_external_id_key unique (source, external_id);
+  end if;
+end $$;
+
 create table if not exists public.cards (
   id uuid primary key default gen_random_uuid(),
   set_id uuid not null references public.card_sets(id) on delete cascade,
@@ -58,6 +77,43 @@ create table if not exists public.cards (
   updated_at timestamptz not null default now(),
   unique (set_id, number)
 );
+
+alter table public.cards add column if not exists source text not null default 'pokemon_tcg';
+alter table public.cards add column if not exists external_id text;
+alter table public.cards add column if not exists set_name text;
+alter table public.cards add column if not exists set_external_id text;
+alter table public.cards add column if not exists types text[] not null default '{}';
+alter table public.cards add column if not exists subtypes text[] not null default '{}';
+alter table public.cards add column if not exists small_image_url text;
+alter table public.cards add column if not exists large_image_url text;
+alter table public.cards add column if not exists market_price numeric(10, 2);
+alter table public.cards add column if not exists currency text not null default 'GBP';
+alter table public.cards add column if not exists raw_payload jsonb;
+alter table public.cards add column if not exists cached_at timestamptz not null default now();
+update public.cards
+set external_id = coalesce(external_id, id::text),
+    set_name = coalesce(set_name, (select name from public.card_sets where public.card_sets.id = public.cards.set_id)),
+    set_external_id = coalesce(set_external_id, (select external_id from public.card_sets where public.card_sets.id = public.cards.set_id), set_id::text),
+    small_image_url = coalesce(small_image_url, image_path),
+    market_price = coalesce(market_price, market_value),
+    cached_at = coalesce(cached_at, now());
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'cards_source_external_id_key'
+  ) then
+    alter table public.cards add constraint cards_source_external_id_key unique (source, external_id);
+  end if;
+end $$;
+
+create index if not exists idx_cards_lower_name on public.cards (lower(name));
+create index if not exists idx_cards_lower_set_name on public.cards (lower(set_name));
+create index if not exists idx_cards_rarity on public.cards (rarity);
+create index if not exists idx_cards_external_id on public.cards (external_id);
+create index if not exists idx_cards_cached_at on public.cards (cached_at desc);
+create index if not exists idx_card_sets_external_id on public.card_sets (external_id);
+create index if not exists idx_card_sets_cached_at on public.card_sets (cached_at desc);
 
 create table if not exists public.collection_items (
   id uuid primary key default gen_random_uuid(),

@@ -514,7 +514,7 @@ struct SocialProfileView: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ProfileSummaryTile(
                     title: "Your Vault Value",
-                    value: store.estimatedCollectionValue.compactVaultCurrency,
+                    value: store.estimatedCollectionValue.compactVaultEstimatedCurrency,
                     systemImage: "chart.line.uptrend.xyaxis",
                     tint: .vdGold
                 )
@@ -1330,6 +1330,32 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
             }
 
+            VStack(spacing: 10) {
+                developerButton("Import sample cards", systemImage: "square.and.arrow.down.fill") {
+                    Task { await store.importSampleCards() }
+                }
+
+                developerButton("Refresh popular cards", systemImage: "arrow.clockwise.circle.fill") {
+                    Task { await store.refreshPopularCards() }
+                }
+
+                developerButton("Show card cache count", systemImage: "number.circle.fill") {
+                    Task { await store.loadCardCacheCount() }
+                }
+
+                developerButton("Clear card cache", systemImage: "trash.fill") {
+                    Task { await store.clearCardCache() }
+                }
+
+                if let status = store.cardCacheAdminStatus {
+                    Text(status)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(status.contains("Couldn’t") ? Color.vdCoral : Color.vdTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.top, 8)
+
             NavigationLink {
                 VerificationAdminPlaceholderView()
             } label: {
@@ -1349,6 +1375,18 @@ struct SettingsView: View {
         .tint(Color.vdGold)
         .padding(14)
         .background(Color.vdPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func developerButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.vdTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color.vdPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -22,6 +22,7 @@ final class LocalVaultStore: ObservableObject {
     @Published private(set) var imageUploadMessage: String?
     @Published private(set) var profilePhotoUploadStatus = "No photo selected"
     @Published private(set) var avatarTestUploadStatus: String?
+    @Published private(set) var cardCacheAdminStatus: String?
     @Published private(set) var isSavingProfile = false
     @Published private(set) var isUploadingAvatar = false
     @Published private(set) var uploadingCardPhotoSide: CardPhotoSide?
@@ -220,8 +221,8 @@ final class LocalVaultStore: ObservableObject {
     }
 
     private func fetchCloudSnapshot(userID: UUID, profile: RemoteProfile) async throws -> CloudVaultSnapshot {
-        async let remoteSets = repositories.cards.fetchSets()
-        async let remoteCards = repositories.cards.fetchCards(search: nil)
+        let remoteSets: [RemoteCardSet] = []
+        let remoteCards: [RemoteCard] = []
         async let remoteCollection = repositories.collection.fetchCollection(userID: userID)
         async let remoteWishlist = repositories.wishlist.fetchWishlist(userID: userID)
         async let remoteFriends = repositories.friends.fetchFriends(userID: userID)
@@ -351,7 +352,12 @@ final class LocalVaultStore: ObservableObject {
         let mappedSets = snapshot.sets.map(\.localSet)
         let setByID = Dictionary(uniqueKeysWithValues: mappedSets.map { ($0.id, $0) })
         let fallbackSet = mappedSets.first ?? Self.fallbackSet
-        let mappedCards = snapshot.cards.map { $0.localCard(set: setByID[$0.setID] ?? fallbackSet) }
+        let mappedCards = snapshot.cards.map { remoteCard in
+            let set = remoteCard.setID.flatMap { setByID[$0] }
+                ?? remoteCard.localSetFallback
+                ?? fallbackSet
+            return remoteCard.localCard(set: set)
+        }
         let cardByID = Dictionary(uniqueKeysWithValues: mappedCards.map { ($0.id, $0) })
 
         sets = mappedSets
@@ -399,7 +405,13 @@ final class LocalVaultStore: ObservableObject {
     }
 
     var estimatedCollectionValue: Double {
-        collectionItems.reduce(0) { $0 + ($1.card.marketValue * Double($1.quantity)) }
+        collectionItems.reduce(0) {
+            $0 + PriceService.collectionValue(
+                cardValue: $1.card.marketValue,
+                quantity: $1.quantity,
+                condition: $1.condition
+            )
+        }
     }
 
     var uniqueSetsOwned: Int {
@@ -445,6 +457,7 @@ final class LocalVaultStore: ObservableObject {
             collectionItems[index].acquiredAt = .now
             updateCachedCloudStateIfPossible()
             syncCollectionItem(collectionItems[index])
+            enrichCardValueInBackground(collectionItems[index].card)
         } else {
             let item = CollectionItem(
                 card: card,
@@ -456,6 +469,7 @@ final class LocalVaultStore: ObservableObject {
             collectionItems.append(item)
             updateCachedCloudStateIfPossible()
             syncCollectionItem(item)
+            enrichCardValueInBackground(card)
         }
     }
 
@@ -1124,6 +1138,63 @@ final class LocalVaultStore: ObservableObject {
         saveStatusMessage = nil
     }
 
+    func importSampleCards() async {
+        await refreshPopularCards()
+    }
+
+    func refreshPopularCards() async {
+        cardCacheAdminStatus = "Refreshing popular cards..."
+        let apiService = CardAPIService()
+        let queries = ["Pikachu", "Charizard", "Eevee", "Mew", "Snorlax", "Umbreon", "Rayquaza"]
+        var cachedCount = 0
+        do {
+            for query in queries {
+                let response = try await apiService.searchCards(query: query, page: 1, pageSize: 8)
+                cachedCount += response.data.count
+                await apiService.cache(cards: response.data, using: repositories.clientProvider)
+            }
+            cardCacheAdminStatus = "Cached \(cachedCount) cards"
+        } catch {
+            cardCacheAdminStatus = "Couldn’t refresh cards"
+        }
+    }
+
+    func clearCardCache() async {
+        cardCacheAdminStatus = "Clearing card cache..."
+        do {
+            let cardRequest = try repositories.clientProvider.restRequest(
+                table: "cards",
+                method: .delete,
+                queryItems: [URLQueryItem(name: "source", value: "eq.pokemon_tcg")],
+                prefer: "return=minimal"
+            )
+            try await repositories.clientProvider.send(cardRequest)
+            cardCacheAdminStatus = "Card cache cleared"
+        } catch {
+            cardCacheAdminStatus = "Couldn’t clear card cache"
+        }
+    }
+
+    func loadCardCacheCount() async {
+        do {
+            let request = try repositories.clientProvider.restRequest(
+                table: "cards",
+                queryItems: [URLQueryItem(name: "select", value: "id")],
+                prefer: "count=exact"
+            )
+            let (_, response) = try await repositories.clientProvider.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse,
+               let range = httpResponse.value(forHTTPHeaderField: "Content-Range"),
+               let total = range.split(separator: "/").last.flatMap({ Int($0) }) {
+                cardCacheAdminStatus = "Card cache count: \(total)"
+            } else {
+                cardCacheAdminStatus = "Card cache count unavailable"
+            }
+        } catch {
+            cardCacheAdminStatus = "Card cache count unavailable"
+        }
+    }
+
     #if canImport(UIKit)
     func testAvatarUpload() async {
         guard runtimeMode != .demo, let userID = repositories.clientProvider.currentSession?.userID else {
@@ -1599,6 +1670,70 @@ final class LocalVaultStore: ObservableObject {
         }
     }
 
+    private func enrichCardValueInBackground(_ card: Card) {
+        guard shouldSyncSignedInCloud, card.marketValue <= 0, let externalID = card.externalID, !externalID.isEmpty else { return }
+        Task {
+            do {
+                let apiCard = try await CardAPIService().fetchCard(id: externalID)
+                let enrichedCard = apiCard.localCard
+                guard enrichedCard.marketValue > 0 else { return }
+                await apiCardCache(enrichedCards: [apiCard])
+                await MainActor.run {
+                    replaceCardEverywhere(enrichedCard)
+                    updateCachedCloudStateIfPossible()
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func apiCardCache(enrichedCards: [PokemonTCGCard]) async {
+        await CardAPIService().cache(cards: enrichedCards, using: repositories.clientProvider)
+    }
+
+    private func replaceCardEverywhere(_ card: Card) {
+        if let index = cards.firstIndex(where: { $0.id == card.id || $0.externalID == card.externalID }) {
+            cards[index] = card
+        }
+        collectionItems = collectionItems.map { item in
+            item.card.id == card.id || item.card.externalID == card.externalID
+                ? CollectionItem(
+                    id: item.id,
+                    card: card,
+                    quantity: item.quantity,
+                    condition: item.condition,
+                    variant: item.variant,
+                    isAvailableForTrade: item.isAvailableForTrade,
+                    language: item.language,
+                    gradedCompany: item.gradedCompany,
+                    gradedScore: item.gradedScore,
+                    visibility: item.visibility,
+                    isAvailableForCredits: item.isAvailableForCredits,
+                    askingCredits: item.askingCredits,
+                    isFavorite: item.isFavorite,
+                    acquiredAt: item.acquiredAt,
+                    notes: item.notes,
+                    frontPhotoURL: item.frontPhotoURL,
+                    backPhotoURL: item.backPhotoURL
+                )
+                : item
+        }
+        wishlistItems = wishlistItems.map { item in
+            item.card.id == card.id || item.card.externalID == card.externalID
+                ? WishlistItem(
+                    id: item.id,
+                    card: card,
+                    priority: item.priority,
+                    preferredCondition: item.preferredCondition,
+                    budget: item.budget,
+                    notes: item.notes,
+                    addedAt: item.addedAt
+                )
+                : item
+        }
+    }
+
     private func remoteCollectionItem(from item: CollectionItem, userID: UUID) -> RemoteCollectionItem {
         RemoteCollectionItem(
             id: item.id,
@@ -1928,14 +2063,36 @@ private extension Card {
             typeLine: typeLine,
             power: power,
             marketValue: marketValue,
+            marketPrice: marketValue,
             accent: accent.rawValue,
             imagePath: smallImageURL?.absoluteString,
-            artistName: artist
+            artistName: artist,
+            source: "pokemon_tcg",
+            externalID: externalID,
+            setName: set.name,
+            setExternalID: set.externalID ?? set.code,
+            types: types,
+            subtypes: subtypes,
+            smallImageURL: smallImageURL?.absoluteString,
+            largeImageURL: largeImageURL?.absoluteString,
+            currency: "GBP"
         )
     }
 }
 
 private extension RemoteCard {
+    var localSetFallback: CardSet? {
+        guard let setName, !setName.isEmpty else { return nil }
+        return CardSet(
+            id: setID ?? UUID(),
+            name: setName,
+            code: setExternalID ?? setName,
+            releaseYear: 0,
+            totalCards: 0,
+            externalID: setExternalID
+        )
+    }
+
     func localCard(set: CardSet) -> Card {
         Card(
             id: id,
@@ -1949,8 +2106,12 @@ private extension RemoteCard {
             condition: .nearMint,
             marketValue: marketValue,
             accent: CardAccent(rawValue: accent) ?? .aurora,
+            externalID: externalID,
+            types: types,
+            subtypes: subtypes,
             artist: artistName,
-            smallImageURL: imagePath.flatMap(URL.init(string:))
+            smallImageURL: (smallImageURL ?? imagePath).flatMap(URL.init(string:)),
+            largeImageURL: largeImageURL.flatMap(URL.init(string:))
         )
     }
 }

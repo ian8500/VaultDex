@@ -77,8 +77,16 @@ extension Double {
         PriceFormatter.string(from: self)
     }
 
+    var vaultEstimatedCurrency: String {
+        CurrencyFormatter.gbp(self)
+    }
+
     var compactVaultCurrency: String {
         PriceFormatter.compactString(from: self)
+    }
+
+    var compactVaultEstimatedCurrency: String {
+        CurrencyFormatter.compactGBP(self)
     }
 
     var vaultCSVValue: String {

@@ -1154,7 +1154,7 @@ private struct FriendWantDiscoveryRow: View {
 
                 HStack(spacing: 7) {
                     FriendWantMetaChip(text: row.item.card.rarity.displayName, systemImage: "sparkles", tint: rarityTint)
-                    FriendWantMetaChip(text: row.item.budget.vaultCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
+                    FriendWantMetaChip(text: row.item.budget.vaultEstimatedCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
                 }
 
                 if !row.item.notes.isEmpty {
@@ -2466,7 +2466,7 @@ private struct WishlistRow: View {
                 HStack {
                     StatusPill(title: item.priority == .grail ? "Grail" : item.priority.displayName, tint: priorityTint)
                     Spacer()
-                    tradeValueChip(item.budget.vaultCurrency, tint: .vdGold)
+                    tradeValueChip(item.budget.vaultEstimatedCurrency, tint: .vdGold)
                 }
 
                 Text(item.card.name)
@@ -3034,7 +3034,7 @@ private struct FriendWishlistRow: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.vdTextPrimary)
 
-                Text("\(item.priority.displayName) · \(item.budget.vaultCurrency)")
+                Text("\(item.priority.displayName) · \(item.budget.vaultEstimatedCurrency)")
                     .font(.caption)
                     .foregroundStyle(Color.vdTextSecondary)
             }

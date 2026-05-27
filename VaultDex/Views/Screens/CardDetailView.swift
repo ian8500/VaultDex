@@ -106,7 +106,7 @@ struct CardDetailView: View {
             HStack(spacing: 10) {
                 StatusPill(title: detailCard.cardType.displayName, tint: .vdEmerald)
                 RarityBadge(rarity: detailCard.rarity)
-                StatusPill(title: detailCard.marketValue.vaultCurrency, tint: .vdGold)
+                StatusPill(title: detailCard.marketValue.vaultEstimatedCurrency, tint: .vdGold)
             }
 
             Text(detailCard.set.name + " · " + detailCard.typeLine)
@@ -166,7 +166,7 @@ struct CardDetailView: View {
             detailMetric("Set", detailCard.set.name)
             detailMetric("Number", detailCard.number)
             detailMetric("Rarity", detailCard.rarity.displayName)
-            detailMetric("Value", detailCard.marketValue.vaultCurrency)
+            detailMetric("Value", detailCard.marketValue.vaultEstimatedCurrency)
         }
     }
 
@@ -815,6 +815,7 @@ struct CardDetailView: View {
             await ExchangeRateService.shared.refreshRatesIfNeeded()
             let apiCard = try await apiService.fetchCard(id: externalID)
             let refreshedCard = apiCard.localCard
+            await apiService.cache(cards: [apiCard], using: store.repositories.clientProvider)
             liveCard = refreshedCard
             store.cacheViewedCard(refreshedCard)
             syncState()

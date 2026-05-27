@@ -251,6 +251,10 @@ final class SupabaseClientProvider {
         try Self.validate(response: response, data: data)
     }
 
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await urlSession.data(for: request)
+    }
+
     private static func validate(response: URLResponse, data: Data) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseClientError.invalidResponse

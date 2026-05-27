@@ -135,7 +135,7 @@ struct VaultView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.vdTextSecondary)
 
-                    Text(store.estimatedCollectionValue.vaultCurrency)
+                    Text(store.estimatedCollectionValue.vaultEstimatedCurrency)
                         .font(.system(.largeTitle, design: .rounded, weight: .black))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)
@@ -161,7 +161,7 @@ struct VaultView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "line.3.horizontal.decrease.circle.fill")
                         .foregroundStyle(Color.vdGold)
-                    Text("\(filteredItems.count) shown · \(filteredValue.vaultCurrency)")
+                    Text("\(filteredItems.count) shown · \(filteredValue.vaultEstimatedCurrency)")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.vdTextSecondary)
                 }
@@ -342,7 +342,13 @@ struct VaultView: View {
     }
 
     private var filteredValue: Double {
-        filteredItems.reduce(0) { $0 + ($1.card.marketValue * Double($1.quantity)) }
+        filteredItems.reduce(0) {
+            $0 + PriceService.collectionValue(
+                cardValue: $1.card.marketValue,
+                quantity: $1.quantity,
+                condition: $1.condition
+            )
+        }
     }
 
     private var hasActiveFilters: Bool {
@@ -384,7 +390,7 @@ private struct VaultListRow: View {
                 Text("x\(item.quantity)")
                     .font(.headline.weight(.black))
                     .foregroundStyle(Color.vdGold)
-                Text((item.card.marketValue * Double(item.quantity)).vaultCurrency)
+                Text(item.estimatedGBPValue.vaultEstimatedCurrency)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.vdTextSecondary)
             }
@@ -392,6 +398,12 @@ private struct VaultListRow: View {
         .padding(12)
         .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdStroke.opacity(0.58), lineWidth: 1))
+    }
+}
+
+private extension CollectionItem {
+    var estimatedGBPValue: Double {
+        PriceService.collectionValue(cardValue: card.marketValue, quantity: quantity, condition: condition)
     }
 }
 

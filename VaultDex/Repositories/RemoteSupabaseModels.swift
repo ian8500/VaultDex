@@ -130,17 +130,57 @@ struct RemoteCardSet: Codable, Identifiable, Hashable {
     var code: String
     var releaseYear: Int
     var totalCards: Int
+    var source: String?
+    var externalID: String?
+    var series: String?
+    var releaseDate: String?
+    var logoURL: String?
+    var symbolURL: String?
+    var cachedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, code
+        case id, name, code, source, series
         case releaseYear = "release_year"
         case totalCards = "total_cards"
+        case externalID = "external_id"
+        case releaseDate = "release_date"
+        case logoURL = "logo_url"
+        case symbolURL = "symbol_url"
+        case cachedAt = "cached_at"
+    }
+
+    init(
+        id: UUID,
+        name: String,
+        code: String,
+        releaseYear: Int,
+        totalCards: Int,
+        source: String? = nil,
+        externalID: String? = nil,
+        series: String? = nil,
+        releaseDate: String? = nil,
+        logoURL: String? = nil,
+        symbolURL: String? = nil,
+        cachedAt: Date? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.code = code
+        self.releaseYear = releaseYear
+        self.totalCards = totalCards
+        self.source = source
+        self.externalID = externalID
+        self.series = series
+        self.releaseDate = releaseDate
+        self.logoURL = logoURL
+        self.symbolURL = symbolURL
+        self.cachedAt = cachedAt
     }
 }
 
 struct RemoteCard: Codable, Identifiable, Hashable {
     let id: UUID
-    var setID: UUID
+    var setID: UUID?
     var name: String
     var number: String
     var rarity: String
@@ -148,18 +188,115 @@ struct RemoteCard: Codable, Identifiable, Hashable {
     var typeLine: String
     var power: Int
     var marketValue: Double
+    var marketPrice: Double?
     var accent: String
     var imagePath: String?
     var artistName: String?
+    var source: String?
+    var externalID: String?
+    var setName: String?
+    var setExternalID: String?
+    var types: [String]
+    var subtypes: [String]
+    var smallImageURL: String?
+    var largeImageURL: String?
+    var currency: String?
+    var cachedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, number, rarity, power, accent
+        case id, name, number, rarity, power, accent, source, types, subtypes, currency
         case setID = "set_id"
         case cardType = "card_type"
         case typeLine = "type_line"
         case marketValue = "market_value"
+        case marketPrice = "market_price"
         case imagePath = "image_path"
         case artistName = "artist_name"
+        case externalID = "external_id"
+        case setName = "set_name"
+        case setExternalID = "set_external_id"
+        case smallImageURL = "small_image_url"
+        case largeImageURL = "large_image_url"
+        case cachedAt = "cached_at"
+    }
+
+    init(
+        id: UUID,
+        setID: UUID?,
+        name: String,
+        number: String,
+        rarity: String,
+        cardType: String,
+        typeLine: String,
+        power: Int,
+        marketValue: Double,
+        marketPrice: Double? = nil,
+        accent: String,
+        imagePath: String?,
+        artistName: String?,
+        source: String? = nil,
+        externalID: String? = nil,
+        setName: String? = nil,
+        setExternalID: String? = nil,
+        types: [String] = [],
+        subtypes: [String] = [],
+        smallImageURL: String? = nil,
+        largeImageURL: String? = nil,
+        currency: String? = nil,
+        cachedAt: Date? = nil
+    ) {
+        self.id = id
+        self.setID = setID
+        self.name = name
+        self.number = number
+        self.rarity = rarity
+        self.cardType = cardType
+        self.typeLine = typeLine
+        self.power = power
+        self.marketValue = marketValue
+        self.marketPrice = marketPrice
+        self.accent = accent
+        self.imagePath = imagePath
+        self.artistName = artistName
+        self.source = source
+        self.externalID = externalID
+        self.setName = setName
+        self.setExternalID = setExternalID
+        self.types = types
+        self.subtypes = subtypes
+        self.smallImageURL = smallImageURL
+        self.largeImageURL = largeImageURL
+        self.currency = currency
+        self.cachedAt = cachedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        setID = try container.decodeIfPresent(UUID.self, forKey: .setID)
+        name = try container.decode(String.self, forKey: .name)
+        number = try container.decodeIfPresent(String.self, forKey: .number) ?? ""
+        rarity = try container.decodeIfPresent(String.self, forKey: .rarity) ?? "common"
+        cardType = try container.decodeIfPresent(String.self, forKey: .cardType) ?? ""
+        typeLine = try container.decodeIfPresent(String.self, forKey: .typeLine) ?? ""
+        power = try container.decodeIfPresent(Int.self, forKey: .power) ?? 0
+        marketValue = try container.decodeIfPresent(Double.self, forKey: .marketValue)
+            ?? container.decodeIfPresent(Double.self, forKey: .marketPrice)
+            ?? 0
+        marketPrice = try container.decodeIfPresent(Double.self, forKey: .marketPrice) ?? marketValue
+        accent = try container.decodeIfPresent(String.self, forKey: .accent) ?? "aurora"
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+        artistName = try container.decodeIfPresent(String.self, forKey: .artistName)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        externalID = try container.decodeIfPresent(String.self, forKey: .externalID)
+        setName = try container.decodeIfPresent(String.self, forKey: .setName)
+        setExternalID = try container.decodeIfPresent(String.self, forKey: .setExternalID)
+        types = try container.decodeIfPresent([String].self, forKey: .types) ?? []
+        subtypes = try container.decodeIfPresent([String].self, forKey: .subtypes) ?? []
+        smallImageURL = try container.decodeIfPresent(String.self, forKey: .smallImageURL)
+        largeImageURL = try container.decodeIfPresent(String.self, forKey: .largeImageURL)
+        currency = try container.decodeIfPresent(String.self, forKey: .currency)
+        cachedAt = try container.decodeIfPresent(Date.self, forKey: .cachedAt)
     }
 }
 

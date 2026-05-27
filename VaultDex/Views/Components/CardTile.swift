@@ -50,7 +50,7 @@ struct CardTile: View {
 
                     Spacer()
 
-                    Text(card.marketValue.vaultCurrency)
+                    Text(card.marketValue.vaultEstimatedCurrency)
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)

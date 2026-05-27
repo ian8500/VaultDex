@@ -567,7 +567,7 @@ private struct SearchResultRow: View {
                             HStack(spacing: 7) {
                                 SearchInfoChip(text: "\(card.set.code) #\(card.number)", systemImage: "rectangle.3.group.fill", tint: .vdSky)
                                 SearchInfoChip(text: card.rarity.displayName, systemImage: "sparkles", tint: rarityTint)
-                                SearchInfoChip(text: card.marketValue.vaultCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
+                                SearchInfoChip(text: card.marketValue.vaultEstimatedCurrency, systemImage: "seal.fill", tint: .vdGold, isFilled: true)
                             }
                         }
 

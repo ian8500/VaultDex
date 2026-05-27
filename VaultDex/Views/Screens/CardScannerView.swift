@@ -394,6 +394,23 @@ struct CardScannerView: View {
         }
 
         do {
+            do {
+                let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(
+                    CardSearchRequest(query: query, limit: 5)
+                )
+                if !supabaseCards.isEmpty {
+                    await MainActor.run {
+                        matches = rankScannedMatches(supabaseCards, recognition: recognition)
+                        isSearching = false
+                        message = recognition.isLowConfidence ? "We found a few possible matches" : "Choose the correct card"
+                        scanOverlayMessage = "Hold steady"
+                    }
+                    return
+                }
+            } catch {
+                // Fall back to the external provider if the card cache is unavailable.
+            }
+
             await ExchangeRateService.shared.refreshRatesIfNeeded()
             let response = try await apiService.searchCardsForScan(name: query, pageSize: 5)
             let uniqueCards = response.data
@@ -681,7 +698,7 @@ private struct ScanMatchRow: View {
                     StatusPill(title: card.rarity.displayName, tint: .vdGold)
                 }
 
-                Text(card.marketValue.vaultCurrency)
+                Text(card.marketValue.vaultEstimatedCurrency)
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.vdTextSecondary)
             }
@@ -791,7 +808,7 @@ private struct CardDetailSummary: View {
             HStack(spacing: 8) {
                 StatusPill(title: "\(card.set.code) #\(card.number)", tint: .vdSky)
                 StatusPill(title: card.rarity.displayName, tint: .vdGold)
-                StatusPill(title: card.marketValue.vaultCurrency, tint: .vdEmerald)
+                StatusPill(title: card.marketValue.vaultEstimatedCurrency, tint: .vdEmerald)
             }
         }
         .padding(16)

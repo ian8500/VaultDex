@@ -105,6 +105,28 @@ final class SearchViewModel: ObservableObject {
         }
 
         do {
+            do {
+                let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(
+                    CardSearchRequest(
+                        query: query,
+                        rarity: selectedRarity,
+                        type: selectedType,
+                        setID: selectedSet?.externalID ?? selectedSet?.code,
+                        limit: 20
+                    )
+                )
+                if !supabaseCards.isEmpty {
+                    apiCards = sort(supabaseCards)
+                    totalResults = supabaseCards.count
+                    canLoadMore = false
+                    isShowingCachedResults = false
+                    await cacheService.saveSearch(cards: supabaseCards, totalResults: supabaseCards.count, key: key)
+                    return
+                }
+            } catch {
+                // Supabase is the primary card database, but live search can still refresh it if cache lookup fails.
+            }
+
             await ExchangeRateService.shared.refreshRatesIfNeeded()
             let response = try await apiService.searchCards(
                 query: query,

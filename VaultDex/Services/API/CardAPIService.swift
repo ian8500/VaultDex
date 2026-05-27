@@ -178,7 +178,7 @@ final class CardAPIService {
             let setRequest = try clientProvider.restRequest(
                 table: "card_sets",
                 method: .post,
-                queryItems: [URLQueryItem(name: "on_conflict", value: "code")],
+                queryItems: [URLQueryItem(name: "on_conflict", value: "source,external_id")],
                 body: setData,
                 prefer: "resolution=merge-duplicates"
             )
@@ -189,7 +189,7 @@ final class CardAPIService {
             let cardRequest = try clientProvider.restRequest(
                 table: "cards",
                 method: .post,
-                queryItems: [URLQueryItem(name: "on_conflict", value: "set_id,number")],
+                queryItems: [URLQueryItem(name: "on_conflict", value: "source,external_id")],
                 body: cardData,
                 prefer: "resolution=merge-duplicates"
             )
@@ -302,6 +302,13 @@ struct PokemonTCGImages: Decodable, Hashable {
 
 struct PokemonTCGPlayer: Decodable, Hashable {
     let prices: [String: PokemonTCGPrice]?
+
+    var preferredPrice: Double? {
+        prices?["holofoil"]?.market
+            ?? prices?["reverseHolofoil"]?.market
+            ?? prices?["normal"]?.market
+            ?? prices?["1stEditionHolofoil"]?.market
+    }
 }
 
 struct PokemonTCGPrice: Decodable, Hashable {
@@ -320,6 +327,11 @@ struct PokemonCardmarketPrices: Decodable, Hashable {
     let averageSellPrice: Double?
     let lowPrice: Double?
     let trendPrice: Double?
+    let avg1: Double?
+
+    var preferredPrice: Double? {
+        averageSellPrice ?? trendPrice ?? avg1
+    }
 }
 
 private extension PokemonTCGCard {
@@ -329,7 +341,11 @@ private extension PokemonTCGCard {
             name: set.name,
             code: set.id,
             releaseYear: set.releaseYear,
-            totalCards: set.total ?? set.printedTotal ?? 0
+            totalCards: set.total ?? set.printedTotal ?? 0,
+            source: "pokemon_tcg",
+            externalID: set.id,
+            series: set.series,
+            releaseDate: set.releaseDate
         )
     }
 
@@ -345,9 +361,19 @@ private extension PokemonTCGCard {
             typeLine: local.typeLine,
             power: local.power,
             marketValue: local.marketValue,
+            marketPrice: local.marketValue,
             accent: local.accent.rawValue,
             imagePath: local.smallImageURL?.absoluteString,
-            artistName: local.artist
+            artistName: local.artist,
+            source: "pokemon_tcg",
+            externalID: id,
+            setName: set.name,
+            setExternalID: set.id,
+            types: types ?? [],
+            subtypes: subtypes ?? [],
+            smallImageURL: images?.small?.absoluteString,
+            largeImageURL: images?.large?.absoluteString,
+            currency: "GBP"
         )
     }
 }
@@ -356,15 +382,7 @@ extension PokemonTCGCard {
     var localCard: Card {
         let mappedType = CardType(apiTypes: types)
         let mappedRarity = CardRarity(apiRarity: rarity)
-        let cardmarketPrice = cardmarket?.prices?.trendPrice
-            ?? cardmarket?.prices?.averageSellPrice
-            ?? cardmarket?.prices?.lowPrice
-        let tcgPrice = tcgplayer?.prices?.values.compactMap(\.market).max()
-            ?? tcgplayer?.prices?.values.compactMap(\.mid).max()
-            ?? tcgplayer?.prices?.values.compactMap(\.low).max()
-        let value = cardmarketPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: .eur) }
-            ?? tcgPrice.map { PriceFormatter.displayAmount($0, sourceCurrency: .usd) }
-            ?? 0
+        let value = PriceService.estimatedGBP(cardmarket: cardmarket, tcgplayer: tcgplayer) ?? 0
         let setModel = CardSet(
             id: .deterministic("pokemon-tcg-set-\(set.id)"),
             name: set.name,
@@ -427,7 +445,7 @@ extension PokemonTCGSet {
     }
 }
 
-private extension CardType {
+extension CardType {
     init(apiTypes: [String]?) {
         let rawType = apiTypes?.first?.lowercased()
         switch rawType {
@@ -469,7 +487,7 @@ private extension CardType {
     }
 }
 
-private extension CardRarity {
+extension CardRarity {
     init(apiRarity: String?) {
         let value = apiRarity?.lowercased() ?? ""
         if value.contains("secret") || value.contains("rainbow") {

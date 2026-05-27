@@ -198,7 +198,7 @@ struct DashboardView: View {
 
                 Spacer()
 
-                Text(store.estimatedCollectionValue.compactVaultCurrency)
+                Text(store.estimatedCollectionValue.compactVaultEstimatedCurrency)
                     .font(.system(.title2, design: .rounded, weight: .black))
                     .foregroundStyle(Color.vdGold)
                     .lineLimit(1)
@@ -262,7 +262,7 @@ struct DashboardView: View {
 
             HStack(spacing: 12) {
                 HeroMetric(title: "Total Cards", value: "\(store.totalCopiesOwned)", icon: "rectangle.stack.fill")
-                HeroMetric(title: "Estimated Value", value: store.estimatedCollectionValue.compactVaultCurrency, icon: "chart.line.uptrend.xyaxis")
+                HeroMetric(title: "Estimated Value", value: store.estimatedCollectionValue.compactVaultEstimatedCurrency, icon: "chart.line.uptrend.xyaxis")
             }
 
         }
@@ -692,7 +692,7 @@ private struct FeaturedDashboardCard: View {
                         HStack(spacing: 7) {
                             DashboardInfoChip(text: "\(item.card.set.code) #\(item.card.number)", icon: "rectangle.3.group.fill", tint: .vdSky)
                             DashboardInfoChip(text: item.card.rarity.displayName, icon: "sparkles", tint: rarityTint)
-                            DashboardInfoChip(text: item.card.marketValue.vaultCurrency, icon: "seal.fill", tint: .vdGold, isFilled: true)
+                            DashboardInfoChip(text: item.card.marketValue.vaultEstimatedCurrency, icon: "seal.fill", tint: .vdGold, isFilled: true)
                         }
                     }
                     .scrollDisabled(false)
