@@ -6,6 +6,7 @@ actor CardCacheService {
 
     private let fileManager = FileManager.default
     private let searchTTL: TimeInterval = 60 * 60 * 24
+    private let setTTL: TimeInterval = 60 * 60 * 24 * 7
     private let popularSearches = ["Pikachu", "Charizard", "Eevee", "Mew", "Snorlax"]
 
     private var memoryImageCache = NSCache<NSURL, UIImage>()
@@ -70,6 +71,20 @@ actor CardCacheService {
         popularSearches
     }
 
+    func cachedSets() -> [CardSet]? {
+        guard let entry: CachedCardSetsEntry = read(CachedCardSetsEntry.self, from: setsURL) else { return nil }
+        guard Date().timeIntervalSince(entry.cachedAt) < setTTL else { return nil }
+        return entry.sets.map(\.cardSet)
+    }
+
+    func saveSets(_ sets: [CardSet]) {
+        let entry = CachedCardSetsEntry(
+            cachedAt: Date(),
+            sets: sets.map(CachedCardSet.init(set:))
+        )
+        write(entry, to: setsURL)
+    }
+
     func image(for url: URL) -> UIImage? {
         let key = url as NSURL
         if let image = memoryImageCache.object(forKey: key) {
@@ -110,6 +125,10 @@ actor CardCacheService {
 
     private var recentlyViewedURL: URL {
         cacheDirectory.appending(path: "recently-viewed.json")
+    }
+
+    private var setsURL: URL {
+        cacheDirectory.appending(path: "sets.json")
     }
 
     private func searchURL(for key: String) -> URL {
@@ -169,6 +188,11 @@ private struct CachedCardSearchEntry: Codable {
 private struct CachedRecentlyViewedEntry: Codable {
     let updatedAt: Date
     let cards: [CachedCard]
+}
+
+private struct CachedCardSetsEntry: Codable {
+    let cachedAt: Date
+    let sets: [CachedCardSet]
 }
 
 private struct CachedCard: Codable {

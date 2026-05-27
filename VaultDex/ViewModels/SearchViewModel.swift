@@ -42,6 +42,8 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var canLoadMore = false
     @Published private(set) var totalResults: Int?
     @Published private(set) var isShowingCachedResults = false
+    @Published private(set) var isLoadingSets = false
+    @Published private(set) var setErrorMessage: String?
 
     private let apiService: CardAPIService
     private let cacheService: CardCacheService
@@ -55,7 +57,6 @@ final class SearchViewModel: ObservableObject {
 
     func loadInitialResults(store: LocalVaultStore) async {
         guard !didLoadAPI else { return }
-        await loadSets()
         await loadCachedDiscovery()
         didLoadAPI = true
     }
@@ -174,9 +175,26 @@ final class SearchViewModel: ObservableObject {
         }
     }
 
-    func loadSets() async {
+    func loadSetsIfNeeded(forceRefresh: Bool = false) async {
+        guard forceRefresh || apiSets.isEmpty else { return }
+        if let cachedSets = await cacheService.cachedSets(), !cachedSets.isEmpty {
+            apiSets = cachedSets
+            setErrorMessage = nil
+            if !forceRefresh {
+                Task { await loadSetsInBackground() }
+                return
+            }
+        }
+        await loadSetsInBackground()
+    }
+
+    private func loadSetsInBackground() async {
+        guard !isLoadingSets else { return }
+        isLoadingSets = true
+        defer { isLoadingSets = false }
+
         do {
-            apiSets = try await apiService.fetchSets().prefix(30).map {
+            let sets = try await apiService.fetchSets().prefix(30).map {
                 CardSet(
                     id: .deterministic("pokemon-tcg-set-\($0.id)"),
                     name: $0.name,
@@ -186,9 +204,12 @@ final class SearchViewModel: ObservableObject {
                     externalID: $0.id
                 )
             }
+            apiSets = sets
+            await cacheService.saveSets(sets)
+            setErrorMessage = nil
         } catch {
-            if errorMessage == nil {
-                errorMessage = "Unable to load card sets right now. Please try again."
+            if apiSets.isEmpty {
+                setErrorMessage = Self.friendlySetError(for: error)
             }
         }
     }
@@ -312,6 +333,15 @@ final class SearchViewModel: ObservableObject {
             return "Cards are taking longer than expected."
         }
         return "Unable to load cards right now. Please try again."
+    }
+
+    private static func friendlySetError(for error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain,
+           nsError.code == NSURLErrorTimedOut || nsError.code == NSURLErrorNetworkConnectionLost {
+            return "Sets are taking longer than expected."
+        }
+        return "Unable to load sets right now."
     }
 
     private func prewarmPopularSearches(store: LocalVaultStore) async {

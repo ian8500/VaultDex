@@ -141,7 +141,8 @@ final class CardAPIService {
 
     func fetchSets() async throws -> [PokemonTCGSet] {
         try await request("sets", queryItems: [
-            URLQueryItem(name: "orderBy", value: "-releaseDate")
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "pageSize", value: "30")
         ], decode: PokemonTCGListResponse<PokemonTCGSet>.self).data
     }
 

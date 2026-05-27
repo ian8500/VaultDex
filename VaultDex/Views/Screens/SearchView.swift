@@ -202,6 +202,10 @@ struct SearchView: View {
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
                     showFilters.toggle()
                 }
+                if !showFilters {
+                    return
+                }
+                Task { await viewModel.loadSetsIfNeeded() }
             } label: {
                 Label(showFilters ? "Hide filters" : "Filter", systemImage: "line.3.horizontal.decrease.circle")
                     .font(.subheadline.weight(.bold))
@@ -345,15 +349,50 @@ struct SearchView: View {
     }
 
     private var setFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                filterChip(title: "All Sets", isSelected: viewModel.selectedSet == nil) {
-                    viewModel.selectedSet = nil
+                Text("Sets")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.vdTextSecondary)
+
+                if viewModel.isLoadingSets {
+                    ProgressView()
+                        .scaleEffect(0.72)
+                        .tint(Color.vdGold)
                 }
 
-                ForEach(viewModel.availableSets(in: store)) { set in
-                    filterChip(title: set.code, isSelected: viewModel.selectedSet == set) {
-                        viewModel.selectedSet = set
+                Spacer()
+            }
+
+            if let setError = viewModel.setErrorMessage, viewModel.availableSets(in: store).isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(setError)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.vdTextSecondary)
+
+                    Button {
+                        Task { await viewModel.loadSetsIfNeeded(forceRefresh: true) }
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(Color.vdGold)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(12)
+                .background(Color.vdPanelRaised.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        filterChip(title: "All Sets", isSelected: viewModel.selectedSet == nil) {
+                            viewModel.selectedSet = nil
+                        }
+
+                        ForEach(viewModel.availableSets(in: store)) { set in
+                            filterChip(title: set.code, isSelected: viewModel.selectedSet == set) {
+                                viewModel.selectedSet = set
+                            }
+                        }
                     }
                 }
             }
