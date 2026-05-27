@@ -916,62 +916,72 @@ private struct TradeListingRow: View {
     let onDetails: () -> Void
     @State private var reportMessage: String?
 
+    private var valueLabel: String {
+        listing.estimatedValue > 0 ? listing.estimatedValue.vaultEstimatedCurrency : "Checking value…"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                CardTile(card: listing.card, condition: listing.condition, variant: listing.variant, style: .compact)
-                    .frame(width: 138)
+            HStack(alignment: .center, spacing: 13) {
+                VaultCardThumbnail(card: listing.card)
+                    .frame(width: 64, height: 88)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(listing.ownerName)
-                                .font(.headline)
-                                .foregroundStyle(Color.vdTextPrimary)
-
-                            Text(listing.ownerHandle + " · " + listing.locationLabel)
-                                .font(.caption)
-                                .foregroundStyle(Color.vdTextSecondary)
-                        }
-                        Spacer()
-                        if listing.isFeatured {
-                            StatusPill(title: "Featured", tint: .vdGold)
-                        }
-                    }
-
-                    Text(listing.askingFor)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.vdTextSecondary)
+                    Text(listing.card.name)
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.vdTextPrimary)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 8) {
-                        RarityBadge(rarity: listing.card.rarity)
-                        TradeValueChip(value: listing.estimatedValue.vaultEstimatedCurrency, tint: .vdLeaf)
-                        StatusPill(title: listing.listingKind.displayName, tint: .vdGold)
-                        if let askingCredits = listing.askingCredits, listing.listingKind != .trade {
-                            StatusPill(title: "\(askingCredits) credits", tint: .vdSky)
-                        }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isMine ? "Your listing" : listing.ownerName)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .lineLimit(1)
+
+                        Text(listing.askingFor.isEmpty ? "Open to offers" : listing.askingFor)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.vdTextSecondary)
+                            .lineLimit(1)
                     }
 
-                    HStack(spacing: 8) {
-                        Label("\(listing.sellerReputation)% rep", systemImage: "checkmark.seal.fill")
-                        if listing.usesSafeTrade {
-                            Label("Safe trade", systemImage: "shield.fill")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            CompactRarityChip(rarity: listing.card.rarity)
+                            CompactInfoChip(title: listing.listingKind.displayName, tint: .vdGold)
+                            if let askingCredits = listing.askingCredits, listing.listingKind != .trade {
+                                CompactInfoChip(title: "\(askingCredits) credits", tint: .vdSky)
+                            }
+                            if listing.usesSafeTrade {
+                                CompactInfoChip(title: "Safe trade", tint: .vdEmerald)
+                            }
                         }
                     }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdTextSecondary)
+                    .scrollDisabled(true)
+
+                    HStack(alignment: .center) {
+                        Text(valueLabel)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(listing.estimatedValue > 0 ? Color.vdTextPrimary : Color.vdGold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+
+                        Spacer(minLength: 8)
+
+                        if isMine {
+                            compactIconButton(title: "Details", systemImage: "info.circle", tint: .vdGold, action: onDetails)
+                            compactIconButton(title: "Remove", systemImage: "trash", tint: .vdCoral, action: onSaveOrRemove)
+                        } else {
+                            compactIconButton(title: "Offer", systemImage: "arrow.left.arrow.right", tint: .vdEmerald, isProminent: true, action: onOffer)
+                        }
+                    }
                 }
             }
 
-            HStack(spacing: 10) {
-                if isMine {
-                    miniButton(title: "Details", systemImage: "info.circle", tint: .vdGold, action: onDetails)
-                    miniButton(title: "Remove", systemImage: "trash", tint: .vdCoral, action: onSaveOrRemove)
-                } else {
+            if !isMine {
+                HStack(spacing: 10) {
                     miniButton(title: "Details", systemImage: "info.circle", tint: .vdSky, action: onDetails)
                     miniButton(title: listing.isSaved ? "Saved" : "Save", systemImage: listing.isSaved ? "bookmark.fill" : "bookmark", tint: .vdGold, action: onSaveOrRemove)
-                    miniButton(title: "Offer", systemImage: "arrow.left.arrow.right", tint: .vdEmerald, action: onOffer)
                     miniButton(title: "Report", systemImage: "exclamationmark.bubble", tint: .vdCoral) {
                         reportMessage = "Report listing flow will be available when moderation is enabled."
                     }
@@ -985,20 +995,17 @@ private struct TradeListingRow: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LinearGradient(
-                colors: [Color.vdPanelRaised.opacity(0.94), Color.vdPanel.opacity(0.84)],
+                colors: [Color.vdPanel.opacity(0.76), Color.vdPanelRaised.opacity(0.62)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 18)
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
-        .overlay(
-            LinearGradient(colors: [Color.white.opacity(0.16), Color.clear, Color.vdGold.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.vdGold.opacity(listing.isFeatured ? 0.42 : 0.22), lineWidth: 1.1))
-        .shadow(color: Color.vdGold.opacity(listing.isFeatured ? 0.16 : 0.08), radius: 16, x: 0, y: 8)
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.10), radius: 12, x: 0, y: 6)
     }
 
     private func miniButton(title: String, systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
@@ -1010,6 +1017,20 @@ private struct TradeListingRow: View {
                 .frame(height: 36)
                 .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.32), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func compactIconButton(title: String, systemImage: String, tint: Color, isProminent: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(isProminent ? Color.vdNavy : tint)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(tint.opacity(isProminent ? 0.95 : 0.13), in: Capsule())
+                .overlay(Capsule().stroke(tint.opacity(0.28), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

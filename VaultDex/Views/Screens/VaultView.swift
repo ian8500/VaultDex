@@ -291,19 +291,12 @@ struct VaultView: View {
                     message: "Clear filters or try a different type or rarity."
                 )
             } else if displayMode == .grid {
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(filteredItems) { item in
                         NavigationLink {
                             CardDetailView(card: item.card)
                         } label: {
-                            CardTile(
-                                card: item.card,
-                                quantity: item.quantity,
-                                condition: item.condition,
-                                variant: item.variant,
-                                isAvailableForTrade: item.isAvailableForTrade,
-                                style: .compact
-                            )
+                            VaultListRow(item: item)
                         }
                         .buttonStyle(.plain)
                     }
@@ -367,48 +360,69 @@ private struct VaultListRow: View {
         if item.card.marketValue > 0 {
             return item.estimatedGBPValue.vaultEstimatedCurrency
         }
-        return store.isCheckingValue(for: item.card) ? "Checking value…" : "Value unavailable"
+        return "Checking value…"
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            CardArtworkThumbnail(card: item.card)
-                .frame(width: 58, height: 80)
+        HStack(alignment: .center, spacing: 13) {
+            VaultCardThumbnail(card: item.card)
+                .frame(width: 64, height: 88)
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.card.name)
-                    .font(.subheadline.weight(.black))
-                    .foregroundStyle(Color.vdTextPrimary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.card.name)
+                            .font(.subheadline.weight(.black))
+                            .foregroundStyle(Color.vdTextPrimary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                Text(item.card.set.name + " #" + item.card.number)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.vdTextSecondary)
-                    .lineLimit(1)
+                        Text("\(item.card.set.name) • #\(item.card.number)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.vdTextSecondary)
+                            .lineLimit(1)
+                    }
 
-                HStack(spacing: 6) {
-                    RarityBadge(rarity: item.card.rarity)
-                    StatusPill(title: item.condition.displayName, tint: .vdSky)
-                    if item.isAvailableForTrade {
-                        StatusPill(title: "Trade", tint: .vdEmerald)
+                    Spacer(minLength: 8)
+
+                    Text("Qty x\(item.quantity)")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.vdGold)
+                        .lineLimit(1)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        CompactRarityChip(rarity: item.card.rarity)
+                        CompactInfoChip(title: item.condition.displayName, tint: .vdSky)
+                        if item.isAvailableForTrade {
+                            CompactInfoChip(title: "Trade", tint: .vdEmerald)
+                        }
                     }
                 }
-            }
+                .scrollDisabled(true)
 
-            Spacer()
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Estimated value")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
 
-            VStack(alignment: .trailing, spacing: 5) {
-                Text("x\(item.quantity)")
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(Color.vdGold)
-                Text(valueLabel)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdTextSecondary)
+                    Spacer(minLength: 8)
+
+                    Text(valueLabel)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(item.card.marketValue > 0 ? Color.vdTextPrimary : Color.vdGold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
             }
         }
         .padding(12)
-        .background(Color.vdPanel.opacity(0.84), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vdStroke.opacity(0.58), lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.vdPanel.opacity(0.74), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.10), radius: 12, x: 0, y: 6)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

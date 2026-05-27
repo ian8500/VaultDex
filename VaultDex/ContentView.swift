@@ -191,7 +191,7 @@ private struct PremiumNavigationDock: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     ForEach(VaultDockDestination.allCases) { destination in
                         DockButton(
                             destination: destination,
@@ -206,8 +206,8 @@ private struct PremiumNavigationDock: View {
                         .id(destination.id)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
@@ -219,17 +219,17 @@ private struct PremiumNavigationDock: View {
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.vdNavy.opacity(0.26), Color.vdPanel.opacity(0.12)],
+                                colors: [Color.vdNavy.opacity(0.18), Color.vdPanel.opacity(0.08)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                 }
             )
-            .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.vdGold.opacity(0.18), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.vdGold.opacity(0.14), lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .shadow(color: Color.black.opacity(0.14), radius: 18, x: 0, y: 8)
-            .shadow(color: Color.vdGold.opacity(0.07), radius: 14, x: 0, y: 5)
+            .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 7)
+            .shadow(color: Color.vdGold.opacity(0.05), radius: 12, x: 0, y: 4)
             .onAppear {
                 proxy.scrollTo(selectedDestination.id, anchor: .center)
             }
@@ -253,7 +253,7 @@ private struct DockButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: destination.systemImage)
-                    .font(.system(size: 17, weight: .black))
+                    .font(.system(size: 16, weight: .black))
                     .symbolRenderingMode(.hierarchical)
 
                 Text(destination.title)
@@ -263,9 +263,9 @@ private struct DockButton: View {
                     .allowsTightening(true)
             }
             .foregroundStyle(isSelected ? Color.vdNavy : Color.vdTextPrimary)
-            .frame(minWidth: 82)
-            .frame(height: 46)
-            .padding(.horizontal, isSelected ? 8 : 4)
+            .frame(minWidth: 78)
+            .frame(height: 42)
+            .padding(.horizontal, isSelected ? 7 : 3)
             .background {
                 buttonBackground
                     .clipShape(Capsule())
@@ -274,8 +274,8 @@ private struct DockButton: View {
                 Capsule()
                     .stroke(isSelected ? Color.white.opacity(0.44) : Color.white.opacity(0.08), lineWidth: 1)
             )
-            .shadow(color: isSelected ? Color.vdGold.opacity(0.30) : Color.clear, radius: 14, x: 0, y: 6)
-            .scaleEffect(isSelected ? 1.05 : 1)
+            .shadow(color: isSelected ? Color.vdGold.opacity(0.24) : Color.clear, radius: 12, x: 0, y: 5)
+            .scaleEffect(isSelected ? 1.03 : 1)
             .contentShape(Capsule())
             .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }

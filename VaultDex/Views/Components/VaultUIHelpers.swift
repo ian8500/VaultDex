@@ -3,7 +3,7 @@ import SwiftUI
 private struct BottomDockSpacingModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(.bottom, 124)
+            .padding(.bottom, 136)
     }
 }
 
@@ -33,6 +33,105 @@ struct VaultSectionHeader: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+}
+
+struct CompactInfoChip: View {
+    let title: String
+    let tint: Color
+    var isProminent = false
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.86)
+            .foregroundStyle(isProminent ? Color.vdNavy : tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                (isProminent ? tint.opacity(0.92) : tint.opacity(0.13)),
+                in: Capsule()
+            )
+            .overlay(Capsule().stroke(tint.opacity(isProminent ? 0.22 : 0.28), lineWidth: 1))
+    }
+}
+
+struct CompactRarityChip: View {
+    let rarity: CardRarity
+
+    var body: some View {
+        CompactInfoChip(title: rarity.displayName, tint: rarityTint, isProminent: rarity == .legendary || rarity == .mythic)
+    }
+
+    private var rarityTint: Color {
+        switch rarity {
+        case .common: Color(hex: 0x9BA6B8)
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
+        }
+    }
+}
+
+struct VaultCardThumbnail: View {
+    let card: Card
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.vdPanelRaised.opacity(0.92))
+
+            if let url = card.smallImageURL ?? card.largeImageURL {
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .padding(4)
+                } placeholder: {
+                    placeholder
+                }
+            } else {
+                placeholder
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(frameTint.opacity(0.30), lineWidth: 1)
+        )
+        .shadow(color: rarityGlow.opacity(0.12), radius: 10, x: 0, y: 4)
+        .accessibilityHidden(true)
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "rectangle.portrait.fill")
+            .font(.title2.weight(.bold))
+            .foregroundStyle(Color.vdGold.opacity(0.84))
+    }
+
+    private var frameTint: Color {
+        switch card.rarity {
+        case .common: Color(hex: 0x9BA6B8)
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
+        }
+    }
+
+    private var rarityGlow: Color {
+        switch card.rarity {
+        case .common: Color.clear
+        case .uncommon: .vdLeaf
+        case .rare: .vdSky
+        case .epic: .vdViolet
+        case .legendary: .vdGold
+        case .mythic: .vdCoral
         }
     }
 }
@@ -140,6 +239,8 @@ struct StatusPill: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)

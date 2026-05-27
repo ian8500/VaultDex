@@ -50,7 +50,7 @@ struct CardTile: View {
 
                     Spacer()
 
-                    Text(card.marketValue.vaultEstimatedCurrency)
+                    Text(card.marketValue > 0 ? card.marketValue.vaultEstimatedCurrency : "Checking value…")
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(Color.vdTextPrimary)
                         .lineLimit(1)

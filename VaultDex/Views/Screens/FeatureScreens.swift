@@ -2457,59 +2457,89 @@ private struct ExportCSVPanel: View {
 private struct WishlistRow: View {
     let item: WishlistItem
 
+    private var valueLabel: String {
+        if item.card.marketValue > 0 {
+            item.card.marketValue.vaultEstimatedCurrency
+        } else if item.budget > 0 {
+            item.budget.vaultEstimatedCurrency
+        } else {
+            "Checking value…"
+        }
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            CardTile(card: item.card, variant: item.priority == .grail ? .secretRare : nil, style: .compact)
-                .frame(width: 150)
+        HStack(alignment: .center, spacing: 13) {
+            VaultCardThumbnail(card: item.card)
+                .frame(width: 64, height: 88)
 
-            VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    StatusPill(title: item.priority == .grail ? "Grail" : item.priority.displayName, tint: priorityTint)
-                    Spacer()
-                    tradeValueChip(item.budget.vaultEstimatedCurrency, tint: .vdGold)
-                }
-
+            VStack(alignment: .leading, spacing: 8) {
                 Text(item.card.name)
-                    .font(.headline)
+                    .font(.subheadline.weight(.black))
                     .foregroundStyle(Color.vdTextPrimary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Preferred: \(item.preferredCondition.displayName)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.vdSky)
-
-                Text(item.notes)
-                    .font(.subheadline)
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.vdTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        CompactInfoChip(title: priorityTitle, tint: priorityTint, isProminent: item.priority == .grail)
+                        CompactRarityChip(rarity: item.card.rarity)
+                    }
+                }
+                .scrollDisabled(true)
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Estimated value")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.vdTextSecondary)
+
+                    Spacer(minLength: 8)
+
+                    Text(valueLabel)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(item.card.marketValue > 0 || item.budget > 0 ? Color.vdTextPrimary : Color.vdGold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+
+                if !item.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(item.notes)
+                        .font(.caption)
+                        .foregroundStyle(Color.vdTextSecondary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LinearGradient(
                 colors: item.priority == .grail
-                ? [Color.vdGold.opacity(0.20), Color.vdPanel.opacity(0.92), Color.vdCoral.opacity(0.12)]
-                : [Color.vdPanelRaised.opacity(0.92), Color.vdPanel.opacity(0.86)],
+                ? [Color.vdGold.opacity(0.14), Color.vdPanel.opacity(0.78), Color.vdCoral.opacity(0.08)]
+                : [Color.vdPanel.opacity(0.76), Color.vdPanelRaised.opacity(0.64)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 18)
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke((item.priority == .grail ? Color.vdGold : Color.vdStroke).opacity(item.priority == .grail ? 0.58 : 0.72), lineWidth: 1.1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke((item.priority == .grail ? Color.vdGold : Color.white).opacity(item.priority == .grail ? 0.28 : 0.06), lineWidth: 1)
         )
-        .shadow(color: (item.priority == .grail ? Color.vdGold : Color.clear).opacity(0.18), radius: 18, x: 0, y: 8)
+        .shadow(color: (item.priority == .grail ? Color.vdGold : Color.black).opacity(item.priority == .grail ? 0.14 : 0.10), radius: 12, x: 0, y: 6)
     }
 
-    private func tradeValueChip(_ value: String, tint: Color) -> some View {
-        Label(value, systemImage: "seal.fill")
-            .font(.caption.weight(.black))
-            .foregroundStyle(Color.vdNavy)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(tint.opacity(0.92), in: Capsule())
-            .overlay(Capsule().stroke(Color.white.opacity(0.34), lineWidth: 1))
+    private var priorityTitle: String {
+        switch item.priority {
+        case .low: "Nice to have"
+        case .medium: "Looking for"
+        case .high: "Really want"
+        case .grail: "Grail"
+        }
     }
 
     private var priorityTint: Color {
