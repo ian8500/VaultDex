@@ -9,7 +9,7 @@ final class CardAPIService {
 
     init(
         baseURL: URL = URL(string: "https://api.pokemontcg.io/v2")!,
-        apiKey: String? = nil,
+        apiKey: String? = PokemonTCGConfig.apiKey,
         urlSession: URLSession = CardAPIService.defaultSession
     ) {
         self.baseURL = baseURL
@@ -20,8 +20,8 @@ final class CardAPIService {
     private static let defaultSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.waitsForConnectivity = true
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 30
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 15
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: configuration)
     }()
