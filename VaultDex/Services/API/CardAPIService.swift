@@ -329,7 +329,14 @@ private extension PokemonTCGCard {
             source: "pokemon_tcg",
             externalID: set.id,
             series: set.series,
-            releaseDate: set.releaseDate
+            releaseDate: set.releaseDate,
+            rawPayload: [
+                "id": .string(set.id),
+                "name": .string(set.name),
+                "series": .string(set.series ?? ""),
+                "release_date": .string(set.releaseDate ?? "")
+            ],
+            cachedAt: Date()
         )
     }
 
@@ -357,7 +364,18 @@ private extension PokemonTCGCard {
             subtypes: subtypes ?? [],
             smallImageURL: images?.small?.absoluteString,
             largeImageURL: images?.large?.absoluteString,
-            currency: "GBP"
+            currency: "GBP",
+            rawPayload: [
+                "id": .string(id),
+                "name": .string(name),
+                "set_id": .string(set.id),
+                "set_name": .string(set.name),
+                "number": .string(number),
+                "rarity": .string(rarity ?? ""),
+                "small_image_url": .string(images?.small?.absoluteString ?? ""),
+                "large_image_url": .string(images?.large?.absoluteString ?? "")
+            ],
+            cachedAt: Date()
         )
     }
 }

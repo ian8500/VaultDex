@@ -97,18 +97,30 @@ final class SearchViewModel: ObservableObject {
     @Published private(set) var setErrorMessage: String?
 
     private let apiService: CardAPIService
+    private let importService: CardImportService
     private let cacheService: CardCacheService
     private let pageSize = 8
 
-    init(apiService: CardAPIService = CardAPIService(), cacheService: CardCacheService = .shared) {
+    init(apiService: CardAPIService = CardAPIService(), importService: CardImportService = CardImportService(), cacheService: CardCacheService = .shared) {
         self.apiService = apiService
+        self.importService = importService
         self.cacheService = cacheService
     }
 
     func loadInitialResults(store: LocalVaultStore) async {
         guard !didLoadAPI else { return }
-        await loadCachedDiscovery()
+        await loadCachedDiscovery(store: store)
         didLoadAPI = true
+        Task {
+            await importService.refreshPopularCardsIfNeeded(
+                using: store.repositories.cards,
+                clientProvider: store.repositories.clientProvider
+            )
+            await importService.enrichStaleCards(
+                using: store.repositories.cards,
+                clientProvider: store.repositories.clientProvider
+            )
+        }
     }
 
     func search(store: LocalVaultStore) async {
@@ -124,7 +136,7 @@ final class SearchViewModel: ObservableObject {
             || selectedType != nil
             || selectedSet != nil
         guard hasSearchInput else {
-            await loadCachedDiscovery()
+            await loadCachedDiscovery(store: store)
             didLoadAPI = true
             return
         }
@@ -158,48 +170,41 @@ final class SearchViewModel: ObservableObject {
         }
 
         do {
-            do {
-                let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(
-                    CardSearchRequest(
-                        query: query,
-                        rarity: selectedRarity,
-                        type: selectedType,
-                        setID: selectedSet?.externalID ?? selectedSet?.code,
-                        limit: 20
-                    )
-                )
-                if !supabaseCards.isEmpty {
-                    apiCards = sort(supabaseCards)
-                    totalResults = supabaseCards.count
-                    canLoadMore = false
-                    isShowingCachedResults = false
-                    await cacheService.saveSearch(cards: supabaseCards, totalResults: supabaseCards.count, key: key)
-                    return
-                }
-            } catch {
-                // Supabase is the primary card database, but live search can still refresh it if cache lookup fails.
-            }
-
-            await ExchangeRateService.shared.refreshRatesIfNeeded()
-            let response = try await apiService.searchCards(
+            let request = CardSearchRequest(
                 query: query,
                 rarity: selectedRarity,
                 type: selectedType,
                 setID: selectedSet?.externalID ?? selectedSet?.code,
-                quickQuery: selectedQuickChip?.apiQuery,
-                sort: sortOption,
-                page: currentPage,
-                pageSize: pageSize
+                limit: 20
             )
+            let supabaseCards = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(request)
+            if !supabaseCards.isEmpty {
+                apiCards = sort(supabaseCards)
+                totalResults = supabaseCards.count
+                canLoadMore = false
+                isShowingCachedResults = false
+                await cacheService.saveSearch(cards: supabaseCards, totalResults: supabaseCards.count, key: key)
+
+                if supabaseCards.count < pageSize {
+                    Task {
+                        await importMissingCardsInBackground(request: request, store: store, cacheKey: key)
+                    }
+                }
+                return
+            }
+
+            let importedCards = try await importCards(request: request, store: store, page: currentPage)
             guard !Task.isCancelled else { return }
 
-            let cards = response.data.map(\.localCard)
-            apiCards = sort(cards)
-            totalResults = response.totalCount
-            canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
+            apiCards = sort(importedCards)
+            totalResults = importedCards.count
+            canLoadMore = importedCards.count == pageSize
             isShowingCachedResults = false
-            await cacheService.saveSearch(cards: cards, totalResults: response.totalCount, key: key)
-            await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
+            await cacheService.saveSearch(
+                cards: importedCards,
+                totalResults: importedCards.count,
+                key: key
+            )
         } catch {
             guard !Task.isCancelled else { return }
             if apiCards.isEmpty {
@@ -230,24 +235,24 @@ final class SearchViewModel: ObservableObject {
                 return
             }
 
-            let response = try await apiService.searchCards(
-                query: query,
-                rarity: selectedRarity,
-                type: selectedType,
-                setID: selectedSet?.externalID ?? selectedSet?.code,
-                quickQuery: selectedQuickChip?.apiQuery,
-                sort: sortOption,
-                page: nextPage,
-                pageSize: pageSize
+            let newCards = try await importCards(
+                request: CardSearchRequest(
+                    query: query,
+                    rarity: selectedRarity,
+                    type: selectedType,
+                    setID: selectedSet?.externalID ?? selectedSet?.code,
+                    limit: pageSize
+                ),
+                store: store,
+                page: nextPage
             )
             currentPage = nextPage
             var seenIDs = Set(apiCards.map(\.id))
-            let newCards = response.data.map(\.localCard).filter { seenIDs.insert($0.id).inserted }
-            apiCards = sort(apiCards + newCards)
-            totalResults = response.totalCount
-            canLoadMore = response.data.count == pageSize && apiCards.count < (response.totalCount ?? Int.max)
-            await cacheService.saveSearch(cards: response.data.map(\.localCard), totalResults: response.totalCount, key: key)
-            await apiService.cache(cards: response.data, using: store.repositories.clientProvider)
+            let uniqueNewCards = newCards.filter { seenIDs.insert($0.id).inserted }
+            apiCards = sort(apiCards + uniqueNewCards)
+            totalResults = (totalResults ?? apiCards.count) + uniqueNewCards.count
+            canLoadMore = newCards.count == pageSize
+            await cacheService.saveSearch(cards: uniqueNewCards, totalResults: totalResults, key: key)
         } catch {
             errorMessage = Self.friendlySearchError(for: error)
         }
@@ -382,7 +387,32 @@ final class SearchViewModel: ObservableObject {
         )
     }
 
-    private func loadCachedDiscovery() async {
+    private func importCards(request: CardSearchRequest, store: LocalVaultStore, page: Int) async throws -> [Card] {
+        try await importService.searchAndCache(
+            query: request.query,
+            rarity: request.rarity,
+            type: request.type,
+            setID: request.setID,
+            quickQuery: selectedQuickChip?.apiQuery,
+            page: page,
+            pageSize: pageSize,
+            using: store.repositories.clientProvider
+        )
+    }
+
+    private func importMissingCardsInBackground(request: CardSearchRequest, store: LocalVaultStore, cacheKey: String) async {
+        do {
+            let importedCards = try await importCards(request: request, store: store, page: 1)
+            guard !importedCards.isEmpty else { return }
+            let refreshed = try await SupabaseCardRepository(repository: store.repositories.cards).searchCards(request)
+            guard !refreshed.isEmpty else { return }
+            await cacheService.saveSearch(cards: refreshed, totalResults: refreshed.count, key: cacheKey)
+        } catch {
+            return
+        }
+    }
+
+    private func loadCachedDiscovery(store: LocalVaultStore) async {
         let recentCards = await cacheService.recentlyViewedCards()
         if !recentCards.isEmpty {
             apiCards = sort(Array(recentCards.prefix(pageSize)))
@@ -408,6 +438,18 @@ final class SearchViewModel: ObservableObject {
                 totalResults = cached.totalResults
                 canLoadMore = false
                 isShowingCachedResults = true
+                errorMessage = nil
+                return
+            }
+        }
+
+        for popularName in ["Pikachu", "Charizard", "Eevee", "Mew", "Umbreon", "Gengar", "Snorlax"] {
+            if let cards = try? await SupabaseCardRepository(repository: store.repositories.cards).searchCardsByName(popularName, limit: pageSize),
+               !cards.isEmpty {
+                apiCards = sort(cards)
+                totalResults = cards.count
+                canLoadMore = false
+                isShowingCachedResults = false
                 errorMessage = nil
                 return
             }

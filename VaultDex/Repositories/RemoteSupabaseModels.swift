@@ -1,5 +1,49 @@
 import Foundation
 
+enum JSONPayloadValue: Codable, Hashable, ExpressibleByStringLiteral {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONPayloadValue])
+    case array([JSONPayloadValue])
+    case null
+
+    init(stringLiteral value: String) {
+        self = .string(value)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode([String: JSONPayloadValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([JSONPayloadValue].self) {
+            self = .array(value)
+        } else {
+            self = .null
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value): try container.encode(value)
+        case let .number(value): try container.encode(value)
+        case let .bool(value): try container.encode(value)
+        case let .object(value): try container.encode(value)
+        case let .array(value): try container.encode(value)
+        case .null: try container.encodeNil()
+        }
+    }
+}
+
 struct RemoteProfile: Codable, Identifiable, Hashable {
     let id: UUID
     var username: String
@@ -136,6 +180,7 @@ struct RemoteCardSet: Codable, Identifiable, Hashable {
     var releaseDate: String?
     var logoURL: String?
     var symbolURL: String?
+    var rawPayload: [String: JSONPayloadValue]?
     var cachedAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -146,6 +191,7 @@ struct RemoteCardSet: Codable, Identifiable, Hashable {
         case releaseDate = "release_date"
         case logoURL = "logo_url"
         case symbolURL = "symbol_url"
+        case rawPayload = "raw_payload"
         case cachedAt = "cached_at"
     }
 
@@ -161,6 +207,7 @@ struct RemoteCardSet: Codable, Identifiable, Hashable {
         releaseDate: String? = nil,
         logoURL: String? = nil,
         symbolURL: String? = nil,
+        rawPayload: [String: JSONPayloadValue]? = nil,
         cachedAt: Date? = nil
     ) {
         self.id = id
@@ -174,6 +221,7 @@ struct RemoteCardSet: Codable, Identifiable, Hashable {
         self.releaseDate = releaseDate
         self.logoURL = logoURL
         self.symbolURL = symbolURL
+        self.rawPayload = rawPayload
         self.cachedAt = cachedAt
     }
 }
@@ -201,6 +249,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
     var smallImageURL: String?
     var largeImageURL: String?
     var currency: String?
+    var rawPayload: [String: JSONPayloadValue]?
     var cachedAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -217,6 +266,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
         case setExternalID = "set_external_id"
         case smallImageURL = "small_image_url"
         case largeImageURL = "large_image_url"
+        case rawPayload = "raw_payload"
         case cachedAt = "cached_at"
     }
 
@@ -243,6 +293,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
         smallImageURL: String? = nil,
         largeImageURL: String? = nil,
         currency: String? = nil,
+        rawPayload: [String: JSONPayloadValue]? = nil,
         cachedAt: Date? = nil
     ) {
         self.id = id
@@ -267,6 +318,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
         self.smallImageURL = smallImageURL
         self.largeImageURL = largeImageURL
         self.currency = currency
+        self.rawPayload = rawPayload
         self.cachedAt = cachedAt
     }
 
@@ -296,6 +348,7 @@ struct RemoteCard: Codable, Identifiable, Hashable {
         smallImageURL = try container.decodeIfPresent(String.self, forKey: .smallImageURL)
         largeImageURL = try container.decodeIfPresent(String.self, forKey: .largeImageURL)
         currency = try container.decodeIfPresent(String.self, forKey: .currency)
+        rawPayload = try container.decodeIfPresent([String: JSONPayloadValue].self, forKey: .rawPayload)
         cachedAt = try container.decodeIfPresent(Date.self, forKey: .cachedAt)
     }
 }

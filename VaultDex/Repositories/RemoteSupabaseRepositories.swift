@@ -185,6 +185,16 @@ final class SupabaseCardCatalogRepository: SupabaseTableRepository, CardCatalogR
         ])
     }
 
+    func fetchStaleCards(limit: Int) async throws -> [RemoteCard] {
+        let cutoff = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-60 * 60 * 24 * 14))
+        return try await fetchRows(from: "cards", queryItems: [
+            URLQueryItem(name: "or", value: "(market_price.is.null,small_image_url.is.null,rarity.is.null,cached_at.lt.\(cutoff))"),
+            URLQueryItem(name: "external_id", value: "not.is.null"),
+            URLQueryItem(name: "order", value: "cached_at.asc.nullsfirst"),
+            URLQueryItem(name: "limit", value: "\(max(1, min(limit, 50)))")
+        ])
+    }
+
     func fetchCards(ids: [UUID]) async throws -> [RemoteCard] {
         let uniqueIDs = Array(Set(ids))
         guard !uniqueIDs.isEmpty else { return [] }

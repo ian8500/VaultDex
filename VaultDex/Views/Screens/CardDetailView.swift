@@ -813,6 +813,14 @@ struct CardDetailView: View {
             return
         }
         guard force || liveCard == nil else { return }
+        let hasEnoughCachedDetail = detailCard.marketValue > 0
+            && detailCard.largeImageURL != nil
+            && !detailCard.number.isEmpty
+            && !detailCard.set.name.isEmpty
+        guard force || !hasEnoughCachedDetail else {
+            store.cacheViewedCard(detailCard)
+            return
+        }
 
         isLoadingLiveCard = true
         detailErrorMessage = nil
